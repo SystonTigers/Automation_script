@@ -1,3 +1,116 @@
+# 📋 TASKS – Syston Tigers Football Automation System
+
+**Status (Today):** Milestone 2 in progress — Repo + CI scaffold created; Canva templates pending.  
+**Principles:** Centralised config, no globals, idempotent ops, diagnostic logging, @testHook before/after external calls.  
+**Docs:** See CLAUDE.md for coding rules and PLANNING.md for architecture/roadmap.
+
+---
+
+## 🚀 NOW (highest priority)
+
+### A. Repo & CI (free, hands-off deploy)
+- [ ] Add **service account** (Editor) to Apps Script project and container Sheet.
+- [ ] Add GitHub secret `APPSCRIPT_CREDS_JSON_B64` (base64 of the SA JSON).
+- [ ] Set `.clasp.json` `scriptId` and keep `rootDir: "src"`.
+- [ ] Push a test change → confirm **Actions → clasp push** updates Apps Script.
+- [ ] (Optional) Add a **sanity-check workflow** that fails if `src/appsscript.json` or `.clasp.json` is missing.
+
+### B. Goal of the Month (GOTM) — *final 30% of Milestone 2*
+**Apps Script (`youtube-integration.gs`, new `GOTM` namespace)**
+- [ ] `GOTM.findGoalsByMonth(month, year)` — read `YouTube_Videos` sheet, return candidates.
+- [ ] `GOTM.startGotmVoting(month, year)` — create tab `GOTM_Vote_<m>_<y>` with headers: `Video_ID, Title, Upload_Date, Vote_Count` (all zeroed), idempotent if rerun.
+- [ ] `GOTM.tallyGotmVotes(month, year)` — compute winner; write to `GOTM_Winners` sheet with date, title, videoId, votes; return winner object.
+- [ ] Add logging at entry/exit and `@testHook` around sheet I/O and any HTTP calls.
+- [ ] Config: add sheet names & prefixes in `config.js` (no new globals).
+
+**Make.com**
+- [ ] Router branch `gotm_start_voting` → call `GOTM.startGotmVoting(month,year)`.
+- [ ] Router branch `gotm_tally_votes` → call `GOTM.tallyGotmVotes(month,year)`; then post winner.
+- [ ] Schedule: auto-open voting on **1st** (or first Monday) and auto-tally after **7 days**.
+
+**Canva & Social**
+- [ ] Create **Voting** template (1080×1080 + 1080×1920): `{{MONTH}} {{YEAR}}`, candidate list or carousel.
+- [ ] Create **Winner** template: `{{TITLE}}`, `{{THUMB_URL}}`, `{{MONTH}} {{YEAR}}`, badge; style in club colours.
+- [ ] Make.com fills placeholders and posts to social with #GOTM.
+
+**Acceptance**
+- [ ] Re-running start/tally is idempotent (no dupes).
+- [ ] Winner written to `GOTM_Winners` and posted once.
+- [ ] Logs show full trace; errors handled without crashes.
+
+### C. Social Video Distribution — *completes Milestone 2*
+**Apps Script (`youtube-integration.gs`, new `Social` namespace)**
+- [ ] `Social.preparePostData(videoId)` → fetch YouTube details (Advanced Service), build `{title,url,hashtags,message}`.
+- [ ] `Social.generateSocialMessage(title,url)` — short, platform-safe copy.
+- [ ] `Social.extractHashtags(description)` — parse `#tags`.
+
+**Make.com**
+- [ ] Branch `social_post_execute` → call `Social.preparePostData` → router to Twitter/X, Facebook, Instagram.
+- [ ] (Optional) Canva thumbnail/teaser template populated per platform.
+
+**Acceptance**
+- [ ] New YouTube upload triggers Make.com → one post per platform.
+- [ ] Handles missing/invalid videoId gracefully; no duplicate posts.
+
+---
+
+## ✅ NEXT (short-term)
+
+### D. Free documentation backup (Drive/Docs)
+- [ ] Add `backupRepoToGoogleDoc()` (separate Apps Script or current project) that fetches raw GitHub URLs for all `src/*` and writes to **Google Doc**.
+- [ ] Time-based trigger daily; store in Drive folder `Backups/AppsScript`.
+- [ ] Optional: also save a `.zip` to Drive monthly.
+
+### E. Homepage polish (carryover)
+- [ ] Live updates box: keep **latest only**, auto-expire after **90 mins**.
+- [ ] League table: generate `table.html` from Sheet; push to GitHub Pages.
+- [ ] Colour/theme fixes across pages; menu bar consistency.
+
+---
+
+## 🔜 LATER (backlog aligned to roadmap)
+
+### F. Cards & Sin-bin workflow (no impact on goals)
+- [ ] Event capture UI + icons (🟨/🟥/🟧 PNG).
+- [ ] Update Player_Events and Player Stats (cards/sin-bin counters only).
+- [ ] Social posts use icon overlays; maintain idempotency.
+
+### G. Clips & Monthly Montage
+- [ ] Timestamps → FFmpeg/CloudConvert trimming.
+- [ ] Auto-upload; write back YouTube URL.
+- [ ] “Goal of the Month” short-list auto-populate from clip metadata.
+
+### H. Data→Canva mapping hardening
+- [ ] Keep `League Raw → League Sorted → League Canva Map` pipeline healthy.
+- [ ] Badge Map tab (HOME_BADGE_URL/AWAY_BADGE_URL) and Make.com media replace.
+- [ ] Verify placeholder set for results/HT-FT templates; enforce character limits.
+
+### I. Platform expansion
+- [ ] TikTok native posting via Make/API.
+- [ ] Player profile pages export to GitHub; sponsor overlays on graphics.
+- [ ] Retry/backoff for XbotGo pushes.
+
+---
+
+## 🧪 Test Matrix (add cases as you build)
+- [ ] GOTM: month with 0, 1, N goals; duplicate rerun; tie on votes.
+- [ ] Social: missing videoId; private/unlisted video; very long titles.
+- [ ] CI: missing secret; invalid scriptId; network failure (workflow retries).
+- [ ] Backup: one file fetch fails; Doc write quota.
+
+---
+
+## 📌 Definition of Done (per feature)
+- Code follows CLAUDE.md rules (config centralised, idempotent, logging + hooks).
+- Unit paths tested with deterministic samples.
+- Make.com routes documented in repo JSON.
+- Canva placeholders listed in PLANNING.md.
+- README updated if public behaviour changes.
+
+---
+
+**Doc owner:** Senior Software Architect  
+**Last updated:** {{today}}
 
 ﻿tasks.md - Syston Tigers Football Automation System
 📋 PROJECT TASK BREAKDOWN BY MILESTONES
