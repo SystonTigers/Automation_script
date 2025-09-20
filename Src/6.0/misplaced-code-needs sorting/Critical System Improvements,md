@@ -1,0 +1,1048 @@
+/**
+ * @fileoverview Syston Tigers Automation - Critical System Improvements
+ * @version 5.1.0
+ * @author Senior Software Architect
+ * 
+ * Key improvements to strengthen the existing system:
+ * 1. Enhanced error recovery and circuit breaker patterns
+ * 2. Performance monitoring and optimization
+ * 3. Advanced caching and rate limiting
+ * 4. Webhook security and validation
+ * 5. Database-like query capabilities for sheets
+ */
+
+
+// ===== 1. CIRCUIT BREAKER PATTERN FOR EXTERNAL SERVICES =====
+
+
+/**
+ * Circuit Breaker for external API calls with failure tracking
+ */
+class CircuitBreaker {
+  constructor(serviceName, failureThreshold = 5, recoveryTimeout = 60000) {
+    this.serviceName = serviceName;
+    this.failureThreshold = failureThreshold;
+    this.recoveryTimeout = recoveryTimeout;
+    this.failureCount = 0;
+    this.lastFailureTime = null;
+    this.state = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
+  }
+
+
+  async execute(operation) {
+    if (this.state === 'OPEN') {
+      if (Date.now() - this.lastFailureTime > this.recoveryTimeout) {
+        this.state = 'HALF_OPEN';
+        logger.info(`Circuit breaker half-open for ${this.serviceName}`);
+      } else {
+        throw new Error(`Circuit breaker OPEN for ${this.serviceName}`);
+      }
+    }
+
+
+    try {
+      const result = await operation();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+
+  onSuccess() {
+    this.failureCount = 0;
+    this.state = 'CLOSED';
+    logger.debug(`Circuit breaker reset for ${this.serviceName}`);
+  }
+
+
+  onFailure() {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+    
+    if (this.failureCount >= this.failureThreshold) {
+      this.state = 'OPEN';
+      logger.error(`Circuit breaker OPEN for ${this.serviceName}`, {
+        failureCount: this.failureCount,
+        threshold: this.failureThreshold
+      });
+    }
+  }
+}
+
+
+// ===== 2. PERFORMANCE MONITORING SYSTEM =====
+
+
+/**
+ * Performance Monitor with bottleneck detection
+ */
+class PerformanceMonitor extends BaseAutomationComponent {
+  constructor() {
+    super('PerformanceMonitor');
+    this.metrics = new Map();
+    this.alerts = [];
+  }
+
+
+  startOperation(operationName, context = {}) {
+    const operationId = StringUtils.generateId('perf');
+    this.metrics.set(operationId, {
+      name: operationName,
+      startTime: Date.now(),
+      context: context,
+      memoryBefore: this.getMemoryUsage()
+    });
+    return operationId;
+  }
+
+
+  endOperation(operationId, success = true, additionalData = {}) {
+    const metric = this.metrics.get(operationId);
+    if (!metric) return null;
+
+
+    const endTime = Date.now();
+    const duration = endTime - metric.startTime;
+    
+    const result = {
+      ...metric,
+      endTime: endTime,
+      duration: duration,
+      success: success,
+      memoryAfter: this.getMemoryUsage(),
+      memoryDelta: this.getMemoryUsage() - metric.memoryBefore,
+      ...additionalData
+    };
+
+
+    // Check for performance issues
+    this.checkPerformanceAlerts(result);
+    
+    // Log to performance sheet
+    this.logPerformanceMetric(result);
+    
+    this.metrics.delete(operationId);
+    return result;
+  }
+
+
+  checkPerformanceAlerts(result) {
+    // Slow operation alert (>30 seconds)
+    if (result.duration > 30000) {
+      this.alerts.push({
+        type: 'SLOW_OPERATION',
+        operation: result.name,
+        duration: result.duration,
+        timestamp: DateUtils.now().toISOString()
+      });
+      logger.warn('Slow operation detected', result);
+    }
+
+
+    // Memory leak alert (>10MB increase)
+    if (result.memoryDelta > 10 * 1024 * 1024) {
+      this.alerts.push({
+        type: 'MEMORY_LEAK',
+        operation: result.name,
+        memoryIncrease: result.memoryDelta,
+        timestamp: DateUtils.now().toISOString()
+      });
+      logger.warn('Potential memory leak detected', result);
+    }
+  }
+
+
+  getMemoryUsage() {
+    // Apps Script doesn't expose memory directly, approximate from execution time
+    return Date.now() % 1000000; // Placeholder
+  }
+
+
+  logPerformanceMetric(metric) {
+    try {
+      const perfSheet = SheetUtils.getOrCreateSheet(
+        'Performance_Metrics',
+        ['Timestamp', 'Operation', 'Duration_MS', 'Success', 'Memory_Delta', 'Context']
+      );
+      
+      if (perfSheet) {
+        const values = [
+          DateUtils.now().toISOString(),
+          metric.name,
+          metric.duration,
+          metric.success,
+          metric.memoryDelta || 0,
+          JSON.stringify(metric.context).substr(0, 500)
+        ];
+        
+        SheetUtils.appendRowSafe(perfSheet, values);
+      }
+    } catch (error) {
+      logger.error('Failed to log performance metric', { error: error.toString() });
+    }
+  }
+}
+
+
+// ===== 3. ADVANCED CACHING SYSTEM =====
+
+
+/**
+ * Multi-level cache with TTL and invalidation
+ */
+class SmartCache {
+  constructor() {
+    this.memoryCache = new Map();
+    this.cacheStats = {
+      hits: 0,
+      misses: 0,
+      evictions: 0
+    };
+  }
+
+
+  set(key, value, ttlSeconds = 300) {
+    const entry = {
+      value: value,
+      timestamp: Date.now(),
+      ttl: ttlSeconds * 1000,
+      accessCount: 0
+    };
+    
+    this.memoryCache.set(key, entry);
+    this.evictExpired();
+  }
+
+
+  get(key) {
+    const entry = this.memoryCache.get(key);
+    
+    if (!entry) {
+      this.cacheStats.misses++;
+      return null;
+    }
+
+
+    // Check if expired
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.memoryCache.delete(key);
+      this.cacheStats.misses++;
+      this.cacheStats.evictions++;
+      return null;
+    }
+
+
+    entry.accessCount++;
+    this.cacheStats.hits++;
+    return entry.value;
+  }
+
+
+  invalidate(pattern) {
+    let invalidated = 0;
+    const regex = new RegExp(pattern);
+    
+    for (const key of this.memoryCache.keys()) {
+      if (regex.test(key)) {
+        this.memoryCache.delete(key);
+        invalidated++;
+      }
+    }
+    
+    logger.info(`Cache invalidated: ${invalidated} entries for pattern: ${pattern}`);
+    return invalidated;
+  }
+
+
+  evictExpired() {
+    const now = Date.now();
+    let evicted = 0;
+    
+    for (const [key, entry] of this.memoryCache.entries()) {
+      if (now - entry.timestamp > entry.ttl) {
+        this.memoryCache.delete(key);
+        evicted++;
+      }
+    }
+    
+    if (evicted > 0) {
+      this.cacheStats.evictions += evicted;
+      logger.debug(`Evicted ${evicted} expired cache entries`);
+    }
+  }
+
+
+  getStats() {
+    const hitRate = this.cacheStats.hits / (this.cacheStats.hits + this.cacheStats.misses) * 100;
+    return {
+      ...this.cacheStats,
+      hitRate: Math.round(hitRate * 100) / 100,
+      size: this.memoryCache.size
+    };
+  }
+}
+
+
+// ===== 4. WEBHOOK SECURITY AND VALIDATION =====
+
+
+/**
+ * Webhook Security Manager with signature validation
+ */
+class WebhookSecurityManager {
+  constructor() {
+    this.rateLimiter = new Map();
+    this.blockedIPs = new Set();
+  }
+
+
+  validateWebhook(request, expectedSource = 'make.com') {
+    logger.testHook('webhook_validation_start', { source: expectedSource });
+
+
+    const validationResult = {
+      valid: false,
+      errors: [],
+      rateLimit: false,
+      blocked: false
+    };
+
+
+    try {
+      // Rate limiting check
+      const clientIP = this.getClientIP(request);
+      if (this.isRateLimited(clientIP)) {
+        validationResult.rateLimit = true;
+        validationResult.errors.push('Rate limit exceeded');
+        return validationResult;
+      }
+
+
+      // IP blocking check
+      if (this.blockedIPs.has(clientIP)) {
+        validationResult.blocked = true;
+        validationResult.errors.push('IP blocked');
+        return validationResult;
+      }
+
+
+      // Signature validation (if configured)
+      if (expectedSource === 'make.com') {
+        const signatureValid = this.validateMakeSignature(request);
+        if (!signatureValid) {
+          validationResult.errors.push('Invalid signature');
+          return validationResult;
+        }
+      }
+
+
+      // Payload validation
+      const payloadValid = this.validatePayload(request);
+      if (!payloadValid.valid) {
+        validationResult.errors.push(...payloadValid.errors);
+        return validationResult;
+      }
+
+
+      validationResult.valid = true;
+      this.recordValidRequest(clientIP);
+      
+      logger.testHook('webhook_validation_success', { clientIP, source: expectedSource });
+      return validationResult;
+
+
+    } catch (error) {
+      validationResult.errors.push(`Validation error: ${error.toString()}`);
+      logger.error('Webhook validation failed', { error: error.toString() });
+      return validationResult;
+    }
+  }
+
+
+  validateMakeSignature(request) {
+    // Implement Make.com webhook signature validation
+    const signature = request.headers['X-Make-Signature'];
+    const webhookSecret = PropertiesService.getScriptProperties()
+                           .getProperty('MAKE_WEBHOOK_SECRET');
+    
+    if (!signature || !webhookSecret) {
+      logger.warn('Missing signature or webhook secret');
+      return false;
+    }
+
+
+    // Implement HMAC signature verification
+    // This is a simplified version - implement proper HMAC-SHA256
+    const expectedSignature = Utilities.computeHmacSha256Signature(
+      JSON.stringify(request.postData.contents),
+      webhookSecret
+    );
+    
+    return signature === Utilities.base64Encode(expectedSignature);
+  }
+
+
+  validatePayload(request) {
+    const errors = [];
+    
+    try {
+      const payload = JSON.parse(request.postData.contents);
+      
+      // Required fields validation
+      if (!payload.timestamp) {
+        errors.push('Missing timestamp');
+      }
+      
+      if (!payload.event_type) {
+        errors.push('Missing event_type');
+      }
+      
+      if (!payload.source) {
+        errors.push('Missing source');
+      }
+
+
+      // Timestamp validation (not too old)
+      if (payload.timestamp) {
+        const age = Date.now() - new Date(payload.timestamp).getTime();
+        if (age > 300000) { // 5 minutes
+          errors.push('Timestamp too old');
+        }
+      }
+
+
+      return {
+        valid: errors.length === 0,
+        errors: errors
+      };
+
+
+    } catch (parseError) {
+      return {
+        valid: false,
+        errors: ['Invalid JSON payload']
+      };
+    }
+  }
+
+
+  getClientIP(request) {
+    return request.headers['X-Forwarded-For'] || 
+           request.headers['X-Real-IP'] || 
+           'unknown';
+  }
+
+
+  isRateLimited(clientIP) {
+    const now = Date.now();
+    const windowMs = 60000; // 1 minute window
+    const maxRequests = 100;
+
+
+    const clientRequests = this.rateLimiter.get(clientIP) || [];
+    
+    // Remove old requests outside window
+    const recentRequests = clientRequests.filter(time => now - time < windowMs);
+    
+    if (recentRequests.length >= maxRequests) {
+      return true;
+    }
+    
+    recentRequests.push(now);
+    this.rateLimiter.set(clientIP, recentRequests);
+    return false;
+  }
+
+
+  recordValidRequest(clientIP) {
+    // Record successful request for analytics
+    logger.debug('Valid webhook request recorded', { clientIP });
+  }
+
+
+  blockIP(ip, reason = 'Manual block') {
+    this.blockedIPs.add(ip);
+    logger.warn(`IP blocked: ${ip}`, { reason });
+  }
+}
+
+
+// ===== 5. DATABASE-LIKE QUERY SYSTEM FOR SHEETS =====
+
+
+/**
+ * Advanced Sheet Query System with SQL-like operations
+ */
+class SheetQueryEngine {
+  constructor() {
+    this.cache = new SmartCache();
+  }
+
+
+  /**
+   * Execute SQL-like queries on sheet data
+   * @param {string} sheetName - Sheet name
+   * @param {Object} query - Query object
+   * @returns {Array} Query results
+   */
+  executeQuery(sheetName, query) {
+    logger.testHook('sheet_query_execution', { sheetName, query });
+
+
+    const cacheKey = `query_${sheetName}_${JSON.stringify(query)}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+
+    try {
+      const sheet = SheetUtils.getOrCreateSheet(sheetName);
+      if (!sheet) {
+        throw new Error(`Sheet not found: ${sheetName}`);
+      }
+
+
+      const data = sheet.getDataRange().getValues();
+      if (data.length === 0) {
+        return [];
+      }
+
+
+      const headers = data[0];
+      let rows = data.slice(1).map(row => {
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index];
+        });
+        return obj;
+      });
+
+
+      // Apply WHERE conditions
+      if (query.where) {
+        rows = this.applyWhereConditions(rows, query.where);
+      }
+
+
+      // Apply ORDER BY
+      if (query.orderBy) {
+        rows = this.applyOrderBy(rows, query.orderBy);
+      }
+
+
+      // Apply SELECT (projection)
+      if (query.select && query.select !== '*') {
+        rows = this.applySelect(rows, query.select);
+      }
+
+
+      // Apply LIMIT
+      if (query.limit) {
+        rows = rows.slice(0, query.limit);
+      }
+
+
+      // Apply GROUP BY and aggregations
+      if (query.groupBy) {
+        rows = this.applyGroupBy(rows, query.groupBy, query.aggregations);
+      }
+
+
+      this.cache.set(cacheKey, rows, 60); // Cache for 1 minute
+      return rows;
+
+
+    } catch (error) {
+      logger.error('Sheet query execution failed', { 
+        sheetName, query, error: error.toString() 
+      });
+      throw error;
+    }
+  }
+
+
+  applyWhereConditions(rows, conditions) {
+    return rows.filter(row => {
+      return conditions.every(condition => {
+        const { field, operator, value } = condition;
+        const fieldValue = row[field];
+
+
+        switch (operator) {
+          case '=':
+          case 'eq':
+            return fieldValue == value;
+          case '!=':
+          case 'ne':
+            return fieldValue != value;
+          case '>':
+          case 'gt':
+            return Number(fieldValue) > Number(value);
+          case '>=':
+          case 'gte':
+            return Number(fieldValue) >= Number(value);
+          case '<':
+          case 'lt':
+            return Number(fieldValue) < Number(value);
+          case '<=':
+          case 'lte':
+            return Number(fieldValue) <= Number(value);
+          case 'like':
+            return String(fieldValue).toLowerCase().includes(String(value).toLowerCase());
+          case 'in':
+            return Array.isArray(value) && value.includes(fieldValue);
+          case 'between':
+            return Array.isArray(value) && value.length === 2 && 
+                   Number(fieldValue) >= Number(value[0]) && 
+                   Number(fieldValue) <= Number(value[1]);
+          default:
+            return true;
+        }
+      });
+    });
+  }
+
+
+  applyOrderBy(rows, orderBy) {
+    const { field, direction = 'ASC' } = orderBy;
+    
+    return rows.sort((a, b) => {
+      let aVal = a[field];
+      let bVal = b[field];
+
+
+      // Handle numeric sorting
+      if (!isNaN(aVal) && !isNaN(bVal)) {
+        aVal = Number(aVal);
+        bVal = Number(bVal);
+      } else {
+        aVal = String(aVal).toLowerCase();
+        bVal = String(bVal).toLowerCase();
+      }
+
+
+      if (direction.toLowerCase() === 'desc') {
+        return bVal > aVal ? 1 : bVal < aVal ? -1 : 0;
+      } else {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      }
+    });
+  }
+
+
+  applySelect(rows, selectFields) {
+    if (typeof selectFields === 'string') {
+      selectFields = selectFields.split(',').map(f => f.trim());
+    }
+
+
+    return rows.map(row => {
+      const selectedRow = {};
+      selectFields.forEach(field => {
+        if (row.hasOwnProperty(field)) {
+          selectedRow[field] = row[field];
+        }
+      });
+      return selectedRow;
+    });
+  }
+
+
+  applyGroupBy(rows, groupByField, aggregations = {}) {
+    const groups = {};
+    
+    rows.forEach(row => {
+      const groupKey = row[groupByField];
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey].push(row);
+    });
+
+
+    const results = [];
+    Object.keys(groups).forEach(groupKey => {
+      const groupRows = groups[groupKey];
+      const result = { [groupByField]: groupKey };
+
+
+      // Apply aggregations
+      Object.keys(aggregations).forEach(field => {
+        const aggType = aggregations[field];
+        const values = groupRows.map(row => Number(row[field]) || 0);
+
+
+        switch (aggType.toLowerCase()) {
+          case 'count':
+            result[`${field}_count`] = groupRows.length;
+            break;
+          case 'sum':
+            result[`${field}_sum`] = values.reduce((sum, val) => sum + val, 0);
+            break;
+          case 'avg':
+          case 'average':
+            result[`${field}_avg`] = values.reduce((sum, val) => sum + val, 0) / values.length;
+            break;
+          case 'min':
+            result[`${field}_min`] = Math.min(...values);
+            break;
+          case 'max':
+            result[`${field}_max`] = Math.max(...values);
+            break;
+        }
+      });
+
+
+      results.push(result);
+    });
+
+
+    return results;
+  }
+
+
+  /**
+   * Batch update records with optimized sheet operations
+   * @param {string} sheetName - Sheet name
+   * @param {Array} updates - Array of update objects
+   * @param {string} keyField - Field to match on
+   * @returns {Object} Update result
+   */
+  batchUpdate(sheetName, updates, keyField = 'id') {
+    logger.testHook('batch_update_start', { sheetName, updateCount: updates.length });
+
+
+    return this.withLock(() => {
+      try {
+        const sheet = SheetUtils.getOrCreateSheet(sheetName);
+        if (!sheet) {
+          throw new Error(`Sheet not found: ${sheetName}`);
+        }
+
+
+        const data = sheet.getDataRange().getValues();
+        const headers = data[0];
+        const keyIndex = headers.indexOf(keyField);
+
+
+        if (keyIndex === -1) {
+          throw new Error(`Key field '${keyField}' not found in headers`);
+        }
+
+
+        let updatedCount = 0;
+        const updateMap = new Map();
+        updates.forEach(update => {
+          updateMap.set(update[keyField], update);
+        });
+
+
+        // Build batch updates
+        const batchUpdates = [];
+        for (let i = 1; i < data.length; i++) {
+          const rowKey = data[i][keyIndex];
+          const update = updateMap.get(rowKey);
+          
+          if (update) {
+            const newRow = [...data[i]];
+            headers.forEach((header, index) => {
+              if (update.hasOwnProperty(header)) {
+                newRow[index] = update[header];
+              }
+            });
+            
+            batchUpdates.push({
+              range: `${i + 1}:${i + 1}`,
+              values: [newRow]
+            });
+            updatedCount++;
+          }
+        }
+
+
+        // Execute batch updates
+        if (batchUpdates.length > 0) {
+          // In a real implementation, use sheet.getRange().setValues() for efficiency
+          batchUpdates.forEach(update => {
+            const range = sheet.getRange(update.range);
+            range.setValues(update.values);
+          });
+        }
+
+
+        // Invalidate cache for this sheet
+        this.cache.invalidate(`query_${sheetName}_.*`);
+
+
+        const result = {
+          success: true,
+          updatedCount: updatedCount,
+          totalUpdates: updates.length
+        };
+
+
+        logger.testHook('batch_update_complete', result);
+        return result;
+
+
+      } catch (error) {
+        logger.error('Batch update failed', { 
+          sheetName, error: error.toString() 
+        });
+        return {
+          success: false,
+          error: error.toString(),
+          updatedCount: 0
+        };
+      }
+    });
+  }
+}
+
+
+// ===== GLOBAL INSTANCES =====
+
+
+// Create singleton instances
+const circuitBreakers = {
+  make: new CircuitBreaker('Make.com', 3, 300000), // 5 min recovery
+  youtube: new CircuitBreaker('YouTube', 5, 600000), // 10 min recovery
+  xbotgo: new CircuitBreaker('XbotGo', 3, 180000) // 3 min recovery
+};
+
+
+const performanceMonitor = new PerformanceMonitor();
+const smartCache = new SmartCache();
+const webhookSecurity = new WebhookSecurityManager();
+const sheetQuery = new SheetQueryEngine();
+
+
+// Export for global access
+globalThis.CircuitBreaker = CircuitBreaker;
+globalThis.PerformanceMonitor = PerformanceMonitor;
+globalThis.SmartCache = SmartCache;
+globalThis.WebhookSecurityManager = WebhookSecurityManager;
+globalThis.SheetQueryEngine = SheetQueryEngine;
+
+
+globalThis.circuitBreakers = circuitBreakers;
+globalThis.performanceMonitor = performanceMonitor;
+globalThis.smartCache = smartCache;
+globalThis.webhookSecurity = webhookSecurity;
+globalThis.sheetQuery = sheetQuery;
+
+
+// ===== ENHANCED MAIN COORDINATOR UPDATES =====
+
+
+/**
+ * Enhanced Main Coordinator with new improvements
+ */
+class EnhancedSystonCoordinator extends SystonAutomationCoordinator {
+  
+  constructor() {
+    super();
+    this.performanceMonitor = performanceMonitor;
+    this.circuitBreakers = circuitBreakers;
+    this.cache = smartCache;
+  }
+
+
+  /**
+   * Enhanced system health check with detailed diagnostics
+   * @returns {Object} Comprehensive health status
+   */
+  getSystemHealthStatus() {
+    logger.enterFunction('EnhancedSystonCoordinator.getSystemHealthStatus');
+
+
+    const perfId = this.performanceMonitor.startOperation('system_health_check');
+
+
+    try {
+      const baseStatus = this.getSystemStatus();
+      
+      const healthStatus = {
+        ...baseStatus,
+        
+        // Performance metrics
+        performance: {
+          cacheStats: this.cache.getStats(),
+          recentAlerts: this.performanceMonitor.alerts.slice(-5)
+        },
+
+
+        // Circuit breaker status
+        circuitBreakers: Object.keys(this.circuitBreakers).reduce((acc, service) => {
+          const cb = this.circuitBreakers[service];
+          acc[service] = {
+            state: cb.state,
+            failureCount: cb.failureCount,
+            lastFailure: cb.lastFailureTime
+          };
+          return acc;
+        }, {}),
+
+
+        // Sheet connectivity test
+        sheetsHealth: this.testSheetsConnectivity(),
+        
+        // External service health
+        externalServices: this.checkExternalServices(),
+        
+        // Overall health score
+        healthScore: 0,
+        status: 'UNKNOWN'
+      };
+
+
+      // Calculate health score
+      healthStatus.healthScore = this.calculateHealthScore(healthStatus);
+      healthStatus.status = this.determineHealthStatus(healthStatus.healthScore);
+
+
+      this.performanceMonitor.endOperation(perfId, true, {
+        healthScore: healthStatus.healthScore
+      });
+
+
+      logger.exitFunction('EnhancedSystonCoordinator.getSystemHealthStatus', {
+        healthScore: healthStatus.healthScore,
+        status: healthStatus.status
+      });
+
+
+      return healthStatus;
+
+
+    } catch (error) {
+      this.performanceMonitor.endOperation(perfId, false);
+      logger.error('System health check failed', { error: error.toString() });
+      
+      return {
+        systemReady: false,
+        healthScore: 0,
+        status: 'CRITICAL',
+        error: error.toString()
+      };
+    }
+  }
+
+
+  testSheetsConnectivity() {
+    const tests = [
+      { name: 'Live', sheet: getConfig('SHEETS.LIVE') },
+      { name: 'Player Stats', sheet: getConfig('SHEETS.PLAYER_STATS') },
+      { name: 'Fixtures', sheet: getConfig('SHEETS.FIXTURES') }
+    ];
+
+
+    const results = {};
+    
+    tests.forEach(test => {
+      try {
+        const sheet = SheetUtils.getOrCreateSheet(test.sheet);
+        results[test.name] = {
+          accessible: !!sheet,
+          lastRow: sheet ? sheet.getLastRow() : 0,
+          lastColumn: sheet ? sheet.getLastColumn() : 0
+        };
+      } catch (error) {
+        results[test.name] = {
+          accessible: false,
+          error: error.toString()
+        };
+      }
+    });
+
+
+    return results;
+  }
+
+
+  checkExternalServices() {
+    return {
+      makeWebhook: this.testMakeWebhookConfig(),
+      youtubeApi: this.testYouTubeConfig(),
+      xbotgoApi: this.testXbotGoConfig()
+    };
+  }
+
+
+  testMakeWebhookConfig() {
+    const webhookUrl = PropertiesService.getScriptProperties()
+                        .getProperty(getConfig('MAKE.WEBHOOK_URL_PROPERTY'));
+    return {
+      configured: !!webhookUrl,
+      circuitBreakerState: this.circuitBreakers.make.state
+    };
+  }
+
+
+  testYouTubeConfig() {
+    const apiKey = PropertiesService.getScriptProperties()
+                    .getProperty(getConfig('VIDEO.YOUTUBE.API_KEY_PROPERTY'));
+    return {
+      configured: !!apiKey,
+      circuitBreakerState: this.circuitBreakers.youtube.state
+    };
+  }
+
+
+  testXbotGoConfig() {
+    const apiUrl = PropertiesService.getScriptProperties()
+                    .getProperty(getConfig('XBOTGO.API_URL_PROPERTY'));
+    return {
+      configured: !!apiUrl,
+      circuitBreakerState: this.circuitBreakers.xbotgo.state
+    };
+  }
+
+
+  calculateHealthScore(healthStatus) {
+    let score = 100;
+
+
+    // Deduct for component failures
+    Object.values(healthStatus.components).forEach(component => {
+      if (!component.initialized) score -= 10;
+    });
+
+
+    // Deduct for circuit breaker issues
+    Object.values(healthStatus.circuitBreakers).forEach(cb => {
+      if (cb.state === 'OPEN') score -= 15;
+      else if (cb.state === 'HALF_OPEN') score -= 5;
+    });
+
+
+    // Deduct for sheet connectivity issues
+    Object.values(healthStatus.sheetsHealth).forEach(sheet => {
+      if (!sheet.accessible) score -= 20;
+    });
+
+
+    // Deduct for low cache hit rate
+    if (healthStatus.performance.cacheStats.hitRate < 70) score -= 5;
+
+
+    return Math.max(0, score);
+  }
+
+
+  determineHealthStatus(score) {
+    if (score >= 90) return 'HEALTHY';
+    if (score >= 70) return 'DEGRADED';
+    if (score >= 50) return 'UNHEALTHY';
+    return 'CRITICAL';
+  }
+}
+
+
+// Update the global coordinator
+globalThis.EnhancedSystonCoordinator = EnhancedSystonCoordinator;
+globalThis.enhancedCoordinator = new EnhancedSystonCoordinator();
