@@ -1,3 +1,381 @@
+# **tasks.md - Syston Tigers Football Automation System**
+
+## **📋 PROJECT TASK BREAKDOWN BY MILESTONES (BIBLE ALIGNED)**
+
+**Purpose**: Detailed task breakdown for implementing the Syston Tigers Football Automation System according to the system workings "Bible" - from current status to full Bible-compliant deployment.
+
+---
+
+## **🎯 CURRENT STATUS OVERVIEW - *Updated September 20, 2025***
+
+**📖 BIBLE COMPLIANCE STATUS:**
+
+**❌ CRITICAL BIBLE FEATURES MISSING:**
+* Weekly content calendar automation (Monday-Sunday schedule)
+* Opposition goal auto-detection ("Goal" = opposition automatically)
+* Real-time player minutes calculation
+* Video clip metadata creation for goals
+* Notes system for video editor with player references
+* Control panel for feature toggles
+
+**✅ FOUNDATION COMPLETED:**
+* ✅ Core Apps Script framework
+* ✅ Basic event processing (goals, cards, MOTM)
+* ✅ Google Sheets integration with robust error handling
+* ✅ Make.com webhook setup with router branches
+* ✅ Advanced social media posting with idempotency
+* ✅ System version standardized to 6.0.0 across all components
+* ✅ Comprehensive logging and monitoring system
+* ✅ Production-ready code quality with full JSDoc documentation
+
+**📊 BIBLE COMPLIANCE METRICS:**
+* **Weekly Schedule Automation**: 0% (NOT IMPLEMENTED)
+* **Opposition Auto-Detection**: 0% (NOT IMPLEMENTED)
+* **Player Minutes Tracking**: 0% (NOT IMPLEMENTED)
+* **Video Integration**: 0% (NOT IMPLEMENTED)
+* **Control Panel**: 0% (NOT IMPLEMENTED)
+
+---
+
+## **🚀 PHASE 1: BIBLE CORE IMPLEMENTATION (CRITICAL)**
+
+**Target Date**: October 31, 2025
+**Priority**: 🔴 BIBLE COMPLIANCE CRITICAL
+**Estimated Time**: 60 hours
+**Status**: ❌ NOT STARTED
+
+### **1.1 Weekly Content Calendar Automation (BIBLE CORE)**
+
+* [ ] **Implement `weekly-scheduler.gs` file**
+  * [ ] Create time-based triggers for Monday-Sunday schedule
+  * [ ] Implement day detection logic
+  * [ ] Add content type routing for each day
+  * [ ] Integrate with fixture detection system
+  * [ ] Add override capabilities for match days
+
+* [ ] **Implement Monday fixtures function**
+  * [ ] `postMondayFixtures()` - This week's fixtures or "no match scheduled"
+  * [ ] Detect if matches exist for current week
+  * [ ] Generate appropriate content based on fixture availability
+  * [ ] Create Make.com payload with `event_type: 'weekly_fixtures'`
+  * [ ] Test with various fixture scenarios
+
+* [ ] **Implement Tuesday quotes function**
+  * [ ] `postTuesdayQuotes()` - Motivational quotes system
+  * [ ] Create quotes database in Sheets
+  * [ ] Implement rotation logic to avoid repetition
+  * [ ] Create Make.com payload with `event_type: 'weekly_quotes'`
+  * [ ] Test quote selection and posting
+
+* [ ] **Implement Wednesday stats function**
+  * [ ] `postWednesdayStats()` - Monthly player stats OR opposition analysis
+  * [ ] Detect if it's monthly stats week
+  * [ ] Implement opposition analysis for match weeks
+  * [ ] Create Make.com payload with appropriate event type
+  * [ ] Test both stat types and scheduling
+
+* [ ] **Implement Thursday throwback function**
+  * [ ] `postThursdayThrowback()` - Historical content + countdown (if 3 days to match)
+  * [ ] Create historical content database
+  * [ ] Implement countdown logic for upcoming matches
+  * [ ] Create Make.com payload with `event_type: 'weekly_throwback'`
+  * [ ] Test throwback selection and countdown integration
+
+* [ ] **Implement Friday countdown function**
+  * [ ] `postFridayCountdown()` - 2 days to go (if match on Sunday)
+  * [ ] Detect upcoming matches within 2 days
+  * [ ] Create countdown graphics payload
+  * [ ] Create Make.com payload with `event_type: 'countdown_2_days'`
+  * [ ] Test countdown accuracy and timing
+
+* [ ] **Implement Saturday countdown function**
+  * [ ] `postSaturdayCountdown()` - 1 day to go (if match on Sunday)
+  * [ ] Detect upcoming matches within 1 day
+  * [ ] Create final countdown payload
+  * [ ] Create Make.com payload with `event_type: 'countdown_1_day'`
+  * [ ] Test final countdown and match day preparation
+
+### **1.2 Opposition Goal Auto-Detection (BIBLE CORE)**
+
+* [ ] **Implement opposition detection logic in `enhanced-events.gs`**
+  * [ ] Modify goal processing to detect "Goal" from player dropdown
+  * [ ] Add automatic opposition goal recognition
+  * [ ] Ensure opposition score updates only (no player stats)
+  * [ ] Create separate tracking for opposition goals
+  * [ ] Add comprehensive logging for opposition events
+
+* [ ] **Implement `processOppositionGoal()` function**
+  * [ ] Detect when "Goal" is selected from player list
+  * [ ] Automatically update opposition score
+  * [ ] Do NOT update any player statistics
+  * [ ] Create Make.com payload with `event_type: 'goal_opposition'`
+  * [ ] Add minute tracking for opposition goals
+  * [ ] Test with various goal scenarios
+
+* [ ] **Implement `processOppositionCard()` function**
+  * [ ] Detect "Opposition" selection from player dropdown + card
+  * [ ] Log card against "Opposition" not individual player
+  * [ ] Track opposition discipline separately
+  * [ ] Create Make.com payload with `event_type: 'card_opposition'`
+  * [ ] Test yellow, red, and sin bin scenarios
+
+* [ ] **Update existing goal processing**
+  * [ ] Modify current goal functions to use opposition detection
+  * [ ] Ensure backward compatibility with existing functionality
+  * [ ] Add validation to prevent accidental opposition goals as player goals
+  * [ ] Update Make.com router for opposition events
+  * [ ] Test complete goal workflow with opposition scenarios
+
+### **1.3 Real-Time Player Minutes Calculation (BIBLE CORE)**
+
+* [ ] **Create `Subs Log` sheet structure**
+  * [ ] Design sheet with columns: Match Date, Minute, Player Off, Player On, Match ID
+  * [ ] Add data validation for player names
+  * [ ] Implement automatic timestamping
+  * [ ] Create backup and recovery procedures
+  * [ ] Test sheet creation and data entry
+
+* [ ] **Add `Player Minutes` column to Player Stats sheet**
+  * [ ] Update existing Player Stats sheet structure
+  * [ ] Add minutes calculation formulas
+  * [ ] Implement data validation and error checking
+  * [ ] Create historical data migration procedures
+  * [ ] Test minutes tracking and display
+
+* [ ] **Implement `calculatePlayerMinutes()` function**
+  * [ ] Track match start times from kick-off events
+  * [ ] Calculate time on pitch for each player
+  * [ ] Handle substitutions and player swaps automatically
+  * [ ] Update minutes in real-time during matches
+  * [ ] Account for stoppage time and extra time
+  * [ ] Test with various match scenarios and substitution patterns
+
+* [ ] **Implement `processSubstitution()` function**
+  * [ ] Create UI for player substitution selection
+  * [ ] Automatically swap players between starting 11 and bench
+  * [ ] Log substitution in Subs Log sheet
+  * [ ] Update player minutes calculations immediately
+  * [ ] Handle multiple substitutions correctly
+  * [ ] Test substitution workflow and minutes accuracy
+
+* [ ] **Implement real-time minutes updates**
+  * [ ] Update minutes during live matches
+  * [ ] Handle half-time and full-time scenarios
+  * [ ] Account for injuries and stoppages
+  * [ ] Validate minutes totals (should equal match duration × 11)
+  * [ ] Test real-time updates and accuracy
+
+### **1.4 Video Clip Integration (BIBLE CORE)**
+
+* [ ] **Create video clip metadata system**
+  * [ ] Design `Video Clips` sheet structure
+  * [ ] Add columns: Match_ID, Player, Goal_Minute, Clip_Start, Duration, Title, Caption, Status, YouTube_URL
+  * [ ] Implement automatic clip creation on goal events
+  * [ ] Calculate clip start time (goal minute - 3 seconds)
+  * [ ] Set default duration (30 seconds)
+  * [ ] Test clip metadata generation
+
+* [ ] **Implement `createGoalClip()` function**
+  * [ ] Automatically trigger on goal events
+  * [ ] Generate clip title and caption from goal data
+  * [ ] Create clip record in Video Clips sheet
+  * [ ] Set initial status as "Created"
+  * [ ] Link to match and player data
+  * [ ] Test automatic clip creation workflow
+
+* [ ] **Implement video editor notes system**
+  * [ ] Add `Notes` dropdown to Live Match Updates
+  * [ ] Include options: Big chance, Tackle, Good play, Goal
+  * [ ] Add player dropdown next to notes for player reference
+  * [ ] Automatically mark goal events for video editor
+  * [ ] Store notes in separate tracking sheet
+  * [ ] Test notes system and player references
+
+* [ ] **Implement player folder organization**
+  * [ ] Create individual player folders in Google Drive
+  * [ ] Automatically organize clips by player
+  * [ ] Handle goals, assists, good play, skills clips
+  * [ ] Create folder structure for easy access
+  * [ ] Implement automated file organization
+  * [ ] Test folder creation and file organization
+
+### **1.5 Control Panel Implementation (BIBLE CORE)**
+
+* [ ] **Create `Control Panel` sheet**
+  * [ ] Design feature toggle interface
+  * [ ] Add on/off switches for all major features
+  * [ ] Include weekly schedule controls
+  * [ ] Add video processing options
+  * [ ] Include XbotGo integration toggle
+  * [ ] Test control panel interface
+
+* [ ] **Implement feature toggle system**
+  * [ ] Create `getFeatureEnabled()` utility function
+  * [ ] Integrate toggles into all major functions
+  * [ ] Add validation for feature dependencies
+  * [ ] Implement graceful degradation when features disabled
+  * [ ] Test feature enabling/disabling
+
+* [ ] **Implement manual data input capabilities**
+  * [ ] Create interface for historical stat input
+  * [ ] Add bulk import functionality for existing data
+  * [ ] Implement data validation and error checking
+  * [ ] Create backup procedures for manual entries
+  * [ ] Test manual data input and validation
+
+### **1.6 Make.com Router Updates (BIBLE COMPLIANCE)**
+
+* [ ] **Create weekly schedule router branches**
+  * [ ] Add `weekly_fixtures` branch with Canva integration
+  * [ ] Add `weekly_quotes` branch with quote templates
+  * [ ] Add `weekly_player_stats` branch for Wednesday stats
+  * [ ] Add `weekly_throwback` branch for Thursday content
+  * [ ] Add `countdown_2_days` branch for Friday countdown
+  * [ ] Add `countdown_1_day` branch for Saturday countdown
+
+* [ ] **Create opposition event router branches**
+  * [ ] Add `goal_opposition` branch with opposition templates
+  * [ ] Add `card_opposition` branch for opposition discipline
+  * [ ] Test opposition event routing and template population
+
+* [ ] **Test complete Make.com integration**
+  * [ ] Verify all new router branches work correctly
+  * [ ] Test weekly schedule routing
+  * [ ] Validate opposition event handling
+  * [ ] Monitor Make.com operation usage (stay under 1,000/month)
+  * [ ] Document routing success rates
+
+---
+
+## **🎬 PHASE 2: ENHANCED MATCH DAY FEATURES**
+
+**Target Date**: November 30, 2025
+**Priority**: 🟡 HIGH (Post-Bible Implementation)
+**Estimated Time**: 40 hours
+**Status**: ⏸️ AWAITING PHASE 1 COMPLETION
+
+### **2.1 Advanced Video Processing**
+
+* [ ] **Implement match graphics generation**
+  * [ ] Create match clock overlay system
+  * [ ] Generate player name banners for goals
+  * [ ] Add replay functionality with zoom
+  * [ ] Implement team name displays
+  * [ ] Test graphics generation pipeline
+
+* [ ] **Implement FFmpeg integration**
+  * [ ] Set up local video processing
+  * [ ] Create clip extraction from full match videos
+  * [ ] Add graphics overlay functionality
+  * [ ] Implement batch processing capabilities
+  * [ ] Test local video processing workflow
+
+* [ ] **Implement CloudConvert fallback**
+  * [ ] Set up cloud video processing option
+  * [ ] Create fallback logic when local processing fails
+  * [ ] Implement status tracking for cloud jobs
+  * [ ] Add cost monitoring for cloud usage
+  * [ ] Test cloud processing and fallback logic
+
+### **2.2 Advanced Player Tracking**
+
+* [ ] **Implement advanced substitution UI**
+  * [ ] Create sidebar interface for easy substitutions
+  * [ ] Add drag-and-drop player swapping
+  * [ ] Implement formation tracking
+  * [ ] Add injury replacement handling
+  * [ ] Test advanced substitution interface
+
+* [ ] **Implement detailed performance tracking**
+  * [ ] Track player positions and formations
+  * [ ] Monitor playing time patterns
+  * [ ] Add performance metrics per match
+  * [ ] Implement injury and availability tracking
+  * [ ] Test detailed tracking accuracy
+
+### **2.3 XbotGo Integration (Optional)**
+
+* [ ] **Implement XbotGo API integration**
+  * [ ] Set up API credentials and endpoints
+  * [ ] Create automatic score pushing
+  * [ ] Add retry logic with exponential backoff
+  * [ ] Implement error handling and logging
+  * [ ] Test XbotGo integration with live scores
+
+* [ ] **Create XbotGo fallback system**
+  * [ ] Implement Make.com browser automation fallback
+  * [ ] Add manual override capabilities
+  * [ ] Create fallback activation triggers
+  * [ ] Test fallback scenarios and reliability
+
+---
+
+## **📱 PHASE 3: ADVANCED CONTENT & SOCIAL DISTRIBUTION**
+
+**Target Date**: December 31, 2025
+**Priority**: 🟢 MEDIUM (Enhancement Phase)
+**Estimated Time**: 50 hours
+**Status**: ⏸️ AWAITING PREVIOUS PHASES
+
+### **3.1 Goal of the Month System**
+
+* [ ] **Create GOTM voting infrastructure**
+  * [ ] Design GOTM votes tracking sheet
+  * [ ] Implement monthly goal collection function
+  * [ ] Create voting period management (after all monthly games completed)
+  * [ ] Add vote tallying and winner calculation
+  * [ ] Implement winner announcement (5 days after voting opens)
+
+* [ ] **Implement GOTM automation functions**
+  * [ ] Create `postGOTMVotingOpen()` function
+  * [ ] Create `postGOTMVotingClosed()` function
+  * [ ] Create `postGOTMWinnerAnnouncement()` function
+  * [ ] Schedule automatic voting periods
+  * [ ] Test complete GOTM workflow
+
+### **3.2 YouTube Integration**
+
+* [ ] **Implement YouTube upload automation**
+  * [ ] Set up YouTube Data API v3 integration
+  * [ ] Create automated upload workflow via Make.com
+  * [ ] Generate appropriate titles and descriptions
+  * [ ] Set privacy to "Unlisted" by default
+  * [ ] Handle upload errors and retries
+
+* [ ] **Implement YouTube channel optimization**
+  * [ ] Set up channel branding and description
+  * [ ] Create playlists for different content types
+  * [ ] Configure default video settings
+  * [ ] Set up channel analytics tracking
+  * [ ] Test automated video categorization
+
+### **3.3 Social Video Distribution**
+
+* [ ] **Implement TikTok integration**
+  * [ ] Set up TikTok for Business API
+  * [ ] Create short-form video optimization
+  * [ ] Implement automated TikTok posting
+  * [ ] Test video format compliance
+  * [ ] Track TikTok engagement metrics
+
+* [ ] **Implement Instagram Reels integration**
+  * [ ] Set up Instagram Business API
+  * [ ] Create Reels-optimized video processing
+  * [ ] Implement automated Reels posting
+  * [ ] Test video quality and formatting
+  * [ ] Track Instagram engagement metrics
+
+---
+
+## **🏆 PHASE 4: ADVANCED FEATURES & OPTIMIZATION**
+
+**Target Date**: March 31, 2026
+**Priority**: 🟢 LOW (Future Enhancement)
+**Estimated Time**: 30 hours
+**Status**: ⏸️ FUTURE PHASE
+
+### **4.1 Advance
+All tasks, milestones, and requirements listed below remain valid and must be included in full, unless they are explicitly superseded or refined by the text above or the System Workings “Bible.” Where the Bible introduces new functionality (such as weekly content scheduling, Goal of the Season, sponsor page, livestreaming, or expanded control-panel features), these requirements are additive and should be incorporated alongside existing tasks rather than replacing them. In case of conflict between the text below and text above, the text above plus Bible take precedence.
 # 📋 TASKS – Syston Tigers Football Automation System
 
 **Status (Today):** Milestone 2 in progress — Repo + CI scaffold created; Canva templates pending.  
