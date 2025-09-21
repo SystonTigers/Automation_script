@@ -1,6 +1,6 @@
 /**
  * @fileoverview Centralized configuration for Syston Tigers Football Automation System
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description All system configuration in one place - no globals elsewhere
  * 
@@ -18,7 +18,7 @@ const SYSTEM_CONFIG = {
   
   // ==================== SYSTEM METADATA ====================
   SYSTEM: {
-    VERSION: '6.0.0',
+    VERSION: '6.2.0',
     NAME: 'Syston Tigers Football Automation System',
     DESCRIPTION: 'Live football automation with weekly content calendar',
     ENVIRONMENT: 'production', // production | development | testing
@@ -61,6 +61,200 @@ const SYSTEM_CONFIG = {
     TIKTOK_POSTING: false,
     GOAL_OF_MONTH: false,
     MULTI_TENANT: false
+  },
+
+  // ==================== DOCUMENTATION REFERENCE ====================
+  DOCUMENTATION: {
+    VERSION: '6.2.0',
+    SOURCE_FILES: {
+      BIBLE: 'System-Workings - AKA The Bible.md',
+      CLAUDE: 'CLAUDE.md',
+      TASKS: 'TASKS.md',
+      PLANNING: 'PLANNING.md'
+    },
+
+    WEEKLY_SCHEDULE: {
+      MONDAY: [
+        "This week's fixtures",
+        'No match scheduled this week'
+      ],
+      TUESDAY: ['Quotes'],
+      WEDNESDAY: [
+        'Player stats - Monthly',
+        "Previous matches against this week's team"
+      ],
+      THURSDAY: ['Throwback Thursday', '3 days to go'],
+      FRIDAY: ['2 days to go'],
+      SATURDAY: ['1 day to go'],
+      SUNDAY: [
+        'Match day',
+        'Kick off',
+        'Live Match Updates',
+        'Day results',
+        'League tables'
+      ]
+    },
+
+    OTHER_POSTS: [
+      'Birthdays - as and when',
+      'Syston Fixtures - 1st day of the month',
+      'Syston Results - last day of the Month',
+      'Goal of the month competition - repost daily until voting closes',
+      'Voting closing reminders for competitions',
+      'Goal of the month winner announced 5 days after competition opens',
+      'Goal of the season competition using monthly winners and runners up',
+      'Two week goal of the season campaign after final match',
+      'Postponed match alerts canceling countdown posts',
+      'Sponsor highlights page/posts',
+      'Highlight clips and video recaps'
+    ],
+
+    MATCH_DAY_OPERATIONS: {
+      PRE_MATCH: [
+        'Fixture moves into Live Match Updates tab on match day',
+        'Control panel toggles enable/disable automation features'
+      ],
+      STATUS_UPDATES: [
+        'Kick off',
+        'Half-time',
+        'Second half kick-off',
+        'Full time'
+      ],
+      GOAL_LOGIC: [
+        'Selecting player "Goal" counts as opposition goal',
+        'Brace and hat-trick detection for tailored posts',
+        'Opposition goal updates do not affect player stats'
+      ],
+      DISCIPLINE: [
+        'Cards logged with player dropdown',
+        'Opposition cards logged against opposition entity'
+      ],
+      PLAYER_TRACKING: [
+        'Player minutes auto calculated from kickoff/subs/full-time',
+        'Appearances, goals, assists, cards and minutes updated in real time'
+      ],
+      VIDEO_NOTES: [
+        'Notes dropdown marks video editor cues (big chance, tackle, good play, goal)',
+        'Notes include player dropdown to reference individuals'
+      ],
+      VIDEO_REQUIREMENTS: [
+        'Highlight video overlays match clock with team names',
+        'Goal events trigger banner and replay zoom',
+        'Video clips stored per player in Google Drive folders'
+      ],
+      LIVE_STREAMING: [
+        'Consider live streaming to Facebook, YouTube, Instagram, TikTok'
+      ],
+      MANUAL_INPUT: [
+        'Allow manual entry of player stats and historical data when needed'
+      ]
+    },
+
+    CLAUDE_GUIDANCE: {
+      PROJECT_OVERVIEW: {
+        SUMMARY: 'Comprehensive automation platform for Syston Tigers FC',
+        WEEKLY_SCHEDULE: ['Monday fixtures', 'Tuesday quotes', 'Wednesday stats/opposition history', 'Thursday throwback & countdown', 'Friday two days to go', 'Saturday one day to go', 'Sunday match day operations'],
+        MATCHDAY_AUTOMATION: [
+          'Live match tab activation on match day',
+          'Status update workflow with send checkbox',
+          'Opposition goal and card detection',
+          'MOTM selection and player minutes tracking'
+        ],
+        CONTENT_TYPES: [
+          'Live match events',
+          'Weekly batch content',
+          'Monthly summaries',
+          'Special posts (birthdays, postponements, goal competitions)',
+          'Video highlight content'
+        ]
+      },
+      TECHNOLOGY_STACK: [
+        'Google Sheets input layer',
+        'Google Apps Script processing',
+        'Make.com automation with router branches',
+        'Canva for templated graphics',
+        'Google Drive storage',
+        'YouTube API and video tooling',
+        'XbotGo scoreboard integration',
+        'GitHub Pages data feeds'
+      ],
+      DESIGN_PRINCIPLES: [
+        'Bible compliance governs implementation',
+        'Strict weekly schedule automation',
+        'Modular components per .gs file',
+        'Centralized configuration only in config.js',
+        'Idempotent external calls using unique keys',
+        'Graceful fallback handling for missing data',
+        'Comprehensive logging and @testHook usage'
+      ],
+      CODE_STANDARDS: {
+        LOGGING_PATTERN: 'logger.enterFunction/exitFunction with try/catch and @testHook markers',
+        CONFIG_ACCESS: 'Use getConfig utility instead of literals',
+        SHEET_ACCESS: 'Use SheetUtils safe helpers with validation'
+      }
+    },
+
+    TASK_STATUS: {
+      UPDATED: '2025-09-20',
+      CRITICAL_MISSING: [
+        'Weekly content calendar automation',
+        'Opposition goal auto-detection',
+        'Real-time player minutes calculation',
+        'Video clip metadata generation',
+        'Video editor notes system',
+        'Feature toggle control panel'
+      ],
+      FOUNDATIONS: [
+        'Core Apps Script framework',
+        'Event processing for goals/cards/MOTM',
+        'Robust Google Sheets integration',
+        'Make.com webhook and router setup',
+        'Idempotent social media posting',
+        'Version standardization and documentation',
+        'Comprehensive logging infrastructure'
+      ],
+      METRICS: {
+        WEEKLY_SCHEDULE: '0% implemented',
+        OPPOSITION_DETECTION: '0% implemented',
+        PLAYER_MINUTES: '0% implemented',
+        VIDEO_INTEGRATION: '0% implemented',
+        CONTROL_PANEL: '0% implemented'
+      },
+      PHASES: {
+        PHASE_1: {
+          DEADLINE: '2025-10-31',
+          FOCUS: 'Bible core implementation',
+          ESTIMATED_HOURS: 60,
+          STATUS: 'Not started'
+        }
+      }
+    },
+
+    PLANNING: {
+      MISSION_STATEMENT: 'Automate every moment of Syston Tigers FC with Bible-compliant workflows.',
+      VISION_2025: 'Every Goal. Every Card. Every Moment. Every Day of the Week. Automated.',
+      SUCCESS_TARGETS: [
+        '10,000+ social followers',
+        '95% automated posting',
+        'Perfect weekly schedule compliance',
+        '100% match event automation',
+        'Complete video pipeline delivery',
+        '50+ clubs using automation template',
+        '£10,000+ annual digital revenue',
+        'Industry recognition for innovation'
+      ],
+      ARCHITECTURE: {
+        INPUT_LAYER: ['Weekly schedule triggers', 'Live match Google Sheets', 'Admin control panel', 'Email fixture ingestion'],
+        PROCESSING_CORE: ['Weekly scheduler', 'Event manager', 'Player manager', 'Video manager'],
+        INTEGRATIONS: ['Make.com routers', 'Canva templates', 'Video processing workflows', 'External APIs'],
+        DISTRIBUTION: ['Facebook', 'Twitter/X', 'Instagram', 'TikTok', 'YouTube Shorts']
+      },
+      NOTES: [
+        'System must remain under Make.com free tier limits',
+        'All automation must support manual overrides',
+        'Templates stored for repeatable Canva usage'
+      ]
+    }
   },
 
   // ==================== GOOGLE SHEETS CONFIGURATION ====================
@@ -122,9 +316,20 @@ const SYSTEM_CONFIG = {
         'Posted', 'Timestamp'
       ],
       VIDEO_CLIPS: [
-        'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time', 
-        'Duration', 'Title', 'Caption', 'Status', 'YouTube URL', 
+        'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
+        'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
         'Folder Path', 'Created'
+      ],
+      MONTHLY_CONTENT: [
+        'Month Key',
+        'Type',
+        'Event Type',
+        'Count',
+        'Statistics JSON',
+        'Payload Preview',
+        'Processed At',
+        'Idempotency Key',
+        'Make Result'
       ]
     }
   },

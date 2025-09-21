@@ -1,7 +1,7 @@
 
 /**
  * @fileoverview Enhanced player management with minutes tracking and statistics
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Manages player statistics, minutes tracking, and bi-monthly summaries
  * 

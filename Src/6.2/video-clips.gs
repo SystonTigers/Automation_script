@@ -1,6 +1,6 @@
 /**
  * @fileoverview Video clips management and YouTube automation system
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Complete video integration: goal clips, player folders, match graphics, YouTube
  * 
@@ -862,7 +862,7 @@ function initializeVideoClips() {
         youtube_automation: isFeatureEnabled('YOUTUBE_AUTOMATION'),
         clip_creation: isFeatureEnabled('VIDEO_CLIP_CREATION')
       },
-      version: '6.0.0'
+      version: '6.2.0'
     };
     
   } catch (error) {

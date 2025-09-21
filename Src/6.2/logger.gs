@@ -1,7 +1,7 @@
 
 /**
  * @fileoverview Enhanced logging system with performance tracking and audit trails
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Extended logging with scoped loggers, performance timers, and audit capabilities
  * 
@@ -701,7 +701,7 @@ function initializeLogger() {
     return {
       success: true,
       session_id: logger.sessionId,
-      version: '6.0.0',
+      version: '6.2.0',
       features: {
         performance_tracking: logger.config.performanceTracking,
         audit_trail: logger.config.auditTrail,

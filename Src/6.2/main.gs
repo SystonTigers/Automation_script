@@ -1,6 +1,6 @@
 /**
  * @fileoverview Main coordinator and public API functions
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Central coordination hub for all system components and public API
  * 
@@ -57,7 +57,11 @@ class SystemCoordinator {
       if (isFeatureEnabled('BATCH_POSTING')) {
         results.components.batchFixtures = initializeBatchFixtures();
       }
-      
+
+      if (isFeatureEnabled('MONTHLY_SUMMARIES')) {
+        results.components.monthlySummaries = initializeMonthlySummaries();
+      }
+
       if (isFeatureEnabled('PLAYER_MINUTES_TRACKING')) {
         results.components.playerManagement = initializePlayerManagement();
       }
