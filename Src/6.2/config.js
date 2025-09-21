@@ -1,6 +1,6 @@
 /**
  * @fileoverview Centralized configuration for Syston Tigers Football Automation System
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description All system configuration in one place - no globals elsewhere
  * 
@@ -18,7 +18,7 @@ const SYSTEM_CONFIG = {
   
   // ==================== SYSTEM METADATA ====================
   SYSTEM: {
-    VERSION: '6.0.0',
+    VERSION: '6.2.0',
     NAME: 'Syston Tigers Football Automation System',
     DESCRIPTION: 'Live football automation with weekly content calendar',
     ENVIRONMENT: 'production', // production | development | testing
@@ -78,6 +78,7 @@ const SYSTEM_CONFIG = {
       OPPOSITION_EVENTS: 'Opposition Events',
       VIDEO_CLIPS: 'Video Clips',
       MONTHLY_CONTENT: 'Monthly Content',
+      MONTHLY_SUMMARIES: 'Monthly Summaries',
       WEEKLY_SCHEDULE: 'Weekly Schedule',
       
       // System sheets
@@ -122,9 +123,13 @@ const SYSTEM_CONFIG = {
         'Posted', 'Timestamp'
       ],
       VIDEO_CLIPS: [
-        'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time', 
-        'Duration', 'Title', 'Caption', 'Status', 'YouTube URL', 
+        'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
+        'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
         'Folder Path', 'Created'
+      ],
+      MONTHLY_SUMMARIES: [
+        'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
+        'Summary_Data', 'Posted', 'Responses', 'Created'
       ]
     }
   },
@@ -334,6 +339,16 @@ const SYSTEM_CONFIG = {
       include_all_stats: true,
       minimum_appearances: 1
     }
+  },
+
+  // ==================== MONTHLY SUMMARY SETTINGS ====================
+  MONTHLY_SUMMARIES: {
+    ENABLED: true,
+    CACHE_TTL_SECONDS: 21600,
+    MAX_FIXTURES_PER_PAYLOAD: 10,
+    MAX_RESULTS_PER_PAYLOAD: 10,
+    LOCAL_RIVALS: ['leicester', 'melton', 'oadby', 'hinckley', 'coalville'],
+    IMPORTANT_COMPETITIONS: ['league cup', 'fa cup', 'county cup']
   },
 
   // ==================== OPPOSITION HANDLING ====================
