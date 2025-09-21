@@ -1,4 +1,18 @@
 /**
+ * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
+ * @version 6.2.0
+ * @author Senior Software Architect
+ * @description Handles batch posting (1-5 fixtures/results) and postponements. Monthly summaries now live in monthly-summaries.gs.
+ *
+ * FEATURES IMPLEMENTED:
+ * - Batch fixture posting (1-5 league fixtures)
+ * - Batch results posting (1-5 league results)
+ * - Delegation hooks to MonthlySummariesManager for monthly summaries
+ * - Postponed match handling
+ * - Idempotency and duplicate prevention
+ */
+
+/**
    * Post league fixtures batch (NEW: From spec)
    * @param {string} roundId - Round/weekend identifier
    * @param {Date} startDate - Start date for fixtures
@@ -129,132 +143,44 @@
   // ==================== MONTHLY SUMMARIES ====================
 
   /**
-   * Post monthly fixtures summary (NEW: From spec)
-   * @param {number} month - Month (1-12)
-   * @param {number} year - Year
-   * @returns {Object} Posting result
+   * @deprecated Delegated to MonthlySummariesManager (use monthly-summaries.gs)
    */
   postMonthlyFixturesSummary(month = null, year = null) {
-    this.logger.enterFunction('postMonthlyFixturesSummary', { month, year });
-    
+    this.logger.enterFunction('postMonthlyFixturesSummary', { month, year, delegated: true });
+
     try {
-      // @testHook(monthly_fixtures_start)
-      
-      // Default to current month if not specified
-      const now = DateUtils.now();
-      const targetMonth = month || (now.getMonth() + 1);
-      const targetYear = year || now.getFullYear();
-      
-      // Generate idempotency key
-      const idempotencyKey = `monthly_fixtures_${targetYear}_${targetMonth}`;
-      if (this.isDuplicateRequest(idempotencyKey)) {
-        return { success: true, message: 'Already processed', duplicate: true };
-      }
-      
-      // Get all Syston fixtures for the month
-      const fixtures = this.getSystonFixturesForMonth(targetMonth, targetYear);
-      
-      if (fixtures.length === 0) {
-        this.logger.info('No fixtures found for monthly summary');
-        return { success: true, count: 0, message: 'No fixtures for this month' };
-      }
-      
-      // Calculate monthly statistics
-      const monthlyStats = this.calculateMonthlyFixtureStats(fixtures);
-      
-      // Create monthly fixtures payload
-      const payload = this.createMonthlyFixturesPayload(fixtures, monthlyStats, targetMonth, targetYear);
-      
-      // @testHook(monthly_fixtures_webhook)
-      const webhookResult = this.sendBatchToMake(payload);
-      
-      if (webhookResult.success) {
-        this.processedKeys.add(idempotencyKey);
-      }
-      
-      this.logger.exitFunction('postMonthlyFixturesSummary', { 
-        success: webhookResult.success, 
-        count: fixtures.length 
-      });
-      
-      return {
-        success: webhookResult.success,
-        event_type: 'fixtures_this_month',
-        month: targetMonth,
-        year: targetYear,
-        fixture_count: fixtures.length,
-        statistics: monthlyStats,
-        webhook_sent: webhookResult.success
-      };
-      
+      this.logger.warn('Monthly fixtures summary called on BatchFixturesManager; delegating to MonthlySummariesManager');
+      const manager = new MonthlySummariesManager();
+      const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+      const result = manager.postMonthlyFixturesSummary(monthDate);
+      this.logger.exitFunction('postMonthlyFixturesSummary', { delegated: true, success: result.success });
+      return result;
     } catch (error) {
-      this.logger.error('Monthly fixtures summary failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      this.logger.error('Monthly fixtures delegation failed', { error: error.toString() });
+      const failure = { success: false, error: error.toString() };
+      this.logger.exitFunction('postMonthlyFixturesSummary', { delegated: true, success: false, error: error.toString() });
+      return failure;
     }
   }
 
   /**
-   * Post monthly results summary (NEW: From spec)
-   * @param {number} month - Month (1-12)
-   * @param {number} year - Year
-   * @returns {Object} Posting result
+   * @deprecated Delegated to MonthlySummariesManager (use monthly-summaries.gs)
    */
   postMonthlyResultsSummary(month = null, year = null) {
-    this.logger.enterFunction('postMonthlyResultsSummary', { month, year });
-    
+    this.logger.enterFunction('postMonthlyResultsSummary', { month, year, delegated: true });
+
     try {
-      // @testHook(monthly_results_start)
-      
-      // Default to previous month if not specified
-      const now = DateUtils.now();
-      const targetMonth = month || (now.getMonth() === 0 ? 12 : now.getMonth());
-      const targetYear = year || (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear());
-      
-      // Generate idempotency key
-      const idempotencyKey = `monthly_results_${targetYear}_${targetMonth}`;
-      if (this.isDuplicateRequest(idempotencyKey)) {
-        return { success: true, message: 'Already processed', duplicate: true };
-      }
-      
-      // Get all Syston results for the month
-      const results = this.getSystonResultsForMonth(targetMonth, targetYear);
-      
-      if (results.length === 0) {
-        this.logger.info('No results found for monthly summary');
-        return { success: true, count: 0, message: 'No results for this month' };
-      }
-      
-      // Calculate monthly performance statistics
-      const monthlyStats = this.calculateMonthlyResultStats(results);
-      
-      // Create monthly results payload
-      const payload = this.createMonthlyResultsPayload(results, monthlyStats, targetMonth, targetYear);
-      
-      // @testHook(monthly_results_webhook)
-      const webhookResult = this.sendBatchToMake(payload);
-      
-      if (webhookResult.success) {
-        this.processedKeys.add(idempotencyKey);
-      }
-      
-      this.logger.exitFunction('postMonthlyResultsSummary', { 
-        success: webhookResult.success, 
-        count: results.length 
-      });
-      
-      return {
-        success: webhookResult.success,
-        event_type: 'results_this_month',
-        month: targetMonth,
-        year: targetYear,
-        result_count: results.length,
-        statistics: monthlyStats,
-        webhook_sent: webhookResult.success
-      };
-      
+      this.logger.warn('Monthly results summary called on BatchFixturesManager; delegating to MonthlySummariesManager');
+      const manager = new MonthlySummariesManager();
+      const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+      const result = manager.postMonthlyResultsSummary(monthDate);
+      this.logger.exitFunction('postMonthlyResultsSummary', { delegated: true, success: result.success });
+      return result;
     } catch (error) {
-      this.logger.error('Monthly results summary failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      this.logger.error('Monthly results delegation failed', { error: error.toString() });
+      const failure = { success: false, error: error.toString() };
+      this.logger.exitFunction('postMonthlyResultsSummary', { delegated: true, success: false, error: error.toString() });
+      return failure;
     }
   }
 
@@ -392,173 +318,6 @@
     }
   }
 
-  /**
-   * Get Syston fixtures for specific month
-   * @param {number} month - Month (1-12)
-   * @param {number} year - Year
-   * @returns {Array} Monthly fixtures
-   */
-  getSystonFixturesForMonth(month, year) {
-    try {
-      const fixturesSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES')
-      );
-      
-      if (!fixturesSheet) return [];
-      
-      const allFixtures = SheetUtils.getAllDataAsObjects(fixturesSheet);
-      
-      return allFixtures.filter(fixture => {
-        const fixtureDate = new Date(fixture.Date);
-        return fixtureDate.getMonth() + 1 === month && 
-               fixtureDate.getFullYear() === year;
-      });
-      
-    } catch (error) {
-      this.logger.error('Failed to get monthly fixtures', { error: error.toString() });
-      return [];
-    }
-  }
-
-  /**
-   * Get Syston results for specific month
-   * @param {number} month - Month (1-12)
-   * @param {number} year - Year
-   * @returns {Array} Monthly results
-   */
-  getSystonResultsForMonth(month, year) {
-    try {
-      const resultsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.RESULTS')
-      );
-      
-      if (!resultsSheet) return [];
-      
-      const allResults = SheetUtils.getAllDataAsObjects(resultsSheet);
-      
-      return allResults.filter(result => {
-        const resultDate = new Date(result.Date);
-        return resultDate.getMonth() + 1 === month && 
-               resultDate.getFullYear() === year;
-      });
-      
-    } catch (error) {
-      this.logger.error('Failed to get monthly results', { error: error.toString() });
-      return [];
-    }
-  }
-
-  // ==================== STATISTICS CALCULATION ====================
-
-  /**
-   * Calculate monthly fixture statistics
-   * @param {Array} fixtures - Monthly fixtures
-   * @returns {Object} Statistics object
-   */
-  calculateMonthlyFixtureStats(fixtures) {
-    const stats = {
-      total_fixtures: fixtures.length,
-      home_fixtures: 0,
-      away_fixtures: 0,
-      competitions: new Set(),
-      key_matches: [],
-      next_match_highlight: null
-    };
-    
-    fixtures.forEach(fixture => {
-      // Count home/away
-      if (fixture['Home/Away'] === 'Home') {
-        stats.home_fixtures++;
-      } else {
-        stats.away_fixtures++;
-      }
-      
-      // Track competitions
-      if (fixture.Competition) {
-        stats.competitions.add(fixture.Competition);
-      }
-      
-      // Identify key matches (cups, derbies, etc.)
-      if (this.isKeyMatch(fixture)) {
-        stats.key_matches.push(fixture);
-      }
-    });
-    
-    // Convert Set to Array
-    stats.competitions = Array.from(stats.competitions);
-    
-    // Find next match highlight
-    const sortedFixtures = fixtures.sort((a, b) => new Date(a.Date) - new Date(b.Date));
-    stats.next_match_highlight = sortedFixtures[0] || null;
-    
-    return stats;
-  }
-
-  /**
-   * Calculate monthly result statistics
-   * @param {Array} results - Monthly results
-   * @returns {Object} Statistics object
-   */
-  calculateMonthlyResultStats(results) {
-    const stats = {
-      total_results: results.length,
-      wins: 0,
-      draws: 0,
-      losses: 0,
-      goals_for: 0,
-      goals_against: 0,
-      clean_sheets: 0,
-      best_result: null,
-      worst_result: null,
-      goal_difference: 0
-    };
-    
-    let bestGoalDiff = -999;
-    let worstGoalDiff = 999;
-    
-    results.forEach(result => {
-      const homeScore = parseInt(result['Home Score']) || 0;
-      const awayScore = parseInt(result['Away Score']) || 0;
-      const isHome = result['Home/Away'] === 'Home';
-      
-      const ourScore = isHome ? homeScore : awayScore;
-      const theirScore = isHome ? awayScore : homeScore;
-      const goalDiff = ourScore - theirScore;
-      
-      // Count results
-      if (goalDiff > 0) {
-        stats.wins++;
-      } else if (goalDiff === 0) {
-        stats.draws++;
-      } else {
-        stats.losses++;
-      }
-      
-      // Goal statistics
-      stats.goals_for += ourScore;
-      stats.goals_against += theirScore;
-      
-      if (theirScore === 0) {
-        stats.clean_sheets++;
-      }
-      
-      // Best/worst results
-      if (goalDiff > bestGoalDiff) {
-        bestGoalDiff = goalDiff;
-        stats.best_result = result;
-      }
-      
-      if (goalDiff < worstGoalDiff) {
-        worstGoalDiff = goalDiff;
-        stats.worst_result = result;
-      }
-    });
-    
-    stats.goal_difference = stats.goals_for - stats.goals_against;
-    
-    return stats;
-  }
-
   // ==================== PAYLOAD CREATION ====================
 
   /**
@@ -644,103 +403,6 @@
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
       batch_id: this.generateBatchId(eventType)
-    };
-  }
-
-  /**
-   * Create monthly fixtures payload
-   * @param {Array} fixtures - Monthly fixtures
-   * @param {Object} stats - Monthly statistics
-   * @param {number} month - Month
-   * @param {number} year - Year
-   * @returns {Object} Payload object
-   */
-  createMonthlyFixturesPayload(fixtures, stats, month, year) {
-    return {
-      event_type: 'fixtures_this_month',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
-      // Monthly data
-      month_name: DateUtils.getMonthName(month),
-      month_number: month,
-      year: year,
-      fixture_count: stats.total_fixtures,
-      
-      // Fixtures breakdown
-      home_fixtures: stats.home_fixtures,
-      away_fixtures: stats.away_fixtures,
-      competitions: stats.competitions,
-      key_matches: stats.key_matches,
-      
-      // Highlights
-      next_match_highlight: stats.next_match_highlight,
-      
-      // Complete fixtures list
-      fixtures_list: fixtures.map(fixture => ({
-        date: fixture.Date,
-        time: fixture.Time,
-        opponent: fixture.Opposition,
-        venue: fixture.Venue,
-        competition: fixture.Competition,
-        home_away: fixture['Home/Away'],
-        is_key_match: this.isKeyMatch(fixture)
-      })),
-      
-      // Metadata
-      season: getConfig('SYSTEM.SEASON'),
-      timestamp: DateUtils.formatISO(DateUtils.now())
-    };
-  }
-
-  /**
-   * Create monthly results payload
-   * @param {Array} results - Monthly results
-   * @param {Object} stats - Monthly statistics
-   * @param {number} month - Month
-   * @param {number} year - Year
-   * @returns {Object} Payload object
-   */
-  createMonthlyResultsPayload(results, stats, month, year) {
-    return {
-      event_type: 'results_this_month',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
-      // Monthly data
-      month_name: DateUtils.getMonthName(month),
-      month_number: month,
-      year: year,
-      result_count: stats.total_results,
-      
-      // Performance statistics
-      wins: stats.wins,
-      draws: stats.draws,
-      losses: stats.losses,
-      goals_for: stats.goals_for,
-      goals_against: stats.goals_against,
-      goal_difference: stats.goal_difference,
-      clean_sheets: stats.clean_sheets,
-      
-      // Highlights
-      best_result: stats.best_result,
-      worst_result: stats.worst_result,
-      
-      // Complete results list
-      results_list: results.map(result => ({
-        date: result.Date,
-        opponent: result.Opposition,
-        home_score: result['Home Score'],
-        away_score: result['Away Score'],
-        venue: result.Venue,
-        competition: result.Competition,
-        home_away: result['Home/Away'],
-        result: result.Result
-      })),
-      
-      // Metadata
-      season: getConfig('SYSTEM.SEASON'),
-      timestamp: DateUtils.formatISO(DateUtils.now())
     };
   }
 
@@ -1076,8 +738,9 @@ function postLeagueResultsBatch(roundId = null, startDate = null, endDate = null
  * @returns {Object} Posting result
  */
 function postMonthlyFixturesSummary(month = null, year = null) {
-  const manager = new BatchFixturesManager();
-  return manager.postMonthlyFixturesSummary(month, year);
+  const monthlyManager = new MonthlySummariesManager();
+  const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+  return monthlyManager.postMonthlyFixturesSummary(monthDate);
 }
 
 /**
@@ -1087,8 +750,9 @@ function postMonthlyFixturesSummary(month = null, year = null) {
  * @returns {Object} Posting result
  */
 function postMonthlyResultsSummary(month = null, year = null) {
-  const manager = new BatchFixturesManager();
-  return manager.postMonthlyResultsSummary(month, year);
+  const monthlyManager = new MonthlySummariesManager();
+  const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+  return monthlyManager.postMonthlyResultsSummary(monthDate);
 }
 
 /**
@@ -1147,21 +811,8 @@ function initializeBatchFixtures() {
     logger.error('Batch fixtures initialization failed', { error: error.toString() });
     return { success: false, error: error.toString() };
   }
+
 }
-  /**
- * @fileoverview Enhanced batch posting for fixtures and results with monthly summaries
- * @version 6.0.0
- * @author Senior Software Architect
- * @description Handles batch posting (1-5 fixtures/results) and monthly summaries
- * 
- * FEATURES IMPLEMENTED:
- * - Batch fixture posting (1-5 league fixtures)
- * - Batch results posting (1-5 league results)
- * - Monthly fixtures summary
- * - Monthly results summary
- * - Postponed match handling
- * - Idempotency and duplicate prevention
- */
 
 // ==================== BATCH FIXTURES MANAGER CLASS ====================
 
