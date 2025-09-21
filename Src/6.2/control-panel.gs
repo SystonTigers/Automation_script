@@ -29,31 +29,44 @@ class ControlPanelManager {
   // ==================== CONTROL PANEL UI ====================
 
   /**
-   * Show the main control panel sidebar
+   * Show the main control panel sidebar with authentication
+   * @param {string} sessionToken - Optional session token for authenticated user
    * @returns {Object} Panel display result
    */
-  showControlPanel() {
-    this.logger.enterFunction('showControlPanel');
-    
+  showControlPanel(sessionToken = null) {
+    this.logger.enterFunction('showControlPanel', { hasSession: !!sessionToken });
+
     try {
-      // @testHook(control_panel_generate_ui_start)
-      const panelHtml = this.generateControlPanelHTML();
-      // @testHook(control_panel_generate_ui_end)
-      
+      let panelHtml;
+
+      if (sessionToken) {
+        // @testHook(control_panel_check_auth_start)
+        const authResult = checkPermission(sessionToken, 'control_panel_access');
+        if (!authResult.success) {
+          panelHtml = this.generateLoginHTML('Session expired. Please log in again.');
+        } else {
+          panelHtml = this.generateControlPanelHTML(authResult.session);
+        }
+        // @testHook(control_panel_check_auth_end)
+      } else {
+        // Show login form for unauthenticated users
+        panelHtml = this.generateLoginHTML();
+      }
+
       // @testHook(control_panel_show_sidebar_start)
       const htmlOutput = HtmlService.createHtmlOutput(panelHtml)
         .setTitle('⚽ Football Automation Control Panel')
         .setWidth(400);
-      
+
       SpreadsheetApp.getUi().showSidebar(htmlOutput);
       // @testHook(control_panel_show_sidebar_end)
-      
+
       this.panelOpen = true;
-      this.logger.info('Control panel displayed successfully');
-      
+      this.logger.info('Control panel displayed successfully', { authenticated: !!sessionToken });
+
       this.logger.exitFunction('showControlPanel', { success: true });
       return { success: true, message: 'Control panel opened' };
-      
+
     } catch (error) {
       this.logger.error('Control panel display failed', { error: error.toString() });
       return { success: false, error: error.toString() };
@@ -61,13 +74,15 @@ class ControlPanelManager {
   }
 
   /**
-   * Generate control panel HTML
+   * Generate control panel HTML for authenticated users
+   * @param {Object} session - User session data
    * @returns {string} HTML content
    */
-  generateControlPanelHTML() {
+  generateControlPanelHTML(session = null) {
     try {
       const currentSettings = this.getCurrentSettings();
       const systemStatus = this.getSystemStatusSummary();
+      const userRole = session ? session.role : 'viewer';
       
       return `
 <!DOCTYPE html>
@@ -490,6 +505,302 @@ class ControlPanelManager {
     } catch (error) {
       this.logger.error('HTML generation failed', { error: error.toString() });
       return '<html><body><h2>Error loading control panel</h2><p>' + error.toString() + '</p></body></html>';
+    }
+  }
+
+  /**
+   * Generate login HTML for unauthenticated users
+   * @param {string} errorMessage - Optional error message
+   * @returns {string} Login HTML content
+   */
+  generateLoginHTML(errorMessage = '') {
+    try {
+      return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Football Automation Login</title>
+    <style>
+        body {
+            font-family: 'Google Sans', Arial, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f8f9fa;
+            font-size: 14px;
+        }
+        .login-container {
+            max-width: 350px;
+            margin: 50px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .login-header {
+            margin-bottom: 32px;
+        }
+        .login-header h2 {
+            color: #1e40af;
+            margin: 0 0 8px 0;
+            font-size: 24px;
+        }
+        .login-header p {
+            color: #6b7280;
+            margin: 0;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #374151;
+            font-weight: 500;
+        }
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .btn-login {
+            width: 100%;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 8px;
+        }
+        .btn-login:hover {
+            background: #2563eb;
+        }
+        .btn-login:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border-left: 4px solid #dc2626;
+        }
+        .info-message {
+            background: #eff6ff;
+            color: #2563eb;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+        }
+        .spinner {
+            border: 2px solid #e5e7eb;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .mfa-section {
+            display: none;
+            margin-top: 16px;
+        }
+        .security-note {
+            background: #f0fdf4;
+            color: #166534;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 12px;
+            text-align: center;
+            border-left: 4px solid #16a34a;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h2>⚽ Admin Access</h2>
+            <p>Football Automation Control Panel</p>
+        </div>
+
+        ${errorMessage ? `<div class="error-message">${errorMessage}</div>` : ''}
+
+        <form onsubmit="return handleLogin(event)">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" class="form-control"
+                       required autocomplete="username" placeholder="Enter username">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-control"
+                       required autocomplete="current-password" placeholder="Enter password">
+            </div>
+
+            <div class="mfa-section" id="mfa-section">
+                <div class="form-group">
+                    <label for="mfaCode">MFA Code</label>
+                    <input type="text" id="mfaCode" name="mfaCode" class="form-control"
+                           placeholder="Enter 6-digit code" maxlength="6">
+                </div>
+            </div>
+
+            <button type="submit" class="btn-login" id="login-btn">
+                Sign In
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            Authenticating...
+        </div>
+
+        <div class="info-message">
+            <strong>Default Admin Account:</strong><br>
+            Username: admin<br>
+            Password: admin123<br>
+            <em>Change these credentials in production!</em>
+        </div>
+
+        <div class="security-note">
+            🔒 Secure authentication with session management and audit logging
+        </div>
+    </div>
+
+    <script>
+        let mfaRequired = false;
+
+        function handleLogin(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const mfaCode = document.getElementById('mfaCode').value;
+
+            if (!username || !password) {
+                showError('Please enter both username and password');
+                return false;
+            }
+
+            if (mfaRequired && !mfaCode) {
+                showError('Please enter the MFA code');
+                return false;
+            }
+
+            showLoading();
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    hideLoading();
+                    if (result.success) {
+                        // Store session token and reload control panel
+                        sessionStorage.setItem('auth_token', result.sessionToken);
+                        showControlPanelWithAuth(result.sessionToken);
+                    } else {
+                        if (result.error.includes('MFA')) {
+                            mfaRequired = true;
+                            document.getElementById('mfa-section').style.display = 'block';
+                            showError(result.error);
+                        } else {
+                            showError(result.error);
+                        }
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    hideLoading();
+                    showError('Login failed: ' + error.toString());
+                })
+                .controlPanelAuthenticate(username, password, mfaCode);
+
+            return false;
+        }
+
+        function showControlPanelWithAuth(sessionToken) {
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    // Control panel will reload with authenticated content
+                    window.location.reload();
+                })
+                .withFailureHandler(function(error) {
+                    showError('Failed to load control panel: ' + error.toString());
+                })
+                .showAuthenticatedControlPanel(sessionToken);
+        }
+
+        function showError(message) {
+            const existing = document.querySelector('.error-message');
+            if (existing) {
+                existing.textContent = message;
+            } else {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = message;
+                document.querySelector('.login-container').insertBefore(
+                    errorDiv,
+                    document.querySelector('form')
+                );
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('login-btn').disabled = true;
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('login-btn').disabled = false;
+        }
+
+        // Check for existing session on load
+        window.onload = function() {
+            const token = sessionStorage.getItem('auth_token');
+            if (token) {
+                showControlPanelWithAuth(token);
+            }
+        };
+    </script>
+</body>
+</html>
+      `;
+
+    } catch (error) {
+      this.logger.error('Login HTML generation failed', { error: error.toString() });
+      return '<html><body><h2>Error loading login page</h2><p>' + error.toString() + '</p></body></html>';
     }
   }
 
