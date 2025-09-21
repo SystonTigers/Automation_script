@@ -1,6 +1,6 @@
 /**
  * @fileoverview XbotGo Scoreboard API Integration
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Integration with XbotGo scoreboard system for live score updates
  */
@@ -424,7 +424,7 @@ function initializeXbotGo() {
       configuration_complete: configurationComplete,
       integration_enabled: integration.enabled,
       message: 'XbotGo Integration initialized',
-      version: '6.0.0'
+      version: '6.2.0'
     };
     
   } catch (error) {

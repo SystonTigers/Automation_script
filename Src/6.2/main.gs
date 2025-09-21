@@ -61,7 +61,9 @@ class SystemCoordinator {
       if (isFeatureEnabled('MONTHLY_SUMMARIES')) {
         results.components.monthlySummaries = initializeMonthlySummaries();
       }
+ codex/sort-and-merge-code-into-version-6.2
       
+      >>>>>>> main
       if (isFeatureEnabled('PLAYER_MINUTES_TRACKING')) {
         results.components.playerManagement = initializePlayerManagement();
       }
@@ -75,7 +77,7 @@ class SystemCoordinator {
       }
       
       // Initialize sheets with required structure
-      results.components.sheets = initializeRequiredSheets();
+      results.components.sheets = this.initializeRequiredSheets();
       
       // @testHook(init_complete)
       
@@ -405,11 +407,204 @@ function initializeSystem(forceReinit = false) {
 }
 
 /**
+ * Run weekly content automation (public API wrapper)
+ * @param {boolean} forceRun - Force execution regardless of day
+ * @returns {Object} Weekly automation result
+ */
+function runWeeklyContentAutomation(forceRun = false) {
+  logger.enterFunction('System.runWeeklyContentAutomation', { forceRun });
+
+  try {
+    if (!isFeatureEnabled('WEEKLY_CONTENT_AUTOMATION')) {
+      logger.info('Weekly content automation disabled');
+      return { success: true, skipped: true, message: 'Feature disabled' };
+    }
+
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for weekly content automation wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+
+    const result = runWeeklyScheduleAutomation(forceRun);
+
+    logger.exitFunction('System.runWeeklyContentAutomation', { success: result.success });
+    return result;
+
+  } catch (error) {
+    logger.error('Weekly content automation failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Post batch fixtures using compatibility wrapper
+ * @param {string} competitionType - Competition type (legacy parameter)
+ * @param {boolean} upcomingOnly - Only include upcoming fixtures
+ * @param {number} daysAhead - Days ahead to include
+ * @returns {Object} Posting result
+ */
+function postBatchFixtures(competitionType = 'league', upcomingOnly = true, daysAhead = 14) {
+  logger.enterFunction('System.postBatchFixtures', { competitionType, upcomingOnly, daysAhead });
+
+  try {
+    if (!isFeatureEnabled('BATCH_POSTING')) {
+      logger.info('Batch posting disabled');
+      return { success: true, skipped: true, message: 'Feature disabled' };
+    }
+
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for batch fixtures wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+
+    const manager = new BatchFixturesManager();
+    const now = DateUtils.now();
+    const startDate = upcomingOnly ? now : DateUtils.addDays(now, -Math.abs(daysAhead));
+    const endDate = DateUtils.addDays(now, Math.abs(daysAhead));
+
+    const result = manager.postLeagueFixturesBatch(null, startDate, endDate);
+
+    logger.exitFunction('System.postBatchFixtures', { success: result.success, count: result.count });
+    return result;
+
+  } catch (error) {
+    logger.error('Batch fixtures posting failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Post batch results using compatibility wrapper
+ * @param {string} competitionType - Competition type (legacy parameter)
+ * @param {number} daysBack - Days back to include results
+ * @returns {Object} Posting result
+ */
+function postBatchResults(competitionType = 'league', daysBack = 7) {
+  logger.enterFunction('System.postBatchResults', { competitionType, daysBack });
+
+  try {
+    if (!isFeatureEnabled('BATCH_POSTING')) {
+      logger.info('Batch posting disabled');
+      return { success: true, skipped: true, message: 'Feature disabled' };
+    }
+
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for batch results wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+
+    const manager = new BatchFixturesManager();
+    const now = DateUtils.now();
+    const startDate = DateUtils.addDays(now, -Math.abs(daysBack));
+
+    const result = manager.postLeagueResultsBatch(null, startDate, now);
+
+    logger.exitFunction('System.postBatchResults', { success: result.success, count: result.count });
+    return result;
+
+  } catch (error) {
+    logger.error('Batch results posting failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Generate monthly player statistics summary wrapper
+ * @param {number|null} month - Month (1-12)
+ * @param {number|null} year - Year (e.g. 2024)
+ * @returns {Object} Summary result
+ */
+function generateMonthlyPlayerStats(month = null, year = null) {
+  logger.enterFunction('System.generateMonthlyPlayerStats', { month, year });
+
+  try {
+    if (!isFeatureEnabled('MONTHLY_SUMMARIES')) {
+      logger.info('Monthly summaries disabled');
+      return { success: true, skipped: true, message: 'Feature disabled' };
+    }
+
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for monthly player stats wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+
+    let reportingPeriod = null;
+    if (month !== null || year !== null) {
+      const today = DateUtils.now();
+      const targetYear = year !== null ? year : today.getFullYear();
+      const targetMonth = month !== null ? month : (today.getMonth() + 1);
+      const normalized = new Date(targetYear, targetMonth - 1, 1);
+      const monthPart = ('0' + (normalized.getMonth() + 1)).slice(-2);
+      reportingPeriod = `${normalized.getFullYear()}-${monthPart}`;
+    }
+
+    const result = postPlayerStatsSummary(reportingPeriod);
+
+    logger.exitFunction('System.generateMonthlyPlayerStats', { success: result.success });
+    return result;
+
+  } catch (error) {
+    logger.error('Monthly player stats generation failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Perform system health check (public API wrapper)
+ * @returns {Object} Health check result
+ */
+function performSystemHealthCheck() {
+  logger.enterFunction('System.performSystemHealthCheck');
+
+  try {
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for system health check wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+    const health = systemCoordinator.checkSystemHealth();
+    logger.exitFunction('System.performSystemHealthCheck', { status: health.overall_status });
+    return health;
+
+  } catch (error) {
+    logger.error('System health check failed', { error: error.toString() });
+    return { overall_status: 'unhealthy', error: error.toString() };
+  }
+}
+
+/**
  * Check system health (public API)
  * @returns {Object} Health check result
  */
 function checkSystemHealth() {
-  return systemCoordinator.checkSystemHealth();
+  return performSystemHealthCheck();
+}
+
+/**
+ * Get system metrics (public API wrapper)
+ * @returns {Object} System metrics
+ */
+function getSystemMetrics() {
+  logger.enterFunction('System.getSystemMetrics');
+
+  try {
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for system metrics wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+    const metrics = systemCoordinator.getSystemMetrics();
+    logger.exitFunction('System.getSystemMetrics', { success: !metrics.error });
+    return metrics;
+
+  } catch (error) {
+    logger.error('Failed to get system metrics', { error: error.toString() });
+    return { error: error.toString() };
+  }
 }
 
 /**
@@ -420,8 +615,8 @@ function getSystemStatus() {
   logger.enterFunction('System.getSystemStatus');
   
   try {
-    const health = systemCoordinator.checkSystemHealth();
-    const metrics = systemCoordinator.getSystemMetrics();
+    const health = performSystemHealthCheck();
+    const metrics = getSystemMetrics();
     
     const status = {
       system_health: health.overall_status,
@@ -689,6 +884,261 @@ function testWeeklyScheduler() {
       details: result
     };
   } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Test initialization guard handling for weekly automation wrapper
+ * @returns {Object} Test result summarizing success and failure paths
+ */
+function testInitializationGuardForWeeklyAutomation() {
+  const originalAutoInitializeIfNeeded = autoInitializeIfNeeded;
+  const originalRunWeeklyScheduleAutomation = typeof runWeeklyScheduleAutomation === 'function'
+    ? runWeeklyScheduleAutomation
+    : null;
+  const originalIsFeatureEnabled = isFeatureEnabled;
+
+  let successAutomationExecuted = false;
+  let failureAutomationExecuted = false;
+
+  try {
+    isFeatureEnabled = () => true;
+
+    autoInitializeIfNeeded = () => ({ success: true });
+    runWeeklyScheduleAutomation = forceRun => {
+      successAutomationExecuted = true;
+      return { success: true, forceRun };
+    };
+
+    const successResult = runWeeklyContentAutomation(true);
+
+    autoInitializeIfNeeded = () => ({ success: false, error: 'Simulated initialization failure' });
+    runWeeklyScheduleAutomation = () => {
+      failureAutomationExecuted = true;
+      return { success: true };
+    };
+
+    const failureResult = runWeeklyContentAutomation(true);
+
+    const successCheck = successResult.success === true && successAutomationExecuted === true;
+    const failureCheck = failureResult.success === false && failureResult.error === 'Initialization failed'
+      && failureResult.details?.error === 'Simulated initialization failure'
+      && failureAutomationExecuted === false;
+
+    return {
+      success: successCheck && failureCheck,
+      details: {
+        successResult,
+        failureResult,
+        successAutomationExecuted,
+        failureAutomationExecuted
+      }
+    };
+
+  } catch (error) {
+    return { success: false, error: error.toString() };
+
+  } finally {
+    autoInitializeIfNeeded = originalAutoInitializeIfNeeded;
+    if (originalRunWeeklyScheduleAutomation) {
+      runWeeklyScheduleAutomation = originalRunWeeklyScheduleAutomation;
+    } else {
+      delete runWeeklyScheduleAutomation;
+    }
+    isFeatureEnabled = originalIsFeatureEnabled;
+  }
+}
+
+/**
+ * Test initialization guard handling for system health wrapper
+ * @returns {Object} Test result summarizing guard behaviour
+ */
+function testInitializationGuardForSystemHealth() {
+  const originalAutoInitializeIfNeeded = autoInitializeIfNeeded;
+  const originalCheckSystemHealth = systemCoordinator.checkSystemHealth;
+
+  let failureHealthCalled = false;
+  let successHealthCalled = false;
+
+  try {
+    autoInitializeIfNeeded = () => ({ success: false, error: 'Simulated initialization failure' });
+    systemCoordinator.checkSystemHealth = () => {
+      failureHealthCalled = true;
+      return { overall_status: 'healthy' };
+    };
+
+    const failureResult = performSystemHealthCheck();
+
+    autoInitializeIfNeeded = () => ({ success: true });
+    systemCoordinator.checkSystemHealth = () => {
+      successHealthCalled = true;
+      return { overall_status: 'healthy' };
+    };
+
+    const successResult = performSystemHealthCheck();
+
+    const failureCheck = failureResult.success === false
+      && failureResult.error === 'Initialization failed'
+      && failureResult.details?.error === 'Simulated initialization failure'
+      && failureHealthCalled === false;
+
+    const successCheck = successResult.overall_status === 'healthy'
+      && successHealthCalled === true;
+
+    return {
+      success: failureCheck && successCheck,
+      details: {
+        failureResult,
+        successResult,
+        failureHealthCalled,
+        successHealthCalled
+      }
+    };
+
+  } catch (error) {
+    return { success: false, error: error.toString() };
+
+  } finally {
+    autoInitializeIfNeeded = originalAutoInitializeIfNeeded;
+    systemCoordinator.checkSystemHealth = originalCheckSystemHealth;
+  }
+}
+
+/**
+ * Daily maintenance trigger handler
+ * @returns {Object} Maintenance summary
+ */
+function dailyMaintenanceTasks() {
+  logger.enterFunction('System.dailyMaintenanceTasks');
+
+  try {
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for daily maintenance wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+
+    const maintenance = performSystemMaintenance();
+    let weeklyResult = { success: true, skipped: true };
+
+    if (isFeatureEnabled('WEEKLY_CONTENT_AUTOMATION')) {
+      weeklyResult = runWeeklyContentAutomation();
+    }
+
+    const success = maintenance.success && (weeklyResult.success || weeklyResult.skipped);
+
+    logger.exitFunction('System.dailyMaintenanceTasks', { success });
+
+    return {
+      success,
+      maintenance,
+      weekly_content: weeklyResult,
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+
+  } catch (error) {
+    logger.error('Daily maintenance failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Setup scheduled triggers for automation routines
+ * @returns {Object} Trigger setup results
+ */
+function setupScheduledTriggers() {
+  logger.enterFunction('System.setupScheduledTriggers');
+
+  try {
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for scheduled trigger setup wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
+
+    const results = {
+      daily_maintenance: false,
+      weekly_content: false,
+      monthly_fixtures: false,
+      monthly_results: false,
+      player_stats: false,
+      existing_triggers_cleaned: false
+    };
+
+    const handlersToManage = [
+      'dailyMaintenanceTasks',
+      'runWeeklyContentAutomation',
+      'postMonthlyFixturesSummary',
+      'postMonthlyResultsSummary',
+      'postPlayerStatsSummary'
+    ];
+
+    ScriptApp.getProjectTriggers()
+      .filter(trigger => handlersToManage.includes(trigger.getHandlerFunction()))
+      .forEach(trigger => {
+        ScriptApp.deleteTrigger(trigger);
+      });
+    results.existing_triggers_cleaned = true;
+
+    ScriptApp.newTrigger('dailyMaintenanceTasks')
+      .timeBased()
+      .everyDays(1)
+      .atHour(2)
+      .create();
+    results.daily_maintenance = true;
+
+    if (isFeatureEnabled('WEEKLY_CONTENT_AUTOMATION')) {
+      ScriptApp.newTrigger('runWeeklyContentAutomation')
+        .timeBased()
+        .everyDays(1)
+        .atHour(8)
+        .create();
+      results.weekly_content = true;
+    }
+
+    if (isFeatureEnabled('MONTHLY_SUMMARIES')) {
+      const fixturesConfig = getConfig('MONTHLY_CONTENT.FIXTURES_SUMMARY', {});
+      const fixturesDay = (fixturesConfig && typeof fixturesConfig.post_date === 'number')
+        ? fixturesConfig.post_date
+        : 1;
+      ScriptApp.newTrigger('postMonthlyFixturesSummary')
+        .timeBased()
+        .onMonthDay(Math.min(Math.max(fixturesDay, 1), 28))
+        .atHour(9)
+        .create();
+      results.monthly_fixtures = true;
+
+      const resultsConfig = getConfig('MONTHLY_CONTENT.RESULTS_SUMMARY', {});
+      const resultsDay = (resultsConfig && typeof resultsConfig.post_date === 'number')
+        ? resultsConfig.post_date
+        : 28;
+      ScriptApp.newTrigger('postMonthlyResultsSummary')
+        .timeBased()
+        .onMonthDay(Math.min(Math.max(resultsDay, 1), 28))
+        .atHour(20)
+        .create();
+      results.monthly_results = true;
+    }
+
+    const statsConfig = getConfig('MONTHLY_CONTENT.PLAYER_STATS', {});
+    if (!statsConfig || statsConfig.enabled !== false) {
+      const statsDay = (statsConfig && typeof statsConfig.post_date === 'number')
+        ? statsConfig.post_date
+        : 14;
+      ScriptApp.newTrigger('postPlayerStatsSummary')
+        .timeBased()
+        .onMonthDay(Math.min(Math.max(statsDay, 1), 28))
+        .atHour(10)
+        .create();
+      results.player_stats = true;
+    }
+
+    logger.exitFunction('System.setupScheduledTriggers', { success: true });
+    return { success: true, results };
+
+  } catch (error) {
+    logger.error('Trigger setup failed', { error: error.toString() });
     return { success: false, error: error.toString() };
   }
 }

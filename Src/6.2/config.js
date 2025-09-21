@@ -11,6 +11,26 @@
 // ==================== SYSTEM CONFIGURATION ====================
 
 /**
+ * Merge arrays into a unique ordered list (legacy + new columns)
+ * @param {...Array<*>} arrays - Arrays of values to merge
+ * @returns {Array<*>} Array with unique entries preserving first occurrence order
+ */
+function mergeUniqueArrays() {
+  const merged = [];
+
+  for (let i = 0; i < arguments.length; i += 1) {
+    const current = Array.isArray(arguments[i]) ? arguments[i] : [];
+    current.forEach(value => {
+      if (!merged.includes(value)) {
+        merged.push(value);
+      }
+    });
+  }
+
+  return merged;
+}
+
+/**
  * Master system configuration object
  * @constant {Object} SYSTEM_CONFIG
  */
@@ -26,6 +46,8 @@ const SYSTEM_CONFIG = {
     CLUB_NAME: 'Syston Tigers',
     CLUB_SHORT_NAME: 'Syston',
     SEASON: '2024/25',
+    LEAGUE: 'Leicester & District Football League',
+    LAST_UPDATED: '2025-09-20',
     
     // Bible compliance settings
     BIBLE_COMPLIANT: true,
@@ -56,15 +78,217 @@ const SYSTEM_CONFIG = {
     VIDEO_CLIP_CREATION: true,
     YOUTUBE_AUTOMATION: false, // Enable when ready
     XBOTGO_INTEGRATION: false, // Enable when configured
-    
+    ADVANCED_ANALYTICS: false,
+    AI_CONTENT_GENERATION: false,
+    LIVE_STREAMING: false,
+    VOICE_COMMENTARY: false,
+
     // Future features
     TIKTOK_POSTING: false,
     GOAL_OF_MONTH: false,
-    MULTI_TENANT: false
+    MULTI_TENANT: false,
+    FACEBOOK_POSTING: true,
+    TWITTER_POSTING: true,
+    INSTAGRAM_POSTING: true
+  },
+
+  // ==================== DOCUMENTATION REFERENCE ====================
+  DOCUMENTATION: {
+    VERSION: '6.2.0',
+    SOURCE_FILES: {
+      BIBLE: 'System-Workings - AKA The Bible.md',
+      CLAUDE: 'CLAUDE.md',
+      TASKS: 'TASKS.md',
+      PLANNING: 'PLANNING.md'
+    },
+
+    WEEKLY_SCHEDULE: {
+      MONDAY: [
+        "This week's fixtures",
+        'No match scheduled this week'
+      ],
+      TUESDAY: ['Quotes'],
+      WEDNESDAY: [
+        'Player stats - Monthly',
+        "Previous matches against this week's team"
+      ],
+      THURSDAY: ['Throwback Thursday', '3 days to go'],
+      FRIDAY: ['2 days to go'],
+      SATURDAY: ['1 day to go'],
+      SUNDAY: [
+        'Match day',
+        'Kick off',
+        'Live Match Updates',
+        'Day results',
+        'League tables'
+      ]
+    },
+
+    OTHER_POSTS: [
+      'Birthdays - as and when',
+      'Syston Fixtures - 1st day of the month',
+      'Syston Results - last day of the Month',
+      'Goal of the month competition - repost daily until voting closes',
+      'Voting closing reminders for competitions',
+      'Goal of the month winner announced 5 days after competition opens',
+      'Goal of the season competition using monthly winners and runners up',
+      'Two week goal of the season campaign after final match',
+      'Postponed match alerts canceling countdown posts',
+      'Sponsor highlights page/posts',
+      'Highlight clips and video recaps'
+    ],
+
+    MATCH_DAY_OPERATIONS: {
+      PRE_MATCH: [
+        'Fixture moves into Live Match Updates tab on match day',
+        'Control panel toggles enable/disable automation features'
+      ],
+      STATUS_UPDATES: [
+        'Kick off',
+        'Half-time',
+        'Second half kick-off',
+        'Full time'
+      ],
+      GOAL_LOGIC: [
+        'Selecting player "Goal" counts as opposition goal',
+        'Brace and hat-trick detection for tailored posts',
+        'Opposition goal updates do not affect player stats'
+      ],
+      DISCIPLINE: [
+        'Cards logged with player dropdown',
+        'Opposition cards logged against opposition entity'
+      ],
+      PLAYER_TRACKING: [
+        'Player minutes auto calculated from kickoff/subs/full-time',
+        'Appearances, goals, assists, cards and minutes updated in real time'
+      ],
+      VIDEO_NOTES: [
+        'Notes dropdown marks video editor cues (big chance, tackle, good play, goal)',
+        'Notes include player dropdown to reference individuals'
+      ],
+      VIDEO_REQUIREMENTS: [
+        'Highlight video overlays match clock with team names',
+        'Goal events trigger banner and replay zoom',
+        'Video clips stored per player in Google Drive folders'
+      ],
+      LIVE_STREAMING: [
+        'Consider live streaming to Facebook, YouTube, Instagram, TikTok'
+      ],
+      MANUAL_INPUT: [
+        'Allow manual entry of player stats and historical data when needed'
+      ]
+    },
+
+    CLAUDE_GUIDANCE: {
+      PROJECT_OVERVIEW: {
+        SUMMARY: 'Comprehensive automation platform for Syston Tigers FC',
+        WEEKLY_SCHEDULE: ['Monday fixtures', 'Tuesday quotes', 'Wednesday stats/opposition history', 'Thursday throwback & countdown', 'Friday two days to go', 'Saturday one day to go', 'Sunday match day operations'],
+        MATCHDAY_AUTOMATION: [
+          'Live match tab activation on match day',
+          'Status update workflow with send checkbox',
+          'Opposition goal and card detection',
+          'MOTM selection and player minutes tracking'
+        ],
+        CONTENT_TYPES: [
+          'Live match events',
+          'Weekly batch content',
+          'Monthly summaries',
+          'Special posts (birthdays, postponements, goal competitions)',
+          'Video highlight content'
+        ]
+      },
+      TECHNOLOGY_STACK: [
+        'Google Sheets input layer',
+        'Google Apps Script processing',
+        'Make.com automation with router branches',
+        'Canva for templated graphics',
+        'Google Drive storage',
+        'YouTube API and video tooling',
+        'XbotGo scoreboard integration',
+        'GitHub Pages data feeds'
+      ],
+      DESIGN_PRINCIPLES: [
+        'Bible compliance governs implementation',
+        'Strict weekly schedule automation',
+        'Modular components per .gs file',
+        'Centralized configuration only in config.js',
+        'Idempotent external calls using unique keys',
+        'Graceful fallback handling for missing data',
+        'Comprehensive logging and @testHook usage'
+      ],
+      CODE_STANDARDS: {
+        LOGGING_PATTERN: 'logger.enterFunction/exitFunction with try/catch and @testHook markers',
+        CONFIG_ACCESS: 'Use getConfig utility instead of literals',
+        SHEET_ACCESS: 'Use SheetUtils safe helpers with validation'
+      }
+    },
+
+    TASK_STATUS: {
+      UPDATED: '2025-09-20',
+      CRITICAL_MISSING: [
+        'Weekly content calendar automation',
+        'Opposition goal auto-detection',
+        'Real-time player minutes calculation',
+        'Video clip metadata generation',
+        'Video editor notes system',
+        'Feature toggle control panel'
+      ],
+      FOUNDATIONS: [
+        'Core Apps Script framework',
+        'Event processing for goals/cards/MOTM',
+        'Robust Google Sheets integration',
+        'Make.com webhook and router setup',
+        'Idempotent social media posting',
+        'Version standardization and documentation',
+        'Comprehensive logging infrastructure'
+      ],
+      METRICS: {
+        WEEKLY_SCHEDULE: '0% implemented',
+        OPPOSITION_DETECTION: '0% implemented',
+        PLAYER_MINUTES: '0% implemented',
+        VIDEO_INTEGRATION: '0% implemented',
+        CONTROL_PANEL: '0% implemented'
+      },
+      PHASES: {
+        PHASE_1: {
+          DEADLINE: '2025-10-31',
+          FOCUS: 'Bible core implementation',
+          ESTIMATED_HOURS: 60,
+          STATUS: 'Not started'
+        }
+      }
+    },
+
+    PLANNING: {
+      MISSION_STATEMENT: 'Automate every moment of Syston Tigers FC with Bible-compliant workflows.',
+      VISION_2025: 'Every Goal. Every Card. Every Moment. Every Day of the Week. Automated.',
+      SUCCESS_TARGETS: [
+        '10,000+ social followers',
+        '95% automated posting',
+        'Perfect weekly schedule compliance',
+        '100% match event automation',
+        'Complete video pipeline delivery',
+        '50+ clubs using automation template',
+        '£10,000+ annual digital revenue',
+        'Industry recognition for innovation'
+      ],
+      ARCHITECTURE: {
+        INPUT_LAYER: ['Weekly schedule triggers', 'Live match Google Sheets', 'Admin control panel', 'Email fixture ingestion'],
+        PROCESSING_CORE: ['Weekly scheduler', 'Event manager', 'Player manager', 'Video manager'],
+        INTEGRATIONS: ['Make.com routers', 'Canva templates', 'Video processing workflows', 'External APIs'],
+        DISTRIBUTION: ['Facebook', 'Twitter/X', 'Instagram', 'TikTok', 'YouTube Shorts']
+      },
+      NOTES: [
+        'System must remain under Make.com free tier limits',
+        'All automation must support manual overrides',
+        'Templates stored for repeatable Canva usage'
+      ]
+    }
   },
 
   // ==================== GOOGLE SHEETS CONFIGURATION ====================
   SHEETS: {
+    SPREADSHEET_ID: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '',
     TAB_NAMES: {
       // Core sheets
       LIVE_MATCH: 'Live Match Updates',
@@ -72,6 +296,9 @@ const SYSTEM_CONFIG = {
       RESULTS: 'Results',
       PLAYER_STATS: 'Player Stats',
       PLAYER_EVENTS: 'Player Events',
+      LIVE_MATCH_UPDATES: 'Live Match Updates',
+      FIXTURES_RESULTS: 'Fixtures & Results',
+      PLAYER_MINUTES: 'Player Minutes',
       
       // Enhanced sheets from spec
       SUBS_LOG: 'Subs Log',
@@ -80,48 +307,93 @@ const SYSTEM_CONFIG = {
       MONTHLY_CONTENT: 'Monthly Content',
       MONTHLY_SUMMARIES: 'Monthly Summaries',
       WEEKLY_SCHEDULE: 'Weekly Schedule',
+      WEEKLY_CONTENT: 'Weekly Content Calendar',
       
       // System sheets
       CONTROL_PANEL: 'Control Panel',
       CONFIG: 'Config',
       LOGS: 'Logs',
       NOTES: 'Notes',
+      QUOTES: 'Quotes',
+      HISTORICAL_DATA: 'Historical Data',
       
       // Future sheets
       SEASON_STATS: 'Season Stats',
-      GOAL_OF_MONTH: 'GOTM Tracking'
+      GOAL_OF_MONTH: 'GOTM Tracking',
+      MONTHLY_STATS: 'Monthly Stats'
     },
 
     REQUIRED_COLUMNS: {
       LIVE_MATCH: [
-        'Minute', 'Event', 'Player', 'Assist', 'Card Type', 
+        'Minute', 'Event', 'Player', 'Assist', 'Card Type',
         'Send', 'Posted', 'Match ID', 'Timestamp', 'Notes'
       ],
+      LIVE_MATCH_UPDATES: [
+        'Timestamp', 'Minute', 'Event', 'Player', 'Opponent', 'Home Score',
+        'Away Score', 'Card Type', 'Assist', 'Notes', 'Send', 'Status'
+      ],
       FIXTURES: [
-        'Date', 'Time', 'Opposition', 'Venue', 'Competition', 
+        'Date', 'Time', 'Opposition', 'Venue', 'Competition',
         'Home/Away', 'Send', 'Posted', 'Match ID', 'Status'
       ],
+      FIXTURES_RESULTS: [
+        'Match Date', 'Opponent', 'Competition', 'Home/Away', 'Result',
+        'Scoreline', 'Send Status', 'Posted At', 'Notes'
+      ],
       RESULTS: [
-        'Date', 'Opposition', 'Home Score', 'Away Score', 'Venue', 
+        'Date', 'Opposition', 'Home Score', 'Away Score', 'Venue',
         'Competition', 'Home/Away', 'Result', 'Send', 'Posted', 'Match ID'
       ],
-      PLAYER_STATS: [
-        'Player', 'Appearances', 'Starts', 'Sub Apps', 'Goals', 
-        'Penalties', 'Assists', 'Yellow Cards', 'Red Cards', 
-        'Sin Bins', 'MOTM', 'Minutes', 'Last Updated'
-      ],
+      PLAYER_STATS: mergeUniqueArrays(
+        [
+          'Player', 'Appearances', 'Starts', 'Sub Apps', 'Goals',
+          'Penalties', 'Assists', 'Yellow Cards', 'Red Cards',
+          'Sin Bins', 'MOTM', 'Minutes', 'Last Updated'
+        ],
+        [
+          'Player Name', 'Goals', 'Assists', 'Position', 'Squad Number'
+        ]
+      ),
       PLAYER_EVENTS: [
-        'Match ID', 'Date', 'Player', 'Event Type', 'Minute', 
+        'Match ID', 'Date', 'Player', 'Event Type', 'Minute',
         'Details', 'Competition', 'Opposition', 'Timestamp'
       ],
-      SUBS_LOG: [
-        'Match ID', 'Date', 'Minute', 'Player Off', 'Player On', 
-        'Home/Away', 'Reason', 'Timestamp'
-      ],
+      SUBS_LOG: mergeUniqueArrays(
+        [
+          'Match ID', 'Date', 'Minute', 'Player Off', 'Player On',
+          'Home/Away', 'Reason', 'Timestamp'
+        ],
+        [
+          'Match Date'
+        ]
+      ),
       OPPOSITION_EVENTS: [
-        'Match ID', 'Date', 'Event Type', 'Minute', 'Details', 
+        'Match ID', 'Date', 'Event Type', 'Minute', 'Details',
         'Posted', 'Timestamp'
+      ],      VIDEO_CLIPS: mergeUniqueArrays(
+        [
+          'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
+          'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
+          'Folder Path', 'Created'
+        ],
+        [
+          'Match Date', 'Local Path', 'Notes'
+        ]
+      ),
+      MONTHLY_CONTENT: [
+        'Month Key',
+        'Type',
+        'Event Type',
+        'Count',
+        'Statistics JSON',
+        'Payload Preview',
+        'Processed At',
+        'Idempotency Key',
+        'Make Result'
       ],
+      WEEKLY_CONTENT: [
+        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes'
+
       VIDEO_CLIPS: [
         'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
         'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
@@ -130,6 +402,7 @@ const SYSTEM_CONFIG = {
       MONTHLY_SUMMARIES: [
         'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
         'Summary_Data', 'Posted', 'Responses', 'Created'
+>> main
       ]
     }
   },
@@ -140,6 +413,7 @@ const SYSTEM_CONFIG = {
     WEBHOOK_TIMEOUT_MS: 30000,
     WEBHOOK_RETRY_ATTEMPTS: 3,
     WEBHOOK_RETRY_DELAY_MS: 2000,
+    WEBHOOK_URL_FALLBACK: 'MAKE_WEBHOOK_URL_FALLBACK',
     
     // Event type mappings for router
     EVENT_TYPES: {
@@ -179,7 +453,8 @@ const SYSTEM_CONFIG = {
       FIXTURES_THIS_MONTH: 'fixtures_this_month',
       RESULTS_THIS_MONTH: 'results_this_month',
       PLAYER_STATS_SUMMARY: 'player_stats_summary',
-      
+      PLAYER_STATS_MONTHLY: 'player_stats_summary',
+
       // Weekly content events (NEW: Bible compliance)
       WEEKLY_FIXTURES: 'weekly_fixtures',
       WEEKLY_NO_MATCH: 'weekly_no_match',
@@ -187,7 +462,72 @@ const SYSTEM_CONFIG = {
       WEEKLY_STATS: 'weekly_stats',
       WEEKLY_THROWBACK: 'weekly_throwback',
       WEEKLY_COUNTDOWN_2: 'weekly_countdown_2',
-      WEEKLY_COUNTDOWN_1: 'weekly_countdown_1'
+      WEEKLY_COUNTDOWN_1: 'weekly_countdown_1',
+      MONDAY_FIXTURES: 'weekly_fixtures',
+      TUESDAY_QUOTES: 'weekly_quotes',
+      WEDNESDAY_STATS: 'weekly_stats',
+      WEDNESDAY_OPPOSITION: 'weekly_opposition_analysis',
+      THURSDAY_THROWBACK: 'weekly_throwback',
+      FRIDAY_COUNTDOWN: 'weekly_countdown_2',
+      SATURDAY_COUNTDOWN: 'weekly_countdown_1',
+
+      // Legacy aliases for batch and special events
+      second_half: 'match_second_half',
+      second_half_kickoff: 'match_second_half_kickoff',
+      fixtures_batch_1: 'fixtures_1_league',
+      fixtures_batch_2: 'fixtures_2_league',
+      fixtures_batch_3: 'fixtures_3_league',
+      fixtures_batch_4: 'fixtures_4_league',
+      fixtures_batch_5: 'fixtures_5_league',
+      results_batch_1: 'results_1_league',
+      results_batch_2: 'results_2_league',
+      results_batch_3: 'results_3_league',
+      results_batch_4: 'results_4_league',
+      results_batch_5: 'results_5_league',
+      birthday: 'player_birthday',
+      gotm_voting_open: 'gotm_voting_start',
+      gotm_winner: 'gotm_winner_announcement'
+    }
+  },
+
+  // ==================== CANVA INTEGRATION ====================
+  CANVA: {
+    TEMPLATE_PROPERTY_PREFIX: 'CANVA_TEMPLATE_',
+    PLACEHOLDERS: {
+      COMMON: [
+        'club_name', 'club_logo', 'match_date', 'opponent', 'venue',
+        'home_score', 'away_score', 'competition', 'kick_off_time'
+      ],
+      GOAL: [
+        'goal_scorer', 'assist_provider', 'minute', 'goal_number',
+        'match_score', 'celebration_text'
+      ],
+      CARD: [
+        'player_name', 'card_type', 'minute', 'reason', 'referee_name'
+      ],
+      FIXTURES: [
+        'fixture_count', 'fixture_1_opponent', 'fixture_1_date', 'fixture_1_time',
+        'fixture_2_opponent', 'fixture_2_date', 'fixture_2_time',
+        'fixture_3_opponent', 'fixture_3_date', 'fixture_3_time',
+        'fixture_4_opponent', 'fixture_4_date', 'fixture_4_time',
+        'fixture_5_opponent', 'fixture_5_date', 'fixture_5_time'
+      ],
+      RESULTS: [
+        'result_count', 'result_1_opponent', 'result_1_score', 'result_1_outcome',
+        'result_2_opponent', 'result_2_score', 'result_2_outcome',
+        'result_3_opponent', 'result_3_score', 'result_3_outcome',
+        'result_4_opponent', 'result_4_score', 'result_4_outcome',
+        'result_5_opponent', 'result_5_score', 'result_5_outcome'
+      ],
+      PLAYER_STATS: [
+        'player_name', 'appearances', 'goals', 'assists', 'minutes',
+        'yellow_cards', 'red_cards', 'motm_awards', 'position',
+        'goals_per_game', 'minutes_per_goal', 'passing_accuracy'
+      ],
+      WEEKLY_CONTENT: [
+        'content_title', 'content_text', 'background_image', 'overlay_color',
+        'quote_text', 'quote_author', 'countdown_days', 'next_match_info'
+      ]
     }
   },
 
@@ -198,7 +538,15 @@ const SYSTEM_CONFIG = {
     LOG_LEVEL: 'INFO', // DEBUG | INFO | WARN | ERROR
     MAX_LOG_ENTRIES: 10000,
     LOG_RETENTION_DAYS: 30,
-    
+    LEVELS: {
+      ERROR: 0,
+      WARN: 1,
+      INFO: 2,
+      DEBUG: 3
+    },
+    CURRENT_LEVEL: 2,
+    LOG_CLEANUP_DAYS: 30,
+
     // Bible compliance: Comprehensive logging required
     FUNCTION_ENTRY_EXIT: true,
     ERROR_STACK_TRACES: true,
@@ -212,7 +560,26 @@ const SYSTEM_CONFIG = {
     CACHE_DURATION_MINUTES: 30,
     BATCH_SIZE: 50,
     WEBHOOK_RATE_LIMIT_MS: 1000, // Min time between webhook calls
-    SHEET_LOCK_TIMEOUT_MS: 30000
+    SHEET_LOCK_TIMEOUT_MS: 30000,
+    PROCESSING_DELAY_MS: 500,
+    API_RATE_LIMIT_MS: 500
+  },
+
+  // ==================== PLAYER DIRECTORY SETTINGS ====================
+  PLAYERS: {
+    OPPOSITION_ENTRIES: ['Goal', 'Opposition', 'Own Goal', 'Unknown'],
+    POSITIONS: [
+      'Goalkeeper', 'Right Back', 'Centre Back', 'Left Back',
+      'Defensive Midfielder', 'Central Midfielder', 'Attacking Midfielder',
+      'Right Winger', 'Left Winger', 'Striker', 'Centre Forward'
+    ],
+    CARD_TYPES: ['Yellow Card', 'Red Card', 'Sin Bin', '2nd Yellow (Red)'],
+    MATCH_DURATION_MINUTES: 90,
+    HALF_TIME_MINUTE: 45,
+    STAT_FIELDS: [
+      'appearances', 'goals', 'assists', 'minutes', 'yellow_cards',
+      'red_cards', 'motm', 'goals_per_game', 'minutes_per_goal'
+    ]
   },
 
   // ==================== PLAYER MANAGEMENT ====================
@@ -237,15 +604,24 @@ const SYSTEM_CONFIG = {
     AUTO_CLIP_CREATION: true,
     CLIP_DURATION_SECONDS: 30,
     CLIP_BUFFER_SECONDS: 3,
-    
+    DEFAULT_CLIP_DURATION: 30,
+    GOAL_CLIP_LEAD_TIME: 10,
+    GOAL_CLIP_FOLLOW_TIME: 20,
+
     // Folder structure
     DRIVE_FOLDER_ID: '', // Set when configured
+    DRIVE_FOLDER_PROPERTY: 'VIDEO_DRIVE_FOLDER_ID',
     PLAYER_FOLDERS_AUTO_CREATE: true,
-    
+    PLAYER_FOLDERS_PROPERTY: 'PLAYER_FOLDERS_MAPPING',
+
     // Processing options
     PROCESSING_METHOD: 'cloudconvert', // cloudconvert | ffmpeg_local
     YOUTUBE_AUTO_UPLOAD: false,
-    YOUTUBE_DEFAULT_PRIVACY: 'unlisted'
+    YOUTUBE_DEFAULT_PRIVACY: 'unlisted',
+    YOUTUBE_CHANNEL_PROPERTY: 'YOUTUBE_CHANNEL_ID',
+    YOUTUBE_PLAYLIST_PROPERTY: 'YOUTUBE_PLAYLIST_ID',
+    DEFAULT_PRIVACY_STATUS: 'unlisted',
+    CLOUDCONVERT_API_KEY_PROPERTY: 'CLOUDCONVERT_API_KEY'
   },
 
   // ==================== XBOTGO INTEGRATION ====================
@@ -253,20 +629,27 @@ const SYSTEM_CONFIG = {
     ENABLED: false, // Enable when API configured
     API_URL: '',
     API_KEY_PROPERTY: 'XBOTGO_API_KEY',
+    API_BASE_URL_PROPERTY: 'XBOTGO_API_URL',
     SCOREBOARD_ID: '',
-    
+    DEVICE_ID_PROPERTY: 'XBOTGO_DEVICE_ID',
+
     // Update settings
     AUTO_SCORE_UPDATE: true,
     UPDATE_ON_GOAL: true,
     UPDATE_ON_FINAL: true,
-    RETRY_ATTEMPTS: 3
+    RETRY_ATTEMPTS: 3,
+    AUTO_PUSH_GOALS: true,
+    AUTO_PUSH_CARDS: false,
+    AUTO_PUSH_SUBS: false,
+    MAX_RETRIES: 3,
+    RETRY_DELAY_MS: 1000
   },
 
   // ==================== WEEKLY SCHEDULE CONFIGURATION ====================
   WEEKLY_SCHEDULE: {
     ENABLED: true, // Bible compliance requirement
     TIMEZONE: 'Europe/London',
-    
+
     // Schedule definitions (Bible compliance)
     SCHEDULE: {
       MONDAY: {
@@ -308,13 +691,62 @@ const SYSTEM_CONFIG = {
         content_type: 'match_day',
         varies_by_kickoff: true
       }
-    }
+    },
+
+    LEGACY_SCHEDULE: {
+      1: {
+        type: 'fixtures',
+        content: 'this_week_fixtures',
+        fallback: 'no_match_scheduled',
+        enabled: true
+      },
+      2: {
+        type: 'quotes',
+        content: 'motivational_quotes',
+        rotation: true,
+        enabled: true
+      },
+      3: {
+        type: 'stats_or_opposition',
+        content: 'monthly_stats',
+        monthly_week: 2,
+        enabled: true
+      },
+      4: {
+        type: 'throwback',
+        content: 'historical_content',
+        countdown_if_match: true,
+        enabled: true
+      },
+      5: {
+        type: 'countdown',
+        content: '2_days_to_go',
+        only_if_match: true,
+        enabled: true
+      },
+      6: {
+        type: 'countdown',
+        content: '1_day_to_go',
+        only_if_match: true,
+        enabled: true
+      },
+      0: {
+        type: 'match_day',
+        content: 'live_match_automation',
+        priority: 'highest',
+        enabled: true
+      }
+    },
+
+    QUOTES_ROTATION_PROPERTY: 'LAST_QUOTE_INDEX',
+    THROWBACK_ROTATION_PROPERTY: 'LAST_THROWBACK_INDEX',
+    CONTENT_COOLDOWN_DAYS: 30
   },
 
   // ==================== MONTHLY CONTENT CONFIGURATION ====================
   MONTHLY_CONTENT: {
     ENABLED: true,
-    
+
     // Fixtures summary
     FIXTURES_SUMMARY: {
       enabled: true,
@@ -322,7 +754,7 @@ const SYSTEM_CONFIG = {
       include_all_competitions: true,
       highlight_key_matches: true
     },
-    
+
     // Results summary
     RESULTS_SUMMARY: {
       enabled: true,
@@ -330,7 +762,7 @@ const SYSTEM_CONFIG = {
       include_statistics: true,
       highlight_best_worst: true
     },
-    
+
     // Player stats (bi-monthly as per spec)
     PLAYER_STATS: {
       enabled: true,
@@ -341,6 +773,22 @@ const SYSTEM_CONFIG = {
     }
   },
 
+codex/sort-and-merge-code-into-version-6.2
+  // ==================== MONTHLY EVENTS (LEGACY SUPPORT) ====================
+  MONTHLY: {
+    GOTM: {
+      VOTING_PERIOD_DAYS: 5,
+      MIN_GOALS_FOR_COMPETITION: 3,
+      VOTING_START_DAY: 1,
+      WINNER_ANNOUNCE_DAY: 6,
+      ENABLED: true
+    },
+    SUMMARIES: {
+      FIXTURES_DAY: 1,
+      RESULTS_DAY: -1,
+      STATS_WEEK: 2,
+      ENABLED: true
+    }
   // ==================== MONTHLY SUMMARY SETTINGS ====================
   MONTHLY_SUMMARIES: {
     ENABLED: true,
@@ -349,6 +797,7 @@ const SYSTEM_CONFIG = {
     MAX_RESULTS_PER_PAYLOAD: 10,
     LOCAL_RIVALS: ['leicester', 'melton', 'oadby', 'hinckley', 'coalville'],
     IMPORTANT_COMPETITIONS: ['league cup', 'fa cup', 'county cup']
+main
   },
 
   // ==================== OPPOSITION HANDLING ====================
@@ -396,15 +845,36 @@ const SYSTEM_CONFIG = {
     RETRY_LOGIC: true,
     MAX_RETRIES: 3,
     RETRY_DELAY_MS: 2000,
-    
+    DEFAULT_MAX_RETRIES: 3,
+    DEFAULT_RETRY_DELAY: 1000,
+    EXPONENTIAL_BACKOFF: true,
+    CONTINUE_ON_ERROR: true,
+
     // Missing data handling
     HANDLE_MISSING_SHEETS: true,
     HANDLE_MISSING_PLAYERS: true,
     HANDLE_MISSING_CONFIG: true,
-    
+
     // Error reporting
     LOG_ALL_ERRORS: true,
-    ALERT_ON_CRITICAL: false // Set to true for production monitoring
+    ALERT_ON_CRITICAL: false, // Set to true for production monitoring
+    ALERT_ON_CRITICAL_ERROR: true,
+    ADMIN_EMAIL_PROPERTY: 'ADMIN_EMAIL',
+    CRITICAL_ERRORS: [
+      'SHEET_ACCESS_DENIED',
+      'WEBHOOK_PERMANENTLY_FAILED',
+      'CONFIG_CORRUPTION'
+    ]
+  },
+
+  // ==================== DEVELOPMENT SETTINGS ====================
+  DEVELOPMENT: {
+    DEBUG_MODE: false,
+    VERBOSE_LOGGING: false,
+    USE_TEST_DATA: false,
+    TEST_WEBHOOK_URL_PROPERTY: 'TEST_WEBHOOK_URL',
+    SIMULATION_MODE: false,
+    SIMULATION_LOG_PAYLOADS: true
   }
 };
 

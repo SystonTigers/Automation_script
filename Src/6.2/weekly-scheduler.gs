@@ -1,6 +1,6 @@
 /**
  * @fileoverview Bible-Compliant Weekly Content Calendar Automation
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Implements the exact Monday-Sunday content schedule from the system workings Bible
  * 
@@ -1027,7 +1027,7 @@ function initializeWeeklyScheduler() {
       success: allSheetsOk,
       sheets: sheetResults,
       message: 'Weekly Scheduler initialized successfully',
-      version: '6.0.0'
+      version: '6.2.0'
     };
     
   } catch (error) {

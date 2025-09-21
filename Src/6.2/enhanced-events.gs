@@ -1,6 +1,6 @@
 /**
  * @fileoverview Enhanced event processing for live match automation
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Handles all live match events including opposition events and 2nd yellows
  * 

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Enhanced Make.com webhook integration with retry logic and router management
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Dedicated Make.com integration with enhanced error handling and retry mechanisms
  * 
@@ -689,7 +689,7 @@ function initializeMakeIntegration() {
       router_validation: routerValidation,
       initial_metrics: metrics,
       webhook_configured: !!getWebhookUrl(),
-      version: '6.0.0'
+      version: '6.2.0'
     };
     
   } catch (error) {
