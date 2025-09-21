@@ -418,7 +418,11 @@ function runWeeklyContentAutomation(forceRun = false) {
       return { success: true, skipped: true, message: 'Feature disabled' };
     }
 
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for weekly content automation wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
 
     const result = runWeeklyScheduleAutomation(forceRun);
 
@@ -447,7 +451,11 @@ function postBatchFixtures(competitionType = 'league', upcomingOnly = true, days
       return { success: true, skipped: true, message: 'Feature disabled' };
     }
 
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for batch fixtures wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
 
     const manager = new BatchFixturesManager();
     const now = DateUtils.now();
@@ -480,7 +488,11 @@ function postBatchResults(competitionType = 'league', daysBack = 7) {
       return { success: true, skipped: true, message: 'Feature disabled' };
     }
 
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for batch results wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
 
     const manager = new BatchFixturesManager();
     const now = DateUtils.now();
@@ -512,7 +524,11 @@ function generateMonthlyPlayerStats(month = null, year = null) {
       return { success: true, skipped: true, message: 'Feature disabled' };
     }
 
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for monthly player stats wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
 
     let reportingPeriod = null;
     if (month !== null || year !== null) {
@@ -543,7 +559,11 @@ function performSystemHealthCheck() {
   logger.enterFunction('System.performSystemHealthCheck');
 
   try {
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for system health check wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
     const health = systemCoordinator.checkSystemHealth();
     logger.exitFunction('System.performSystemHealthCheck', { status: health.overall_status });
     return health;
@@ -570,7 +590,11 @@ function getSystemMetrics() {
   logger.enterFunction('System.getSystemMetrics');
 
   try {
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for system metrics wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
     const metrics = systemCoordinator.getSystemMetrics();
     logger.exitFunction('System.getSystemMetrics', { success: !metrics.error });
     return metrics;
@@ -863,6 +887,123 @@ function testWeeklyScheduler() {
 }
 
 /**
+ * Test initialization guard handling for weekly automation wrapper
+ * @returns {Object} Test result summarizing success and failure paths
+ */
+function testInitializationGuardForWeeklyAutomation() {
+  const originalAutoInitializeIfNeeded = autoInitializeIfNeeded;
+  const originalRunWeeklyScheduleAutomation = typeof runWeeklyScheduleAutomation === 'function'
+    ? runWeeklyScheduleAutomation
+    : null;
+  const originalIsFeatureEnabled = isFeatureEnabled;
+
+  let successAutomationExecuted = false;
+  let failureAutomationExecuted = false;
+
+  try {
+    isFeatureEnabled = () => true;
+
+    autoInitializeIfNeeded = () => ({ success: true });
+    runWeeklyScheduleAutomation = forceRun => {
+      successAutomationExecuted = true;
+      return { success: true, forceRun };
+    };
+
+    const successResult = runWeeklyContentAutomation(true);
+
+    autoInitializeIfNeeded = () => ({ success: false, error: 'Simulated initialization failure' });
+    runWeeklyScheduleAutomation = () => {
+      failureAutomationExecuted = true;
+      return { success: true };
+    };
+
+    const failureResult = runWeeklyContentAutomation(true);
+
+    const successCheck = successResult.success === true && successAutomationExecuted === true;
+    const failureCheck = failureResult.success === false && failureResult.error === 'Initialization failed'
+      && failureResult.details?.error === 'Simulated initialization failure'
+      && failureAutomationExecuted === false;
+
+    return {
+      success: successCheck && failureCheck,
+      details: {
+        successResult,
+        failureResult,
+        successAutomationExecuted,
+        failureAutomationExecuted
+      }
+    };
+
+  } catch (error) {
+    return { success: false, error: error.toString() };
+
+  } finally {
+    autoInitializeIfNeeded = originalAutoInitializeIfNeeded;
+    if (originalRunWeeklyScheduleAutomation) {
+      runWeeklyScheduleAutomation = originalRunWeeklyScheduleAutomation;
+    } else {
+      delete runWeeklyScheduleAutomation;
+    }
+    isFeatureEnabled = originalIsFeatureEnabled;
+  }
+}
+
+/**
+ * Test initialization guard handling for system health wrapper
+ * @returns {Object} Test result summarizing guard behaviour
+ */
+function testInitializationGuardForSystemHealth() {
+  const originalAutoInitializeIfNeeded = autoInitializeIfNeeded;
+  const originalCheckSystemHealth = systemCoordinator.checkSystemHealth;
+
+  let failureHealthCalled = false;
+  let successHealthCalled = false;
+
+  try {
+    autoInitializeIfNeeded = () => ({ success: false, error: 'Simulated initialization failure' });
+    systemCoordinator.checkSystemHealth = () => {
+      failureHealthCalled = true;
+      return { overall_status: 'healthy' };
+    };
+
+    const failureResult = performSystemHealthCheck();
+
+    autoInitializeIfNeeded = () => ({ success: true });
+    systemCoordinator.checkSystemHealth = () => {
+      successHealthCalled = true;
+      return { overall_status: 'healthy' };
+    };
+
+    const successResult = performSystemHealthCheck();
+
+    const failureCheck = failureResult.success === false
+      && failureResult.error === 'Initialization failed'
+      && failureResult.details?.error === 'Simulated initialization failure'
+      && failureHealthCalled === false;
+
+    const successCheck = successResult.overall_status === 'healthy'
+      && successHealthCalled === true;
+
+    return {
+      success: failureCheck && successCheck,
+      details: {
+        failureResult,
+        successResult,
+        failureHealthCalled,
+        successHealthCalled
+      }
+    };
+
+  } catch (error) {
+    return { success: false, error: error.toString() };
+
+  } finally {
+    autoInitializeIfNeeded = originalAutoInitializeIfNeeded;
+    systemCoordinator.checkSystemHealth = originalCheckSystemHealth;
+  }
+}
+
+/**
  * Daily maintenance trigger handler
  * @returns {Object} Maintenance summary
  */
@@ -870,7 +1011,11 @@ function dailyMaintenanceTasks() {
   logger.enterFunction('System.dailyMaintenanceTasks');
 
   try {
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for daily maintenance wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
 
     const maintenance = performSystemMaintenance();
     let weeklyResult = { success: true, skipped: true };
@@ -904,7 +1049,11 @@ function setupScheduledTriggers() {
   logger.enterFunction('System.setupScheduledTriggers');
 
   try {
-    autoInitializeIfNeeded();
+    const initResult = autoInitializeIfNeeded();
+    if (initResult?.success === false) {
+      logger.error('Initialization failed for scheduled trigger setup wrapper', { details: initResult });
+      return { success: false, error: 'Initialization failed', details: initResult };
+    }
 
     const results = {
       daily_maintenance: false,
