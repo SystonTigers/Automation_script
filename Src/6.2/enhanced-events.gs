@@ -23,6 +23,7 @@ class EnhancedEventsManager {
   
   constructor() {
     this.logger = logger.scope('EnhancedEvents');
+    this.playerManager = new PlayerManagementManager();
     this.currentMatch = null;
     this.playerMinutes = new Map(); // Track player time on pitch
     this.matchStartTime = null;
@@ -84,9 +85,9 @@ class EnhancedEventsManager {
     
     try {
       // @testHook(team_goal_start)
-      
+
       // Update player statistics
-      this.updatePlayerGoalStats(player, assist);
+      this.playerManager.updatePlayerGoalStats(player, assist);
       
       // Update match score
       const currentScores = this.getCurrentScores(matchId);
@@ -268,9 +269,9 @@ class EnhancedEventsManager {
     
     try {
       // @testHook(team_card_start)
-      
+
       // Update player statistics
-      this.updatePlayerCardStats(player, cardType);
+      this.playerManager.updatePlayerCardStats(player, cardType);
       
       // Determine Make.com event type
       const eventType = this.getCardEventType(cardType);
@@ -357,7 +358,7 @@ class EnhancedEventsManager {
       );
       
       // Update player statistics (red card)
-      this.updatePlayerCardStats(player, 'Red');
+      this.playerManager.updatePlayerCardStats(player, 'Red');
       
       // Create 2nd yellow payload with special card type
       const payload = this.createCardPayload(minute, player, 'Red card (2nd yellow)', matchId, 'card_second_yellow');
@@ -416,7 +417,7 @@ class EnhancedEventsManager {
       this.logSubstitution(matchId, minute, playerOff, playerOn);
       
       // Update player statistics
-      this.updatePlayerSubStats(playerOff, playerOn);
+      this.playerManager.updatePlayerSubStats(playerOff, playerOn);
       
       // Create substitution payload
       const payload = this.createSubstitutionPayload(minute, playerOff, playerOn, matchId);
@@ -686,7 +687,7 @@ class EnhancedEventsManager {
         }
         
         // Update player stats sheet
-        this.updatePlayerMinutesInSheet(player, data.minutesPlayed);
+        this.playerManager.updatePlayerMinutesInSheet(player, data.minutesPlayed);
       });
       
       this.logger.exitFunction('finalizeAllPlayerMinutes', { 
