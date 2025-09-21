@@ -1,4 +1,5 @@
 /**
+ codex/sort-and-merge-code-into-version-6.2
  * @fileoverview Enhanced batch posting for fixtures and results with monthly summaries
  * @version 6.2.0
  * @author Senior Software Architect
@@ -21,6 +22,22 @@ class BatchFixturesManager {
   // ==================== BATCH FIXTURE POSTING ====================
 
   /**
+=======
+ * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
+ * @version 6.2.0
+ * @author Senior Software Architect
+ * @description Handles batch posting (1-5 fixtures/results) and postponements. Monthly summaries now live in monthly-summaries.gs.
+ *
+ * FEATURES IMPLEMENTED:
+ * - Batch fixture posting (1-5 league fixtures)
+ * - Batch results posting (1-5 league results)
+ * - Delegation hooks to MonthlySummariesManager for monthly summaries
+ * - Postponed match handling
+ * - Idempotency and duplicate prevention
+ */
+
+/**
+>>> main
    * Post league fixtures batch (NEW: From spec)
    * @param {string} roundId - Round/weekend identifier
    * @param {Date} startDate - Start date for fixtures
@@ -142,9 +159,53 @@ class BatchFixturesManager {
         webhook_sent: webhookResult.success
       };
 
+codex/sort-and-merge-code-into-version-6.2
     } catch (error) {
       this.logger.error('Batch results posting failed', { error: error.toString() });
       return { success: false, error: error.toString() };
+=======
+  // ==================== MONTHLY SUMMARIES ====================
+
+  /**
+   * @deprecated Delegated to MonthlySummariesManager (use monthly-summaries.gs)
+   */
+  postMonthlyFixturesSummary(month = null, year = null) {
+    this.logger.enterFunction('postMonthlyFixturesSummary', { month, year, delegated: true });
+
+    try {
+      this.logger.warn('Monthly fixtures summary called on BatchFixturesManager; delegating to MonthlySummariesManager');
+      const manager = new MonthlySummariesManager();
+      const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+      const result = manager.postMonthlyFixturesSummary(monthDate);
+      this.logger.exitFunction('postMonthlyFixturesSummary', { delegated: true, success: result.success });
+      return result;
+    } catch (error) {
+      this.logger.error('Monthly fixtures delegation failed', { error: error.toString() });
+      const failure = { success: false, error: error.toString() };
+      this.logger.exitFunction('postMonthlyFixturesSummary', { delegated: true, success: false, error: error.toString() });
+      return failure;
+    }
+  }
+
+  /**
+   * @deprecated Delegated to MonthlySummariesManager (use monthly-summaries.gs)
+   */
+  postMonthlyResultsSummary(month = null, year = null) {
+    this.logger.enterFunction('postMonthlyResultsSummary', { month, year, delegated: true });
+
+    try {
+      this.logger.warn('Monthly results summary called on BatchFixturesManager; delegating to MonthlySummariesManager');
+      const manager = new MonthlySummariesManager();
+      const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+      const result = manager.postMonthlyResultsSummary(monthDate);
+      this.logger.exitFunction('postMonthlyResultsSummary', { delegated: true, success: result.success });
+      return result;
+    } catch (error) {
+      this.logger.error('Monthly results delegation failed', { error: error.toString() });
+      const failure = { success: false, error: error.toString() };
+      this.logger.exitFunction('postMonthlyResultsSummary', { delegated: true, success: false, error: error.toString() });
+      return failure;
+ main
     }
   }
 
@@ -271,7 +332,7 @@ class BatchFixturesManager {
       return [];
     }
   }
-
+ codex/sort-and-merge-code-into-version-6.2
   /**
    * Retrieve fixtures sheet safely
    * @returns {GoogleAppsScript.Spreadsheet.Sheet|null} Sheet instance
@@ -366,6 +427,9 @@ class BatchFixturesManager {
     const parsed = DateUtils.parseUK(String(value)) || new Date(value);
     return isNaN(parsed.getTime()) ? null : parsed;
   }
+=======
+  // ==================== PAYLOAD CREATION ====================
+ main
 
   /**
    * Create fixtures batch payload
@@ -771,6 +835,33 @@ function postLeagueResultsBatch(roundId = null, startDate = null, endDate = null
 }
 
 /**
+<<<<< codex/sort-and-merge-code-into-version-6.2
+=======
+ * Post monthly fixtures summary (public API)
+ * @param {number} month - Month (1-12)
+ * @param {number} year - Year
+ * @returns {Object} Posting result
+ */
+function postMonthlyFixturesSummary(month = null, year = null) {
+  const monthlyManager = new MonthlySummariesManager();
+  const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+  return monthlyManager.postMonthlyFixturesSummary(monthDate);
+}
+
+/**
+ * Post monthly results summary (public API)
+ * @param {number} month - Month (1-12)
+ * @param {number} year - Year
+ * @returns {Object} Posting result
+ */
+function postMonthlyResultsSummary(month = null, year = null) {
+  const monthlyManager = new MonthlySummariesManager();
+  const monthDate = month && year ? new Date(year, month - 1, 1) : null;
+  return monthlyManager.postMonthlyResultsSummary(monthDate);
+}
+
+/**
+main
  * Post postponed match notification (public API)
  * @param {string} opponent - Opposition team
  * @param {Date} originalDate - Original match date
@@ -820,4 +911,32 @@ function initializeBatchFixtures() {
     logger.error('Batch fixtures initialization failed', { error: error.toString() });
     return { success: false, error: error.toString() };
   }
+
 }
+codex/sort-and-merge-code-into-version-6.2
+
+// ==================== BATCH FIXTURES MANAGER CLASS ====================
+
+/**
+ * Batch Fixtures Manager - Handles all batch posting operations
+ */
+class BatchFixturesManager {
+  
+  constructor() {
+    this.logger = logger.scope('BatchFixtures');
+    this.processedKeys = new Set(); // For idempotency
+  }
+
+  // ==================== BATCH FIXTURE POSTING ====================
+
+  /**
+   * Post league fixtures batch (NEW: From spec)
+   * @param {string} roundId - Round/weekend identifier
+   * @param {Date} startDate - Start date for fixtures
+   * @param {Date} endDate - End date for fixtures
+   * @returns {Object} Posting result
+   */
+  postLeagueFixturesBatch(roundId = null, startDate = null, endDate = null) {
+    this.logger
+
+main

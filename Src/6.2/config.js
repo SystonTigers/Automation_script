@@ -305,6 +305,7 @@ const SYSTEM_CONFIG = {
       OPPOSITION_EVENTS: 'Opposition Events',
       VIDEO_CLIPS: 'Video Clips',
       MONTHLY_CONTENT: 'Monthly Content',
+      MONTHLY_SUMMARIES: 'Monthly Summaries',
       WEEKLY_SCHEDULE: 'Weekly Schedule',
       WEEKLY_CONTENT: 'Weekly Content Calendar',
       
@@ -369,8 +370,7 @@ const SYSTEM_CONFIG = {
       OPPOSITION_EVENTS: [
         'Match ID', 'Date', 'Event Type', 'Minute', 'Details',
         'Posted', 'Timestamp'
-      ],
-      VIDEO_CLIPS: mergeUniqueArrays(
+      ],      VIDEO_CLIPS: mergeUniqueArrays(
         [
           'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
           'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
@@ -393,6 +393,16 @@ const SYSTEM_CONFIG = {
       ],
       WEEKLY_CONTENT: [
         'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes'
+
+      VIDEO_CLIPS: [
+        'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
+        'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
+        'Folder Path', 'Created'
+      ],
+      MONTHLY_SUMMARIES: [
+        'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
+        'Summary_Data', 'Posted', 'Responses', 'Created'
+>> main
       ]
     }
   },
@@ -763,6 +773,7 @@ const SYSTEM_CONFIG = {
     }
   },
 
+codex/sort-and-merge-code-into-version-6.2
   // ==================== MONTHLY EVENTS (LEGACY SUPPORT) ====================
   MONTHLY: {
     GOTM: {
@@ -778,6 +789,15 @@ const SYSTEM_CONFIG = {
       STATS_WEEK: 2,
       ENABLED: true
     }
+  // ==================== MONTHLY SUMMARY SETTINGS ====================
+  MONTHLY_SUMMARIES: {
+    ENABLED: true,
+    CACHE_TTL_SECONDS: 21600,
+    MAX_FIXTURES_PER_PAYLOAD: 10,
+    MAX_RESULTS_PER_PAYLOAD: 10,
+    LOCAL_RIVALS: ['leicester', 'melton', 'oadby', 'hinckley', 'coalville'],
+    IMPORTANT_COMPETITIONS: ['league cup', 'fa cup', 'county cup']
+main
   },
 
   // ==================== OPPOSITION HANDLING ====================

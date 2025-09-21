@@ -85,7 +85,7 @@ class EnhancedEventsManager {
     
     try {
       // @testHook(team_goal_start)
-      
+
       // Update player statistics
       this.playerManager.updatePlayerGoalStats(player, assist);
       
@@ -269,7 +269,7 @@ class EnhancedEventsManager {
     
     try {
       // @testHook(team_card_start)
-      
+
       // Update player statistics
       this.playerManager.updatePlayerCardStats(player, cardType);
       
