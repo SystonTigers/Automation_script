@@ -1399,3 +1399,12 @@ function controlPanelTriggerAction(actionType) {
         
       default:
         throw new Error(`Unknown action: ${actionType}`);
+        }
+      }
+    } catch (error) {
+      logger.error('Trigger action failed', { actionType, error: error.toString() });
+      return { success: false, error: error.toString() };
+    }
+    logger.exitFunction('controlPanelTriggerAction', { success: true });
+    return result;
+  }
