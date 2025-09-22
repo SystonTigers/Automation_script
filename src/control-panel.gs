@@ -1496,4 +1496,19 @@ function actionRunRunner(name) {
 function getValidation() {
   return validateConfiguration();
 }
+// --- Re-hydrate persisted feature flags (if any) ---
+(function hydrateFeatureFlags() {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty('FEATURE_FLAGS');
+    if (!raw) return;
+    var saved = JSON.parse(raw);
+    Object.keys(saved).forEach(function(k) {
+      SYSTEM_CONFIG.FEATURES[k] = !!saved[k];
+    });
+    // Optional: log hydrated flags
+    // console.log('Hydrated feature flags:', saved);
+  } catch (e) {
+    console.warn('Feature flag hydrate failed', e);
+  }
+})();
 
