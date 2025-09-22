@@ -1,1 +1,12 @@
-
+{
+  "scriptId": "",
+  "rootDir": "./src",
+  "projectId": "",
+  "fileExtension": "gs",
+  "filePushOrder": [
+    "config.js",
+    "utils.gs",
+    "logger.gs",
+    "main.gs"
+  ]
+}
