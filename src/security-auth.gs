@@ -1,6 +1,6 @@
 /**
  * @fileoverview Security and Authentication Manager for Football Automation System
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Comprehensive security layer with authentication, authorization, input validation, and audit logging
  *

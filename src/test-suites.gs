@@ -1,6 +1,6 @@
 /**
  * @fileoverview Comprehensive Test Suites for Football Automation System
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Complete test coverage for all system components
  *

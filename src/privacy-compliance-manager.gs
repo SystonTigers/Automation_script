@@ -1,6 +1,6 @@
 /**
  * @fileoverview Data Privacy Compliance and PII Protection Manager
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Comprehensive data privacy, GDPR compliance, and PII protection system
  *

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Authentication Extensions for Control Panel
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Authentication functions for secure control panel access
  */

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Comprehensive Testing Framework for Football Automation System
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description QUnit-style testing framework adapted for Google Apps Script with comprehensive test coverage
  *

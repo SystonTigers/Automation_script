@@ -1,6 +1,6 @@
 /**
  * @fileoverview Control Panel system for managing football automation features
- * @version 6.0.0
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Complete control panel with UI for toggling features, monitoring status, and system management
  * 
