@@ -392,8 +392,8 @@ const SYSTEM_CONFIG = {
         'Make Result'
       ],
       WEEKLY_CONTENT: [
-        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes'
-
+        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes' 
+      ],
       VIDEO_CLIPS: [
         'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
         'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
@@ -773,7 +773,6 @@ const SYSTEM_CONFIG = {
     }
   },
 
-codex/sort-and-merge-code-into-version-6.2
   // ==================== MONTHLY EVENTS (LEGACY SUPPORT) ====================
   MONTHLY: {
     GOTM: {
@@ -789,6 +788,7 @@ codex/sort-and-merge-code-into-version-6.2
       STATS_WEEK: 2,
       ENABLED: true
     }
+  },
   // ==================== MONTHLY SUMMARY SETTINGS ====================
   MONTHLY_SUMMARIES: {
     ENABLED: true,
@@ -797,7 +797,6 @@ codex/sort-and-merge-code-into-version-6.2
     MAX_RESULTS_PER_PAYLOAD: 10,
     LOCAL_RIVALS: ['leicester', 'melton', 'oadby', 'hinckley', 'coalville'],
     IMPORTANT_COMPETITIONS: ['league cup', 'fa cup', 'county cup']
-main
   },
 
   // ==================== OPPOSITION HANDLING ====================
