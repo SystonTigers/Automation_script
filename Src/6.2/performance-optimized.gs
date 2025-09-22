@@ -397,7 +397,36 @@ class OptimizedPerformanceManager extends PerformanceCacheManager {
    * @param {Array} players - Player names to preload
    */
   preloadPlayerData(players) {
-    // Implementation for player data preloading
+    try {
+      if (!Array.isArray(players) || players.length === 0) return;
+
+      const playerSheet = SheetUtils.getOrCreateSheet('Players');
+      if (!playerSheet) return;
+
+      const playerData = playerSheet.getDataRange().getValues();
+      const playerCache = {};
+
+      players.forEach(playerName => {
+        const playerRow = playerData.find(row => row[0] === playerName);
+        if (playerRow) {
+          playerCache[playerName] = {
+            name: playerRow[0],
+            position: playerRow[1] || '',
+            goals: playerRow[2] || 0,
+            assists: playerRow[3] || 0,
+            appearances: playerRow[4] || 0,
+            minutes: playerRow[5] || 0,
+            cards: playerRow[6] || 0
+          };
+        }
+      });
+
+      // Cache for 10 minutes
+      CacheService.getScriptCache().put('PLAYER_DATA_CACHE', JSON.stringify(playerCache), 600);
+
+    } catch (error) {
+      this.logger.error('Player data preloading failed', { error: error.toString() });
+    }
   }
 
   /**
@@ -405,14 +434,77 @@ class OptimizedPerformanceManager extends PerformanceCacheManager {
    * @param {string} matchId - Match ID to preload
    */
   preloadMatchData(matchId) {
-    // Implementation for match data preloading
+    try {
+      if (!matchId) return;
+
+      const matchSheet = SheetUtils.getOrCreateSheet('Matches');
+      if (!matchSheet) return;
+
+      const matchData = matchSheet.getDataRange().getValues();
+      const matchRow = matchData.find(row => row[0] === matchId);
+
+      if (matchRow) {
+        const match = {
+          id: matchRow[0],
+          date: matchRow[1],
+          opponent: matchRow[2],
+          venue: matchRow[3],
+          competition: matchRow[4],
+          homeScore: matchRow[5] || 0,
+          awayScore: matchRow[6] || 0,
+          status: matchRow[7] || 'scheduled'
+        };
+
+        // Cache for 5 minutes
+        CacheService.getScriptCache().put(`MATCH_${matchId}`, JSON.stringify(match), 300);
+
+        // Also preload live events for this match
+        const liveSheet = SheetUtils.getOrCreateSheet('Live');
+        if (liveSheet) {
+          const liveData = liveSheet.getDataRange().getValues();
+          const matchEvents = liveData.filter(row => row[0] === matchId);
+          CacheService.getScriptCache().put(`EVENTS_${matchId}`, JSON.stringify(matchEvents), 300);
+        }
+      }
+
+    } catch (error) {
+      this.logger.error('Match data preloading failed', { error: error.toString() });
+    }
   }
 
   /**
    * Preload team data into cache
    */
   preloadTeamData() {
-    // Implementation for team data preloading
+    try {
+      const teamData = {
+        clubName: getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers'),
+        season: getConfig('SYSTEM.SEASON', '2024-25'),
+        league: getConfig('SYSTEM.LEAGUE', 'Local League'),
+        colors: getConfig('SYSTEM.TEAM_COLORS', { primary: '#blue', secondary: '#white' }),
+        venue: getConfig('SYSTEM.HOME_VENUE', 'Home Ground'),
+        founded: getConfig('SYSTEM.FOUNDED', '1990'),
+        cacheExpiry: Date.now() + (60 * 60 * 1000) // 1 hour
+      };
+
+      // Load recent team stats
+      const statsSheet = SheetUtils.getOrCreateSheet('TeamStats');
+      if (statsSheet) {
+        const statsData = statsSheet.getDataRange().getValues();
+        teamData.stats = {
+          played: statsData.length - 1, // Exclude header
+          wins: statsData.filter(row => row[3] === 'Win').length,
+          draws: statsData.filter(row => row[3] === 'Draw').length,
+          losses: statsData.filter(row => row[3] === 'Loss').length
+        };
+      }
+
+      // Cache for 1 hour
+      CacheService.getScriptCache().put('TEAM_DATA_CACHE', JSON.stringify(teamData), 3600);
+
+    } catch (error) {
+      this.logger.error('Team data preloading failed', { error: error.toString() });
+    }
   }
 }
 
