@@ -1408,3 +1408,81 @@ function controlPanelTriggerAction(actionType) {
     logger.exitFunction('controlPanelTriggerAction', { success: true });
     return result;
   }
+/** Serve the web UI (ControlPanel.html) as a Web App */
+function doGet() {
+  return HtmlService
+    .createHtmlOutputFromFile('ControlPanel')
+    .setTitle('Syston Tigers – Control Panel');
+}
+
+/** State for ControlPanel.html on load */
+function getControlPanelState() {
+  var features = getConfig('FEATURES', {});
+  var info = {
+    version: getConfig('SYSTEM.VERSION', ''),
+    club: getConfig('SYSTEM.CLUB_NAME', ''),
+    season: getConfig('SYSTEM.SEASON', ''),
+    tz: getConfig('SYSTEM.TIMEZONE', ''),
+    webhook: !!getWebhookUrl()
+  };
+  var validation = validateConfiguration();
+  return { features: features, info: info, validation: validation };
+}
+
+/** Save feature toggles from ControlPanel.html */
+function updateFeatureFlags(flags) {
+  try {
+    Object.keys(flags || {}).forEach(function(k) {
+      setConfig('FEATURES.' + k, !!flags[k]);
+    });
+    // Optional persistence so flags survive cold starts:
+    try {
+      PropertiesService.getScriptProperties()
+        .setProperty('FEATURE_FLAGS', JSON.stringify(flags));
+    } catch (e) {
+      console.warn('FEATURE_FLAGS persist failed', e);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e.toString() };
+  }
+}
+
+/** Run actions requested by the web UI */
+function actionRunRunner(name) {
+  try {
+    switch (name) {
+      case 'runBatchFixtures':
+        if (typeof runBatchFixtures === 'function') runBatchFixtures();
+        break;
+      case 'runFixturesBatch':
+        if (typeof runFixturesBatch === 'function') runFixturesBatch();
+        break;
+      case 'runResultsBatch':
+        if (typeof runResultsBatch === 'function') runResultsBatch();
+        break;
+      case 'runPostponedBatch':
+        if (typeof runPostponedBatch === 'function') runPostponedBatch();
+        break;
+      case 'runWeeklySchedulerNow':
+        // Map to your existing weekly runner if named differently
+        if (typeof runWeeklyScheduler === 'function') runWeeklyScheduler();
+        else if (typeof weeklyTick === 'function') weeklyTick();
+        break;
+      default:
+        // Fallback to your existing sidebar action router if needed
+        if (typeof controlPanelTriggerAction === 'function') {
+          controlPanelTriggerAction(name);
+        }
+    }
+    return { ok: true, message: 'Triggered ' + name };
+  } catch (e) {
+    return { ok: false, message: 'Failed ' + name + ': ' + e.toString() };
+  }
+}
+
+/** Re-run config validation for the UI */
+function getValidation() {
+  return validateConfiguration();
+}
+
