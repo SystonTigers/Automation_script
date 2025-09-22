@@ -1398,10 +1398,10 @@ function controlPanelTriggerAction(actionType) {
         break;
         
       default:
-        throw new Error(`Unknown action: ${actionType}`);
-        }
-      }
-    } catch (error) {
+        throw new Error(`Unknown action: ${actionType}`);}
+                
+      } 
+    catch (error) {
       logger.error('Trigger action failed', { actionType, error: error.toString() });
       return { success: false, error: error.toString() };
     }
