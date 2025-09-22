@@ -370,12 +370,7 @@ const SYSTEM_CONFIG = {
       OPPOSITION_EVENTS: [
         'Match ID', 'Date', 'Event Type', 'Minute', 'Details',
         'Posted', 'Timestamp'
-      ],      VIDEO_CLIPS: mergeUniqueArrays(
-        [
-          'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
-          'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
-          'Folder Path', 'Created'
-        ],
+      ],     
         [
           'Match Date', 'Local Path', 'Notes'
         ]
@@ -394,16 +389,21 @@ const SYSTEM_CONFIG = {
       WEEKLY_CONTENT: [
         'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes' 
       ],
-      VIDEO_CLIPS: [
-        'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
-        'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
-        'Folder Path', 'Created'
-      ],
-      MONTHLY_SUMMARIES: [
-        'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
-        'Summary_Data', 'Posted', 'Responses', 'Created'
->> main
-      ]
+VIDEO_CLIPS: mergeUniqueArrays(
+  [
+    'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
+    'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
+    'Folder Path', 'Created'
+  ],
+  [
+    'Match Date', 'Local Path', 'Notes'
+  ]
+),
+
+MONTHLY_SUMMARIES: [
+  'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
+  'Summary_Data', 'Posted', 'Responses', 'Created'
+]
     }
   },
 
