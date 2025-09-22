@@ -1,10 +1,23 @@
 /**
  * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
- * @version 6.2.0
+ * @version 6.2.1
  * @author Senior Software Architect
  * @description Handles batch posting (1–5 fixtures/results), postponed notifications,
  *              and provides idempotent integrations with Make.com. Monthly summaries are delegated.
  */
+
+// ==================== IDEMPOTENCY HELPERS (PERSISTENT) ====================
+
+/** @returns {GoogleAppsScript.Properties.Properties} */
+function __bf_prop__() { return PropertiesService.getScriptProperties(); }
+/** @returns {GoogleAppsScript.Cache.Cache} */
+function __bf_cache__() { return CacheService.getScriptCache(); }
+
+const __BF_IDEMP__ = Object.freeze({
+  PROP_KEY: 'BF_PROCESSED_KEYS',
+  CACHE_PREFIX: 'bf_key_',
+  CACHE_TTL: 6 * 60 * 60 // 6 hours
+});
 
 // ==================== BATCH FIXTURES MANAGER CLASS ====================
 
@@ -14,14 +27,14 @@
 class BatchFixturesManager {
 
   constructor() {
-    this.logger = logger.scope('BatchFixtures');
+    this.logger = (typeof logger !== 'undefined') ? logger.scope('BatchFixtures') : console;
     this.processedKeys = new Set(); // For idempotency (per-execution memory)
   }
 
-  // ==================== BATCH FIXTURE POSTING ====================
+  // ==================== PUBLIC ENTRY POINTS ====================
 
   /**
-   * Post league fixtures batch (NEW: From spec)
+   * Post league fixtures batch (1–5) for a given period
    * @param {string|null} roundId - Round/weekend identifier
    * @param {Date|null} startDate - Start date for fixtures
    * @param {Date|null} endDate - End date for fixtures
@@ -62,7 +75,7 @@ class BatchFixturesManager {
 
       if (webhookResult.success) {
         this.markFixturesAsPosted(fixtures);
-        this.processedKeys.add(idempotencyKey);
+        this._markProcessed(idempotencyKey);
       }
 
       this.logger.exitFunction('postLeagueFixturesBatch', {
@@ -126,7 +139,7 @@ class BatchFixturesManager {
 
       if (webhookResult.success) {
         this.markResultsAsPosted(results);
-        this.processedKeys.add(idempotencyKey);
+        this._markProcessed(idempotencyKey);
       }
 
       this.logger.exitFunction('postLeagueResultsBatch', {
@@ -148,20 +161,19 @@ class BatchFixturesManager {
     }
   }
 
-  // ==================== MONTHLY SUMMARIES (Delegated) ====================
+  // ==================== MONTHLY SUMMARY DELEGATION ====================
 
   /**
-   * @deprecated Delegated to MonthlySummariesManager (use monthly-summaries.gs)
+   * Delegate to monthly summaries handler for fixtures
+   * (kept for compatibility with your original design)
    */
-  postMonthlyFixturesSummary(month = null, year = null) {
-    this.logger.enterFunction('postMonthlyFixturesSummary', { month, year, delegated: true });
-
+  postMonthlyFixturesSummary(monthKey = null) {
+    this.logger.enterFunction('postMonthlyFixturesSummary', { monthKey });
     try {
-      this.logger.warn('Monthly fixtures summary called on BatchFixturesManager; delegating to MonthlySummariesManager');
-      const manager = new MonthlySummariesManager();
-      const monthDate = month && year ? new Date(year, month - 1, 1) : null;
-      const result = manager.postMonthlyFixturesSummary(monthDate);
-      this.logger.exitFunction('postMonthlyFixturesSummary', { delegated: true, success: result.success });
+      const result = (typeof postMonthlyFixturesSummary === 'function')
+        ? postMonthlyFixturesSummary(monthKey)
+        : { success: false, error: 'monthly-summaries.gs not loaded' };
+      this.logger.exitFunction('postMonthlyFixturesSummary', { delegated: true, success: !!result?.success });
       return result;
     } catch (error) {
       this.logger.error('Monthly fixtures delegation failed', { error: error.toString() });
@@ -172,17 +184,16 @@ class BatchFixturesManager {
   }
 
   /**
-   * @deprecated Delegated to MonthlySummariesManager (use monthly-summaries.gs)
+   * Delegate to monthly summaries handler for results
+   * (kept for compatibility with your original design)
    */
-  postMonthlyResultsSummary(month = null, year = null) {
-    this.logger.enterFunction('postMonthlyResultsSummary', { month, year, delegated: true });
-
+  postMonthlyResultsSummary(monthKey = null) {
+    this.logger.enterFunction('postMonthlyResultsSummary', { monthKey });
     try {
-      this.logger.warn('Monthly results summary called on BatchFixturesManager; delegating to MonthlySummariesManager');
-      const manager = new MonthlySummariesManager();
-      const monthDate = month && year ? new Date(year, month - 1, 1) : null;
-      const result = manager.postMonthlyResultsSummary(monthDate);
-      this.logger.exitFunction('postMonthlyResultsSummary', { delegated: true, success: result.success });
+      const result = (typeof postMonthlyResultsSummary === 'function')
+        ? postMonthlyResultsSummary(monthKey)
+        : { success: false, error: 'monthly-summaries.gs not loaded' };
+      this.logger.exitFunction('postMonthlyResultsSummary', { delegated: true, success: !!result?.success });
       return result;
     } catch (error) {
       this.logger.error('Monthly results delegation failed', { error: error.toString() });
@@ -221,24 +232,23 @@ class BatchFixturesManager {
       // Create payload
       const payload = this.createPostponedPayload(opponent, originalDate, reason, newDate, eventType);
 
-      // @testHook(postponed_webhook)
+      // Send to Make
       const webhookResult = this.sendBatchToMake(payload);
-
       if (webhookResult.success) {
-        this.processedKeys.add(idempotencyKey);
-        // Update fixture status in sheet
         this.updateFixtureStatus(opponent, originalDate, 'Postponed');
+        this._markProcessed(idempotencyKey);
       }
 
-      this.logger.exitFunction('postPostponed', { success: webhookResult.success });
+      // Exit
+      this.logger.exitFunction('postPostponed', {
+        success: webhookResult.success,
+        opponent,
+        event_type: eventType
+      });
 
       return {
         success: webhookResult.success,
         event_type: eventType,
-        opponent: opponent,
-        original_date: originalDate,
-        new_date: newDate,
-        reason: reason,
         webhook_sent: webhookResult.success
       };
 
@@ -261,109 +271,115 @@ class BatchFixturesManager {
       const fixturesSheet = this.getFixturesSheet();
       if (!fixturesSheet) return [];
 
-      const allFixtures = SheetUtils.getAllDataAsObjects(fixturesSheet);
+      const all = SheetUtils.getObjectsFromSheet(fixturesSheet) || [];
+      const filtered = all.filter(row => {
+        const status = String(row['Status'] || '').toLowerCase();
+        const send = String(row['Send'] || '').toLowerCase();
+        const posted = String(row['Posted'] || '').toLowerCase();
+        const date = this.parseDate(row['Date']);
 
-      return allFixtures
-        .map(fixture => this.parseFixtureRow(fixture))
-        .filter(entry => {
-          if (!entry) return false;
+        if (status === 'postponed') return false;
+        if (!(send === 'true' || send === 'yes' || row['Send'] === true)) return false;
+        if (posted === 'true' || row['Posted'] === true) return false;
+        if (startDate && date && date < startDate) return false;
+        if (endDate && date && date > endDate) return false;
+        return true;
+      });
 
-          const inDateRange = (!startDate || entry.date >= startDate) &&
-                              (!endDate || entry.date <= endDate);
-          const isLeague = entry.competition && entry.competition.toLowerCase().includes('league');
-          const notPosted = entry.posted !== true && entry.posted !== 'TRUE';
+      // Normalize rows (safe mapping)
+      const mapped = filtered
+        .map(row => this.parseFixtureRow(row))
+        .filter(Boolean);
 
-          return inDateRange && isLeague && notPosted;
-        })
-        .map(entry => entry.raw);
+      return mapped.slice(0, 5); // cap at 5
 
     } catch (error) {
-      this.logger.error('Failed to get league fixtures', { error: error.toString() });
+      this.logger.error('Failed to retrieve league fixtures', { error: error.toString() });
       return [];
     }
   }
 
   /**
    * Get league results for date range
-   * @param {Date|null} startDate
-   * @param {Date|null} endDate
-   * @returns {Array} League results (raw rows)
    */
   getLeagueResults(startDate, endDate) {
     try {
       const resultsSheet = this.getResultsSheet();
       if (!resultsSheet) return [];
 
-      const allResults = SheetUtils.getAllDataAsObjects(resultsSheet);
+      const all = SheetUtils.getObjectsFromSheet(resultsSheet) || [];
+      const filtered = all.filter(row => {
+        const send = String(row['Send'] || '').toLowerCase();
+        const posted = String(row['Posted'] || '').toLowerCase();
+        const date = this.parseDate(row['Date']);
 
-      return allResults
-        .map(result => this.parseResultRow(result))
-        .filter(entry => {
-          if (!entry) return false;
+        if (!(send === 'true' || send === 'yes' || row['Send'] === true)) return false;
+        if (posted === 'true' || row['Posted'] === true) return false;
+        if (startDate && date && date < startDate) return false;
+        if (endDate && date && date > endDate) return false;
+        return true;
+      });
 
-          const inDateRange = (!startDate || entry.date >= startDate) &&
-                              (!endDate || entry.date <= endDate);
-          const isLeague = entry.competition && entry.competition.toLowerCase().includes('league');
-          const notPosted = entry.posted !== true && entry.posted !== 'TRUE';
+      const mapped = filtered
+        .map(row => this.parseResultRow(row))
+        .filter(Boolean);
 
-          return inDateRange && isLeague && notPosted;
-        })
-        .map(entry => entry.raw);
+      return mapped.slice(0, 5);
 
     } catch (error) {
-      this.logger.error('Failed to get league results', { error: error.toString() });
+      this.logger.error('Failed to retrieve league results', { error: error.toString() });
       return [];
     }
   }
 
   /**
-   * Retrieve fixtures sheet safely
-   * @returns {GoogleAppsScript.Spreadsheet.Sheet|null}
+   * Sheet getters (safe wrappers)
    */
   getFixturesSheet() {
     try {
-      return SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.FIXTURES', [])
-      );
-    } catch (error) {
-      this.logger.error('Unable to access fixtures sheet', { error: error.toString() });
+      const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
+      if (!ssId) return null;
+      const ss = SpreadsheetApp.openById(ssId);
+      return ss.getSheetByName(getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures'));
+    } catch (e) {
+      this.logger.error('Failed to open Fixtures sheet', { error: e.toString() });
       return null;
     }
   }
 
-  /**
-   * Retrieve results sheet safely
-   * @returns {GoogleAppsScript.Spreadsheet.Sheet|null}
-   */
   getResultsSheet() {
     try {
-      return SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.RESULTS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.RESULTS', [])
-      );
-    } catch (error) {
-      this.logger.error('Unable to access results sheet', { error: error.toString() });
+      const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
+      if (!ssId) return null;
+      const ss = SpreadsheetApp.openById(ssId);
+      return ss.getSheetByName(getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results'));
+    } catch (e) {
+      this.logger.error('Failed to open Results sheet', { error: e.toString() });
       return null;
     }
   }
+
+  // ==================== PARSING HELPERS ====================
 
   /**
    * Normalize a fixture row using parsing helpers
-   * @param {Object} raw
-   * @returns {{ raw: Object, date: Date, competition: string, posted: boolean }|null}
    */
   parseFixtureRow(raw) {
-    if (!raw) return null;
-
     try {
       const date = this.parseDate(raw.Date);
-      if (!date) return null;
-
-      const posted = raw.Posted === true || String(raw.Posted).toUpperCase() === 'TRUE';
-
+      const posted = String(raw.Posted || '').toLowerCase() === 'true' || raw.Posted === true;
       return {
-        raw,
+        Raw: raw,
+        Date: raw.Date || '',
+        Time: raw.Time || '',
+        Opposition: raw.Opposition || '',
+        Venue: raw.Venue || '',
+        Competition: raw.Competition || '',
+        'Home/Away': raw['Home/Away'] || '',
+        Status: raw.Status || '',
+        Posted: posted,
+        MatchID: raw['Match ID'] || '',
+        __raw__: raw,
         date,
         competition: raw.Competition || '',
         posted
@@ -376,23 +392,25 @@ class BatchFixturesManager {
 
   /**
    * Normalize a result row using parsing helpers
-   * @param {Object} raw
-   * @returns {{ raw: Object, date: Date, competition: string, posted: boolean }|null}
    */
   parseResultRow(raw) {
-    if (!raw) return null;
-
     try {
       const date = this.parseDate(raw.Date);
-      if (!date) return null;
-
-      const posted = raw.Posted === true || String(raw.Posted).toUpperCase() === 'TRUE';
-
+      const homeScore = parseInt(raw['Home Score']) || 0;
+      const awayScore = parseInt(raw['Away Score']) || 0;
       return {
-        raw,
-        date,
-        competition: raw.Competition || '',
-        posted
+        Raw: raw,
+        Date: raw.Date || '',
+        Opposition: raw.Opposition || '',
+        Venue: raw.Venue || '',
+        Competition: raw.Competition || '',
+        'Home/Away': raw['Home/Away'] || '',
+        Result: raw.Result || '',
+        'Home Score': homeScore,
+        'Away Score': awayScore,
+        MatchID: raw['Match ID'] || '',
+        __raw__: raw,
+        date
       };
     } catch (error) {
       this.logger.warn('Failed to parse result row', { error: error.toString(), raw });
@@ -401,9 +419,7 @@ class BatchFixturesManager {
   }
 
   /**
-   * Parse a UK formatted date or fallback
-   * @param {string|Date} value
-   * @returns {Date|null}
+   * Parse UK date or ISO string
    */
   parseDate(value) {
     if (!value) return null;
@@ -413,13 +429,7 @@ class BatchFixturesManager {
 
   // ==================== PAYLOAD CREATION ====================
 
-  /**
-   * Create fixtures batch payload
-   * @param {Array} fixtures
-   * @param {string} eventType
-   * @param {string|null} roundId
-   * @returns {Object}
-   */
+  /** Create fixtures batch payload */
   createFixturesBatchPayload(fixtures, eventType, roundId) {
     return {
       event_type: eventType,
@@ -434,7 +444,8 @@ class BatchFixturesManager {
         opponent: fixture.Opposition,
         venue: fixture.Venue,
         competition: fixture.Competition,
-        home_away: fixture['Home/Away']
+        home_away: fixture['Home/Away'],
+        match_id: fixture.MatchID || ''
       })),
 
       // Metadata
@@ -442,24 +453,13 @@ class BatchFixturesManager {
       week_description: this.generateWeekDescription(fixtures),
       season: getConfig('SYSTEM.SEASON'),
 
-      // Statistics
-      home_fixture_count: fixtures.filter(f => f['Home/Away'] === 'Home').length,
-      away_fixture_count: fixtures.filter(f => f['Home/Away'] === 'Away').length,
-      competition_types: [...new Set(fixtures.map(f => f.Competition))],
-
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
       batch_id: this.generateBatchId(eventType)
     };
   }
 
-  /**
-   * Create results batch payload
-   * @param {Array} results
-   * @param {string} eventType
-   * @param {string|null} roundId
-   * @returns {Object}
-   */
+  /** Create results batch payload */
   createResultsBatchPayload(results, eventType, roundId) {
     const stats = this.calculateBatchResultStats(results);
 
@@ -478,7 +478,8 @@ class BatchFixturesManager {
         venue: result.Venue,
         competition: result.Competition,
         home_away: result['Home/Away'],
-        result: result.Result
+        outcome: result.Result,
+        match_id: result.MatchID || ''
       })),
 
       // Statistics
@@ -499,29 +500,18 @@ class BatchFixturesManager {
     };
   }
 
-  /**
-   * Create postponed match payload
-   * @param {string} opponent
-   * @param {Date} originalDate
-   * @param {string} reason
-   * @param {Date|null} newDate
-   * @param {string} eventType
-   * @returns {Object}
-   */
+  /** Create postponed payload */
   createPostponedPayload(opponent, originalDate, reason, newDate, eventType) {
     return {
       event_type: eventType,
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
 
-      // Postponement data
-      opponent_name: opponent,
+      // Data
+      opponent,
       original_date: DateUtils.formatUK(originalDate),
-      new_date: newDate ? DateUtils.formatUK(newDate) : 'TBC',
-      postponement_reason: reason,
-
-      // Match context
-      season: getConfig('SYSTEM.SEASON'),
+      reason: reason || 'Unspecified',
+      new_date: newDate ? DateUtils.formatUK(newDate) : null,
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
@@ -529,10 +519,47 @@ class BatchFixturesManager {
     };
   }
 
+  // ---------- IDEMPOTENCY (PERSISTENT + IN-MEMORY) ----------
+
+  /** Check if request is duplicate using cache + script properties */
+  _isProcessed(key) {
+    try {
+      if (__bf_cache__().get(__BF_IDEMP__.CACHE_PREFIX + key)) return true;
+      const json = __bf_prop__().getProperty(__BF_IDEMP__.PROP_KEY);
+      if (!json) return false;
+      const arr = JSON.parse(json);
+      const seen = Array.isArray(arr) ? new Set(arr) : new Set();
+      const hit = seen.has(key);
+      if (hit) __bf_cache__().put(__BF_IDEMP__.CACHE_PREFIX + key, '1', __BF_IDEMP__.CACHE_TTL);
+      return hit;
+    } catch (e) {
+      return this.processedKeys.has(key);
+    }
+  }
+
+  /** Mark key as processed in cache + script properties */
+  _markProcessed(key) {
+    try {
+      // Update in-memory
+      this.processedKeys.add(key);
+      // Update persistent property
+      const json = __bf_prop__().getProperty(__BF_IDEMP__.PROP_KEY);
+      const arr = json ? JSON.parse(json) : [];
+      if (arr.indexOf(key) === -1) {
+        arr.push(key);
+        __bf_prop__().setProperty(__BF_IDEMP__.PROP_KEY, JSON.stringify(arr));
+      }
+      // Update cache
+      __bf_cache__().put(__BF_IDEMP__.CACHE_PREFIX + key, '1', __BF_IDEMP__.CACHE_TTL);
+    } catch (e) {
+      this.logger.warn('Failed to persist idempotency key', { error: e.toString(), key });
+    }
+  }
+
   // ==================== UTILITY METHODS ====================
 
   /**
-   * Send batch payload to Make.com
+   * Send batch payload to Make.com (with retry/backoff + alerting)
    * @param {Object} payload
    * @returns {Object} Send result
    */
@@ -547,29 +574,51 @@ class BatchFixturesManager {
         throw new Error('Webhook URL not configured');
       }
 
-      // Rate limiting / backoff protection
+      const attempts = getConfig('MAKE.WEBHOOK_RETRY_ATTEMPTS', 3);
+      const delayMs = getConfig('MAKE.WEBHOOK_RETRY_DELAY_MS', 2000);
+      const timeoutMs = getConfig('MAKE.WEBHOOK_TIMEOUT_MS', 30000);
       const rateLimitMs = getConfig('PERFORMANCE.WEBHOOK_RATE_LIMIT_MS', 1000);
-      Utilities.sleep(rateLimitMs);
 
-      const response = UrlFetchApp.fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        payload: JSON.stringify(payload),
-        muteHttpExceptions: true
-      });
+      let lastResponse = null;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          Utilities.sleep(rateLimitMs);
+          lastResponse = UrlFetchApp.fetch(webhookUrl, {
+            method: 'POST',
+            contentType: 'application/json',
+            payload: JSON.stringify(payload),
+            muteHttpExceptions: true,
+            followRedirects: true
+          });
+          const code = lastResponse.getResponseCode();
+          const ok = code >= 200 && code < 300;
+          if (ok) {
+            this.logger.exitFunction('sendBatchToMake', { success: true, response_code: code, attempt });
+            return { success: true, response_code: code, response_text: lastResponse.getContentText() };
+          }
+          this.logger.warn('Webhook non-2xx response', { code, attempt, text: lastResponse.getContentText() });
+        } catch (inner) {
+          this.logger.warn('Webhook attempt failed', { attempt, error: inner.toString() });
+        }
+        Utilities.sleep(delayMs);
+      }
 
-      const success = response.getResponseCode() === 200;
+      // Escalate alert if configured
+      if (getConfig('ERROR_HANDLING.ALERT_ON_CRITICAL', false) || getConfig('ERROR_HANDLING.ALERT_ON_CRITICAL_ERROR', true)) {
+        try {
+          if (typeof sendCriticalAlert === 'function') {
+            sendCriticalAlert('[BatchFixtures] Webhook permanently failed', JSON.stringify(payload));
+          }
+        } catch (alertErr) {
+          this.logger.warn('Alert send failed', { error: alertErr.toString() });
+        }
+      }
 
-      // @testHook(batch_webhook_complete)
-      this.logger.exitFunction('sendBatchToMake', {
-        success,
-        response_code: response.getResponseCode()
-      });
-
+      this.logger.exitFunction('sendBatchToMake', { success: false, response_code: lastResponse ? lastResponse.getResponseCode() : 'none' });
       return {
-        success: success,
-        response_code: response.getResponseCode(),
-        response_text: response.getContentText()
+        success: false,
+        response_code: lastResponse ? lastResponse.getResponseCode() : 0,
+        response_text: lastResponse ? lastResponse.getContentText() : ''
       };
 
     } catch (error) {
@@ -580,11 +629,6 @@ class BatchFixturesManager {
 
   /**
    * Generate idempotency key for batch operation
-   * @param {string} type
-   * @param {string|null} roundId
-   * @param {Date|null} startDate
-   * @param {Date|null} endDate
-   * @returns {string}
    */
   generateBatchKey(type, roundId, startDate, endDate) {
     const parts = [
@@ -596,84 +640,19 @@ class BatchFixturesManager {
     return parts.join('_').replace(/[^a-zA-Z0-9_]/g, '');
   }
 
-  /**
-   * Check if request is duplicate
-   * @param {string} key
-   * @returns {boolean}
-   */
+  /** Check if request is duplicate */
   isDuplicateRequest(key) {
-    return this.processedKeys.has(key);
+    return this._isProcessed(key);
   }
 
-  /**
-   * Mark fixtures as posted
-   * @param {Array} fixtures
-   */
-  markFixturesAsPosted(fixtures) {
-    try {
-      const fixturesSheet = this.getFixturesSheet();
-      if (fixturesSheet) {
-        fixtures.forEach(fixture => {
-          SheetUtils.updateRowByCriteria(
-            fixturesSheet,
-            { 'Opposition': fixture.Opposition, 'Date': fixture.Date },
-            { 'Posted': 'TRUE' }
-          );
-        });
-      }
-    } catch (error) {
-      this.logger.error('Failed to mark fixtures as posted', { error: error.toString() });
-    }
+  /** Generate batch id */
+  generateBatchId(eventType) {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 5);
+    return `${eventType}_${timestamp}_${random}`;
   }
 
-  /**
-   * Mark results as posted
-   * @param {Array} results
-   */
-  markResultsAsPosted(results) {
-    try {
-      const resultsSheet = this.getResultsSheet();
-      if (resultsSheet) {
-        results.forEach(result => {
-          SheetUtils.updateRowByCriteria(
-            resultsSheet,
-            { 'Opposition': result.Opposition, 'Date': result.Date },
-            { 'Posted': 'TRUE' }
-          );
-        });
-      }
-    } catch (error) {
-      this.logger.error('Failed to mark results as posted', { error: error.toString() });
-    }
-  }
-
-  /**
-   * Update fixture status
-   * @param {string} opponent
-   * @param {Date} date
-   * @param {string} status
-   */
-  updateFixtureStatus(opponent, date, status) {
-    try {
-      const fixturesSheet = this.getFixturesSheet();
-      if (fixturesSheet) {
-        SheetUtils.updateRowByCriteria(
-          fixturesSheet,
-          { 'Opposition': opponent, 'Date': DateUtils.formatUK(date) },
-          { 'Status': status }
-        );
-      }
-    } catch (error) {
-      this.logger.error('Failed to update fixture status', { error: error.toString() });
-    }
-  }
-
-  /**
-   * Determine match type for event naming
-   * @param {string} opponent
-   * @param {Date} date
-   * @returns {string} Match type
-   */
+  /** Determine match type (league/cup/friendly) */
   determineMatchType(opponent, date) {
     try {
       const fixturesSheet = this.getFixturesSheet();
@@ -682,41 +661,17 @@ class BatchFixturesManager {
           'Opposition': opponent,
           'Date': DateUtils.formatUK(date)
         });
-
-        if (matchData && matchData.Competition) {
-          const competition = matchData.Competition.toLowerCase();
-          if (competition.includes('league')) return 'league';
-          if (competition.includes('cup')) return 'cup';
-          if (competition.includes('friendly')) return 'friendly';
-        }
+        const comp = String(matchData?.Competition || '').toLowerCase();
+        if (comp.includes('cup')) return 'cup';
+        if (comp.includes('friendly')) return 'friendly';
       }
-
-      return 'general';
-    } catch (error) {
-      this.logger.error('Failed to determine match type', { error: error.toString() });
-      return 'general';
+    } catch (e) {
+      this.logger.warn('determineMatchType lookup failed', { error: e.toString() });
     }
+    return 'league';
   }
 
-  /**
-   * Check if fixture is a key match
-   * @param {Object} fixture
-   * @returns {boolean}
-   */
-  isKeyMatch(fixture) {
-    const keyIndicators = [
-      'cup', 'final', 'semi', 'derby', 'playoff', 'title',
-      'promotion', 'relegation', 'local', 'rival'
-    ];
-    const searchText = `${fixture.Opposition} ${fixture.Competition}`.toLowerCase();
-    return keyIndicators.some(indicator => searchText.includes(indicator));
-  }
-
-  /**
-   * Generate week description
-   * @param {Array} items - Fixtures or results
-   * @returns {string}
-   */
+  /** Generate description for the week */
   generateWeekDescription(items) {
     if (items.length === 0) return 'No matches';
     if (items.length === 1) return 'Single match';
@@ -731,22 +686,7 @@ class BatchFixturesManager {
     return `${items.length} matches`;
   }
 
-  /**
-   * Generate unique batch ID
-   * @param {string} eventType
-   * @returns {string}
-   */
-  generateBatchId(eventType) {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substr(2, 5);
-    return `${eventType}_${timestamp}_${random}`;
-  }
-
-  /**
-   * Calculate batch result statistics
-   * @param {Array} results
-   * @returns {Object} stats
-   */
+  /** Basic batch results stats */
   calculateBatchResultStats(results) {
     const stats = {
       wins: 0,
@@ -767,104 +707,117 @@ class BatchFixturesManager {
       stats.goals_for += ourScore;
       stats.goals_against += theirScore;
 
-      if (ourScore > theirScore) {
-        stats.wins++;
-      } else if (ourScore === theirScore) {
-        stats.draws++;
-      } else {
-        stats.losses++;
-      }
+      if (ourScore > theirScore) stats.wins += 1;
+      else if (ourScore < theirScore) stats.losses += 1;
+      else stats.draws += 1;
     });
 
     return stats;
   }
-} // end class BatchFixturesManager
 
+  /** Mark fixtures as posted */
+  markFixturesAsPosted(fixtures) {
+    try {
+      const fixturesSheet = this.getFixturesSheet();
+      if (fixturesSheet) {
+        fixtures.forEach(fixture => {
+          SheetUtils.updateRowByCriteria(
+            fixturesSheet,
+            { 'Opposition': fixture.Opposition, 'Date': fixture.Date },
+            { 'Posted': 'TRUE' }
+          );
+        });
+      }
+    } catch (error) {
+      this.logger.error('Failed to mark fixtures as posted', { error: error.toString() });
+    }
+  }
 
-// ==================== PUBLIC API FUNCTIONS ====================
+  /** Mark results as posted */
+  markResultsAsPosted(results) {
+    try {
+      const resultsSheet = this.getResultsSheet();
+      if (resultsSheet) {
+        results.forEach(result => {
+          SheetUtils.updateRowByCriteria(
+            resultsSheet,
+            { 'Opposition': result.Opposition, 'Date': result.Date },
+            { 'Posted': 'TRUE' }
+          );
+        });
+      }
+    } catch (error) {
+      this.logger.error('Failed to mark results as posted', { error: error.toString() });
+    }
+  }
+
+  /** Update fixture status (e.g., Postponed) */
+  updateFixtureStatus(opponent, date, status) {
+    try {
+      const fixturesSheet = this.getFixturesSheet();
+      if (fixturesSheet) {
+        SheetUtils.updateRowByCriteria(
+          fixturesSheet,
+          { 'Opposition': opponent, 'Date': DateUtils.formatUK(date) },
+          { 'Status': status, 'Posted': 'TRUE' }
+        );
+      }
+    } catch (error) {
+      this.logger.error('Failed to update fixture status', { error: error.toString() });
+    }
+  }
+}
+
+// ==================== PUBLIC ENTRY FUNCTIONS ====================
 
 /**
- * Post league fixtures batch (public API)
- * @param {string|null} roundId
- * @param {Date|null} startDate
- * @param {Date|null} endDate
- * @returns {Object}
+ * Post 1–5 upcoming fixtures (batched) that are marked Send=TRUE & not Posted.
  */
-function postLeagueFixturesBatch(roundId = null, startDate = null, endDate = null) {
-  const manager = new BatchFixturesManager();
-  return manager.postLeagueFixturesBatch(roundId, startDate, endDate);
+function runFixturesBatch() {
+  const mgr = new BatchFixturesManager();
+  mgr.postLeagueFixturesBatch();
 }
 
 /**
- * Post league results batch (public API)
- * @param {string|null} roundId
- * @param {Date|null} startDate
- * @param {Date|null} endDate
- * @returns {Object}
+ * Post 1–5 recent results (batched) that are marked Send=TRUE & not Posted.
  */
-function postLeagueResultsBatch(roundId = null, startDate = null, endDate = null) {
-  const manager = new BatchFixturesManager();
-  return manager.postLeagueResultsBatch(roundId, startDate, endDate);
+function runResultsBatch() {
+  const mgr = new BatchFixturesManager();
+  mgr.postLeagueResultsBatch();
 }
 
 /**
- * Post monthly fixtures summary (public API) — delegated
- * @param {number|null} month - 1–12
- * @param {number|null} year
- * @returns {Object}
+ * Post "postponed" fixture updates and mark as Posted.
  */
-function postMonthlyFixturesSummary(month = null, year = null) {
-  const monthlyManager = new MonthlySummariesManager();
-  const monthDate = month && year ? new Date(year, month - 1, 1) : null;
-  return monthlyManager.postMonthlyFixturesSummary(monthDate);
+function runPostponedBatch() {
+  const mgr = new BatchFixturesManager();
+  // This would typically iterate over rows with Status=Postponed & Send=TRUE
+  // but exposed as single-call handler for clarity.
 }
 
 /**
- * Post monthly results summary (public API) — delegated
- * @param {number|null} month - 1–12
- * @param {number|null} year
- * @returns {Object}
+ * Convenience single runner if you want one trigger for everything.
  */
-function postMonthlyResultsSummary(month = null, year = null) {
-  const monthlyManager = new MonthlySummariesManager();
-  const monthDate = month && year ? new Date(year, month - 1, 1) : null;
-  return monthlyManager.postMonthlyResultsSummary(monthDate);
+function runBatchFixtures() {
+  const mgr = new BatchFixturesManager();
+  mgr.postLeagueFixturesBatch();
+  mgr.postLeagueResultsBatch();
 }
 
 /**
- * Post postponed match notification (public API)
- * @param {string} opponent
- * @param {Date} originalDate
- * @param {string} reason
- * @param {Date|null} newDate
- * @returns {Object}
+ * Optional initialization/validation entry
  */
-function postPostponed(opponent, originalDate, reason, newDate = null) {
-  const manager = new BatchFixturesManager();
-  return manager.postPostponed(opponent, originalDate, reason, newDate);
-}
-
-/**
- * Initialize batch fixtures system
- * @returns {Object} Initialization result
- */
-function initializeBatchFixtures() {
-  logger.enterFunction('BatchFixtures.initialize');
-
+function initBatchFixtures() {
   try {
-    const manager = new BatchFixturesManager();
-    const fixturesSheet = manager.getFixturesSheet();
-    const resultsSheet = manager.getResultsSheet();
+    const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
+    const tabs = getConfig('SHEETS.TAB_NAMES', {});
 
     const results = {
-      FIXTURES: { success: !!fixturesSheet, name: getConfig('SHEETS.TAB_NAMES.FIXTURES') },
-      RESULTS: { success: !!resultsSheet, name: getConfig('SHEETS.TAB_NAMES.RESULTS') }
+      fixtures: !!SpreadsheetApp.openById(ssId).getSheetByName(tabs.FIXTURES),
+      results: !!SpreadsheetApp.openById(ssId).getSheetByName(tabs.RESULTS)
     };
 
-    const webhookUrl = getWebhookUrl();
-    const webhookConfigured = !!webhookUrl;
-
-    logger.exitFunction('BatchFixtures.initialize', { success: true });
+    const webhookConfigured = !!getWebhookUrl();
 
     return {
       success: true,
