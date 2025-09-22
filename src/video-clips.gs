@@ -870,4 +870,3 @@ function initializeVideoClips() {
     return { success: false, error: error.toString() };
   }
 }
-
