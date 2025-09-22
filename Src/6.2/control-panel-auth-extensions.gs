@@ -7,6 +7,47 @@
 
 // ==================== AUTHENTICATION FUNCTIONS ====================
 
+// ==================== ENHANCED SECURITY HELPERS ====================
+
+/**
+ * Enhanced permission check using encrypted session validation
+ * @param {string} sessionToken - Session token
+ * @param {string} permission - Required permission
+ * @returns {Object} Permission check result
+ */
+function checkPermissionEnhanced(sessionToken, permission) {
+  try {
+    // Validate encrypted session
+    const sessionResult = EnhancedSecurity.validateEncryptedSession(sessionToken);
+    if (!sessionResult.success) {
+      return { success: false, error: 'Invalid or expired session' };
+    }
+
+    // Check role-based permissions
+    const session = sessionResult.session;
+    const userRole = session.role;
+
+    // Define permission mappings
+    const rolePermissions = {
+      'super_admin': '*', // All permissions
+      'admin': ['control_panel_access', 'feature_toggle', 'manual_trigger', 'system_status', 'view_logs'],
+      'operator': ['manual_trigger', 'view_logs', 'system_status'],
+      'viewer': ['view_logs', 'system_status']
+    };
+
+    const userPermissions = rolePermissions[userRole] || [];
+
+    if (userPermissions === '*' || userPermissions.includes(permission)) {
+      return { success: true, session: session };
+    } else {
+      return { success: false, error: 'Insufficient permissions' };
+    }
+
+  } catch (error) {
+    return { success: false, error: 'Permission validation failed' };
+  }
+}
+
 /**
  * Control panel authenticate - Called from HTML login form
  * @param {string} username - Username
@@ -29,8 +70,8 @@ function controlPanelAuthenticate(username, password, mfaCode = null) {
       return { success: false, error: 'Invalid password format' };
     }
 
-    // Authenticate with security manager
-    const authResult = authenticateAdmin(username, password, mfaCode);
+    // Authenticate with enhanced security manager
+    const authResult = authenticateAdminSecure(username, password, mfaCode);
 
     if (authResult.success) {
       logger.info('Control panel authentication successful', { username });
@@ -66,7 +107,7 @@ function showAuthenticatedControlPanel(sessionToken) {
 
   try {
     // Verify session and permissions
-    const authResult = checkPermission(sessionToken, 'control_panel_access');
+    const authResult = checkPermissionEnhanced(sessionToken, 'control_panel_access');
     if (!authResult.success) {
       return { success: false, error: authResult.error };
     }
@@ -92,7 +133,7 @@ function controlPanelToggleFeatureAuth(sessionToken, featureName, enabled) {
 
   try {
     // Check permissions
-    const authResult = checkPermission(sessionToken, 'feature_toggle');
+    const authResult = checkPermissionEnhanced(sessionToken, 'feature_toggle');
     if (!authResult.success) {
       return authResult;
     }
@@ -130,7 +171,7 @@ function controlPanelTriggerActionAuth(sessionToken, actionType) {
 
   try {
     // Check permissions
-    const authResult = checkPermission(sessionToken, 'manual_trigger');
+    const authResult = checkPermissionEnhanced(sessionToken, 'manual_trigger');
     if (!authResult.success) {
       return authResult;
     }
@@ -195,7 +236,7 @@ function controlPanelEmergencyActionAuth(sessionToken, actionType) {
 
   try {
     // Check permissions (emergency actions require higher privileges)
-    const authResult = checkPermission(sessionToken, 'emergency_actions');
+    const authResult = checkPermissionEnhanced(sessionToken, 'emergency_actions');
     if (!authResult.success) {
       return authResult;
     }
@@ -252,7 +293,7 @@ function controlPanelGetStatusAuth(sessionToken) {
 
   try {
     // Check permissions
-    const authResult = checkPermission(sessionToken, 'system_status');
+    const authResult = checkPermissionEnhanced(sessionToken, 'system_status');
     if (!authResult.success) {
       return authResult;
     }
@@ -279,7 +320,7 @@ function controlPanelGetRecentLogsAuth(sessionToken) {
 
   try {
     // Check permissions
-    const authResult = checkPermission(sessionToken, 'view_logs');
+    const authResult = checkPermissionEnhanced(sessionToken, 'view_logs');
     if (!authResult.success) {
       return authResult;
     }
@@ -307,7 +348,7 @@ function controlPanelLogout(sessionToken) {
   try {
     if (sessionToken) {
       // Validate session first to get user info
-      const authResult = checkPermission(sessionToken, 'control_panel_access');
+      const authResult = checkPermissionEnhanced(sessionToken, 'control_panel_access');
       if (authResult.success) {
         logSecurityEvent('control_panel_logout', {
           username: authResult.session.username
@@ -415,6 +456,99 @@ function reinitializeSystem() {
 
   } catch (error) {
     logger.error('System reinitialize failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Change admin password with enhanced security validation
+ * @param {string} sessionToken - Current session token
+ * @param {string} currentPassword - Current password
+ * @param {string} newPassword - New password
+ * @returns {Object} Password change result
+ */
+function changeAdminPassword(sessionToken, currentPassword, newPassword) {
+  logger.enterFunction('changeAdminPassword');
+
+  try {
+    // Validate session
+    const authResult = EnhancedSecurity.validateEncryptedSession(sessionToken);
+    if (!authResult.success) {
+      return { success: false, error: 'Invalid or expired session' };
+    }
+
+    const username = authResult.session.username;
+
+    // Validate current password by attempting authentication
+    const currentAuthResult = authenticateAdminSecure(username, currentPassword);
+    if (!currentAuthResult.success) {
+      logSecurityEvent('password_change_failed', {
+        username,
+        reason: 'invalid_current_password'
+      });
+      return { success: false, error: 'Current password is incorrect' };
+    }
+
+    // Validate new password complexity
+    const complexityResult = EnhancedSecurity.validatePasswordComplexity(newPassword);
+    if (!complexityResult.success) {
+      return {
+        success: false,
+        error: 'Password does not meet complexity requirements',
+        requirements: complexityResult.errors
+      };
+    }
+
+    // Generate new salt and hash the password
+    const newSalt = Utilities.getUuid();
+    const hashedPassword = EnhancedSecurity.hashPasswordSecure(newPassword, newSalt);
+
+    // Update stored credentials
+    const adminUsers = JSON.parse(PropertiesService.getScriptProperties().getProperty('ADMIN_USERS') || '{}');
+    if (adminUsers[username]) {
+      adminUsers[username].password = hashedPassword;
+      adminUsers[username].salt = newSalt;
+      adminUsers[username].passwordChangeRequired = false;
+      adminUsers[username].lastPasswordChange = new Date().toISOString();
+
+      PropertiesService.getScriptProperties().setProperty('ADMIN_USERS', JSON.stringify(adminUsers));
+
+      // Log successful password change
+      logSecurityEvent('password_changed', {
+        username,
+        timestamp: new Date().toISOString()
+      });
+
+      // Create new session with updated requirements
+      const newSessionData = {
+        username: username,
+        role: authResult.session.role,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + (30 * 60 * 1000)), // 30 minutes
+        lastActivity: new Date(),
+        passwordChangeRequired: false
+      };
+
+      // Generate new session token
+      const newSessionToken = Utilities.getUuid();
+      EnhancedSecurity.storeEncryptedSession(newSessionToken, newSessionData);
+
+      // Destroy old session
+      EnhancedSecurity.destroySession(sessionToken);
+
+      logger.exitFunction('changeAdminPassword', { success: true });
+      return {
+        success: true,
+        message: 'Password changed successfully',
+        sessionToken: newSessionToken
+      };
+
+    } else {
+      return { success: false, error: 'User not found' };
+    }
+
+  } catch (error) {
+    logger.error('Password change failed', { error: error.toString() });
     return { success: false, error: error.toString() };
   }
 }

@@ -41,11 +41,17 @@ class ControlPanelManager {
 
       if (sessionToken) {
         // @testHook(control_panel_check_auth_start)
-        const authResult = checkPermission(sessionToken, 'control_panel_access');
+        // Use enhanced security validation
+        const authResult = EnhancedSecurity.validateEncryptedSession(sessionToken);
         if (!authResult.success) {
           panelHtml = this.generateLoginHTML('Session expired. Please log in again.');
         } else {
-          panelHtml = this.generateControlPanelHTML(authResult.session);
+          // Check if password change is required
+          if (authResult.session.passwordChangeRequired) {
+            panelHtml = this.generatePasswordChangeHTML(sessionToken);
+          } else {
+            panelHtml = this.generateControlPanelHTML(authResult.session);
+          }
         }
         // @testHook(control_panel_check_auth_end)
       } else {
@@ -801,6 +807,246 @@ class ControlPanelManager {
     } catch (error) {
       this.logger.error('Login HTML generation failed', { error: error.toString() });
       return '<html><body><h2>Error loading login page</h2><p>' + error.toString() + '</p></body></html>';
+    }
+  }
+
+  /**
+   * Generate password change HTML for users requiring password update
+   * @param {string} sessionToken - Current session token
+   * @returns {string} Password change HTML content
+   */
+  generatePasswordChangeHTML(sessionToken) {
+    try {
+      return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Password Change Required</title>
+    <style>
+        body {
+            font-family: 'Google Sans', Arial, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f8f9fa;
+            font-size: 14px;
+        }
+        .password-container {
+            max-width: 400px;
+            margin: 50px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .security-warning {
+            background: #fef3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+        .security-warning h3 {
+            color: #856404;
+            margin: 0 0 8px 0;
+            font-size: 16px;
+        }
+        .security-warning p {
+            color: #856404;
+            margin: 0;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #374151;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .password-requirements {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            text-align: left;
+        }
+        .password-requirements h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #374151;
+        }
+        .password-requirements ul {
+            margin: 0;
+            padding-left: 16px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #1e40af;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background: #1d4ed8;
+        }
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .loading {
+            display: none;
+            margin: 16px 0;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="password-container">
+        <div class="security-warning">
+            <h3>🔒 Password Change Required</h3>
+            <p>For security reasons, you must change your password before accessing the control panel. Please choose a strong password that meets the requirements below.</p>
+        </div>
+
+        <form onsubmit="return handlePasswordChange(event)">
+            <div class="form-group">
+                <label for="currentPassword">Current Password</label>
+                <input type="password" id="currentPassword" name="currentPassword" required>
+            </div>
+
+            <div class="form-group">
+                <label for="newPassword">New Password</label>
+                <input type="password" id="newPassword" name="newPassword" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirm New Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required>
+            </div>
+
+            <div class="password-requirements">
+                <h4>Password Requirements:</h4>
+                <ul>
+                    <li>At least 12 characters long</li>
+                    <li>At least one uppercase letter (A-Z)</li>
+                    <li>At least one lowercase letter (a-z)</li>
+                    <li>At least one number (0-9)</li>
+                    <li>At least one special character (!@#$%^&*)</li>
+                    <li>Cannot contain common words or patterns</li>
+                </ul>
+            </div>
+
+            <button type="submit" class="btn" id="change-btn">
+                Change Password
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            Updating password...
+        </div>
+    </div>
+
+    <script>
+        function handlePasswordChange(event) {
+            event.preventDefault();
+
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            // Validate passwords match
+            if (newPassword !== confirmPassword) {
+                showError('New passwords do not match');
+                return false;
+            }
+
+            // Basic client-side validation
+            if (newPassword.length < 12) {
+                showError('Password must be at least 12 characters long');
+                return false;
+            }
+
+            showLoading();
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    hideLoading();
+                    if (result.success) {
+                        // Password changed successfully, reload control panel
+                        sessionStorage.setItem('auth_token', result.sessionToken);
+                        window.location.reload();
+                    } else {
+                        showError(result.error || 'Password change failed');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    hideLoading();
+                    showError('Password change failed: ' + error.toString());
+                })
+                .changeAdminPassword('${sessionToken}', currentPassword, newPassword);
+
+            return false;
+        }
+
+        function showError(message) {
+            const existing = document.querySelector('.error-message');
+            if (existing) {
+                existing.textContent = message;
+            } else {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.textContent = message;
+                document.querySelector('.password-container').insertBefore(
+                    errorDiv,
+                    document.querySelector('form')
+                );
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('change-btn').disabled = true;
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('change-btn').disabled = false;
+        }
+    </script>
+</body>
+</html>
+      `;
+
+    } catch (error) {
+      this.logger.error('Password change HTML generation failed', { error: error.toString() });
+      return '<html><body><h2>Error loading password change page</h2><p>' + error.toString() + '</p></body></html>';
     }
   }
 
