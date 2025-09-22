@@ -1352,9 +1352,13 @@ const ControlPanel = new ControlPanelManager();
  * @returns {Object} Result
  */
 function showControlPanel() {
-  return ControlPanel.showControlPanel();
+  var html = HtmlService
+    .createHtmlOutputFromFile('ControlPanel')
+    .setTitle('⚙️ Syston Tigers – Control Panel')
+    .setWidth(400);
+  SpreadsheetApp.getUi().showSidebar(html);
+  return { success: true };
 }
-
 /**
  * Control panel toggle feature - Called from HTML
  * @param {string} featureName - Feature name
