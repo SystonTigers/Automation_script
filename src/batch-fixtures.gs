@@ -1,10 +1,9 @@
 /**
- codex/sort-and-merge-code-into-version-6.2
- * @fileoverview Enhanced batch posting for fixtures and results with monthly summaries
+ * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
  * @version 6.2.0
  * @author Senior Software Architect
- * @description Handles batch posting (1-5 fixtures/results), postponed notifications,
- *              and provides idempotent integrations with Make.com.
+ * @description Handles batch posting (1–5 fixtures/results), postponed notifications,
+ *              and provides idempotent integrations with Make.com. Monthly summaries are delegated.
  */
 
 // ==================== BATCH FIXTURES MANAGER CLASS ====================
@@ -16,32 +15,16 @@ class BatchFixturesManager {
 
   constructor() {
     this.logger = logger.scope('BatchFixtures');
-    this.processedKeys = new Set(); // For idempotency
+    this.processedKeys = new Set(); // For idempotency (per-execution memory)
   }
 
   // ==================== BATCH FIXTURE POSTING ====================
 
   /**
-=======
- * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
- * @version 6.2.0
- * @author Senior Software Architect
- * @description Handles batch posting (1-5 fixtures/results) and postponements. Monthly summaries now live in monthly-summaries.gs.
- *
- * FEATURES IMPLEMENTED:
- * - Batch fixture posting (1-5 league fixtures)
- * - Batch results posting (1-5 league results)
- * - Delegation hooks to MonthlySummariesManager for monthly summaries
- * - Postponed match handling
- * - Idempotency and duplicate prevention
- */
-
-/**
->>> main
    * Post league fixtures batch (NEW: From spec)
-   * @param {string} roundId - Round/weekend identifier
-   * @param {Date} startDate - Start date for fixtures
-   * @param {Date} endDate - End date for fixtures
+   * @param {string|null} roundId - Round/weekend identifier
+   * @param {Date|null} startDate - Start date for fixtures
+   * @param {Date|null} endDate - End date for fixtures
    * @returns {Object} Posting result
    */
   postLeagueFixturesBatch(roundId = null, startDate = null, endDate = null) {
@@ -103,9 +86,9 @@ class BatchFixturesManager {
 
   /**
    * Post league results batch (NEW: From spec)
-   * @param {string} roundId - Round/weekend identifier
-   * @param {Date} startDate - Start date for results
-   * @param {Date} endDate - End date for results
+   * @param {string|null} roundId - Round/weekend identifier
+   * @param {Date|null} startDate - Start date for results
+   * @param {Date|null} endDate - End date for results
    * @returns {Object} Posting result
    */
   postLeagueResultsBatch(roundId = null, startDate = null, endDate = null) {
@@ -159,12 +142,13 @@ class BatchFixturesManager {
         webhook_sent: webhookResult.success
       };
 
-codex/sort-and-merge-code-into-version-6.2
     } catch (error) {
       this.logger.error('Batch results posting failed', { error: error.toString() });
       return { success: false, error: error.toString() };
-=======
-  // ==================== MONTHLY SUMMARIES ====================
+    }
+  }
+
+  // ==================== MONTHLY SUMMARIES (Delegated) ====================
 
   /**
    * @deprecated Delegated to MonthlySummariesManager (use monthly-summaries.gs)
@@ -205,7 +189,6 @@ codex/sort-and-merge-code-into-version-6.2
       const failure = { success: false, error: error.toString() };
       this.logger.exitFunction('postMonthlyResultsSummary', { delegated: true, success: false, error: error.toString() });
       return failure;
- main
     }
   }
 
@@ -216,7 +199,7 @@ codex/sort-and-merge-code-into-version-6.2
    * @param {string} opponent - Opposition team
    * @param {Date} originalDate - Original match date
    * @param {string} reason - Postponement reason
-   * @param {Date} newDate - New match date (optional)
+   * @param {Date|null} newDate - New match date (optional)
    * @returns {Object} Posting result
    */
   postPostponed(opponent, originalDate, reason, newDate = null) {
@@ -235,7 +218,7 @@ codex/sort-and-merge-code-into-version-6.2
       const matchType = this.determineMatchType(opponent, originalDate);
       const eventType = `match_postponed_${matchType}`;
 
-      // Create postponed match payload
+      // Create payload
       const payload = this.createPostponedPayload(opponent, originalDate, reason, newDate, eventType);
 
       // @testHook(postponed_webhook)
@@ -269,9 +252,9 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Get league fixtures for date range
-   * @param {Date} startDate - Start date
-   * @param {Date} endDate - End date
-   * @returns {Array} League fixtures
+   * @param {Date|null} startDate
+   * @param {Date|null} endDate
+   * @returns {Array} League fixtures (raw rows)
    */
   getLeagueFixtures(startDate, endDate) {
     try {
@@ -286,7 +269,7 @@ codex/sort-and-merge-code-into-version-6.2
           if (!entry) return false;
 
           const inDateRange = (!startDate || entry.date >= startDate) &&
-                             (!endDate || entry.date <= endDate);
+                              (!endDate || entry.date <= endDate);
           const isLeague = entry.competition && entry.competition.toLowerCase().includes('league');
           const notPosted = entry.posted !== true && entry.posted !== 'TRUE';
 
@@ -302,9 +285,9 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Get league results for date range
-   * @param {Date} startDate - Start date
-   * @param {Date} endDate - End date
-   * @returns {Array} League results
+   * @param {Date|null} startDate
+   * @param {Date|null} endDate
+   * @returns {Array} League results (raw rows)
    */
   getLeagueResults(startDate, endDate) {
     try {
@@ -319,7 +302,7 @@ codex/sort-and-merge-code-into-version-6.2
           if (!entry) return false;
 
           const inDateRange = (!startDate || entry.date >= startDate) &&
-                             (!endDate || entry.date <= endDate);
+                              (!endDate || entry.date <= endDate);
           const isLeague = entry.competition && entry.competition.toLowerCase().includes('league');
           const notPosted = entry.posted !== true && entry.posted !== 'TRUE';
 
@@ -332,10 +315,10 @@ codex/sort-and-merge-code-into-version-6.2
       return [];
     }
   }
- codex/sort-and-merge-code-into-version-6.2
+
   /**
    * Retrieve fixtures sheet safely
-   * @returns {GoogleAppsScript.Spreadsheet.Sheet|null} Sheet instance
+   * @returns {GoogleAppsScript.Spreadsheet.Sheet|null}
    */
   getFixturesSheet() {
     try {
@@ -351,7 +334,7 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Retrieve results sheet safely
-   * @returns {GoogleAppsScript.Spreadsheet.Sheet|null} Sheet instance
+   * @returns {GoogleAppsScript.Spreadsheet.Sheet|null}
    */
   getResultsSheet() {
     try {
@@ -367,8 +350,8 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Normalize a fixture row using parsing helpers
-   * @param {Object} raw - Raw fixture object from sheet
-   * @returns {{ raw: Object, date: Date, competition: string, posted: boolean }} Normalized entry
+   * @param {Object} raw
+   * @returns {{ raw: Object, date: Date, competition: string, posted: boolean }|null}
    */
   parseFixtureRow(raw) {
     if (!raw) return null;
@@ -393,8 +376,8 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Normalize a result row using parsing helpers
-   * @param {Object} raw - Raw result object from sheet
-   * @returns {{ raw: Object, date: Date, competition: string, posted: boolean }} Normalized entry
+   * @param {Object} raw
+   * @returns {{ raw: Object, date: Date, competition: string, posted: boolean }|null}
    */
   parseResultRow(raw) {
     if (!raw) return null;
@@ -419,24 +402,23 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Parse a UK formatted date or fallback
-   * @param {string|Date} value - Date input
-   * @returns {Date|null} Parsed date
+   * @param {string|Date} value
+   * @returns {Date|null}
    */
   parseDate(value) {
     if (!value) return null;
     const parsed = DateUtils.parseUK(String(value)) || new Date(value);
     return isNaN(parsed.getTime()) ? null : parsed;
   }
-=======
+
   // ==================== PAYLOAD CREATION ====================
- main
 
   /**
    * Create fixtures batch payload
-   * @param {Array} fixtures - Fixtures array
-   * @param {string} eventType - Event type
-   * @param {string} roundId - Round identifier
-   * @returns {Object} Payload object
+   * @param {Array} fixtures
+   * @param {string} eventType
+   * @param {string|null} roundId
+   * @returns {Object}
    */
   createFixturesBatchPayload(fixtures, eventType, roundId) {
     return {
@@ -473,10 +455,10 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Create results batch payload
-   * @param {Array} results - Results array
-   * @param {string} eventType - Event type
-   * @param {string} roundId - Round identifier
-   * @returns {Object} Payload object
+   * @param {Array} results
+   * @param {string} eventType
+   * @param {string|null} roundId
+   * @returns {Object}
    */
   createResultsBatchPayload(results, eventType, roundId) {
     const stats = this.calculateBatchResultStats(results);
@@ -519,12 +501,12 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Create postponed match payload
-   * @param {string} opponent - Opposition team
-   * @param {Date} originalDate - Original date
-   * @param {string} reason - Postponement reason
-   * @param {Date} newDate - New date
-   * @param {string} eventType - Event type
-   * @returns {Object} Payload object
+   * @param {string} opponent
+   * @param {Date} originalDate
+   * @param {string} reason
+   * @param {Date|null} newDate
+   * @param {string} eventType
+   * @returns {Object}
    */
   createPostponedPayload(opponent, originalDate, reason, newDate, eventType) {
     return {
@@ -551,7 +533,7 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Send batch payload to Make.com
-   * @param {Object} payload - Payload to send
+   * @param {Object} payload
    * @returns {Object} Send result
    */
   sendBatchToMake(payload) {
@@ -571,9 +553,7 @@ codex/sort-and-merge-code-into-version-6.2
 
       const response = UrlFetchApp.fetch(webhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         payload: JSON.stringify(payload),
         muteHttpExceptions: true
       });
@@ -581,7 +561,6 @@ codex/sort-and-merge-code-into-version-6.2
       const success = response.getResponseCode() === 200;
 
       // @testHook(batch_webhook_complete)
-
       this.logger.exitFunction('sendBatchToMake', {
         success,
         response_code: response.getResponseCode()
@@ -601,11 +580,11 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Generate idempotency key for batch operation
-   * @param {string} type - Operation type
-   * @param {string} roundId - Round identifier
-   * @param {Date} startDate - Start date
-   * @param {Date} endDate - End date
-   * @returns {string} Idempotency key
+   * @param {string} type
+   * @param {string|null} roundId
+   * @param {Date|null} startDate
+   * @param {Date|null} endDate
+   * @returns {string}
    */
   generateBatchKey(type, roundId, startDate, endDate) {
     const parts = [
@@ -614,14 +593,13 @@ codex/sort-and-merge-code-into-version-6.2
       startDate ? DateUtils.formatUK(startDate) : 'none',
       endDate ? DateUtils.formatUK(endDate) : 'none'
     ];
-
     return parts.join('_').replace(/[^a-zA-Z0-9_]/g, '');
   }
 
   /**
    * Check if request is duplicate
-   * @param {string} key - Idempotency key
-   * @returns {boolean} True if duplicate
+   * @param {string} key
+   * @returns {boolean}
    */
   isDuplicateRequest(key) {
     return this.processedKeys.has(key);
@@ -629,12 +607,11 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Mark fixtures as posted
-   * @param {Array} fixtures - Fixtures to mark
+   * @param {Array} fixtures
    */
   markFixturesAsPosted(fixtures) {
     try {
       const fixturesSheet = this.getFixturesSheet();
-
       if (fixturesSheet) {
         fixtures.forEach(fixture => {
           SheetUtils.updateRowByCriteria(
@@ -651,12 +628,11 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Mark results as posted
-   * @param {Array} results - Results to mark
+   * @param {Array} results
    */
   markResultsAsPosted(results) {
     try {
       const resultsSheet = this.getResultsSheet();
-
       if (resultsSheet) {
         results.forEach(result => {
           SheetUtils.updateRowByCriteria(
@@ -673,14 +649,13 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Update fixture status
-   * @param {string} opponent - Opposition team
-   * @param {Date} date - Match date
-   * @param {string} status - New status
+   * @param {string} opponent
+   * @param {Date} date
+   * @param {string} status
    */
   updateFixtureStatus(opponent, date, status) {
     try {
       const fixturesSheet = this.getFixturesSheet();
-
       if (fixturesSheet) {
         SheetUtils.updateRowByCriteria(
           fixturesSheet,
@@ -695,14 +670,13 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Determine match type for event naming
-   * @param {string} opponent - Opposition team
-   * @param {Date} date - Match date
+   * @param {string} opponent
+   * @param {Date} date
    * @returns {string} Match type
    */
   determineMatchType(opponent, date) {
     try {
       const fixturesSheet = this.getFixturesSheet();
-
       if (fixturesSheet) {
         const matchData = SheetUtils.findRowByCriteria(fixturesSheet, {
           'Opposition': opponent,
@@ -726,24 +700,22 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Check if fixture is a key match
-   * @param {Object} fixture - Fixture object
-   * @returns {boolean} True if key match
+   * @param {Object} fixture
+   * @returns {boolean}
    */
   isKeyMatch(fixture) {
     const keyIndicators = [
       'cup', 'final', 'semi', 'derby', 'playoff', 'title',
       'promotion', 'relegation', 'local', 'rival'
     ];
-
     const searchText = `${fixture.Opposition} ${fixture.Competition}`.toLowerCase();
-
     return keyIndicators.some(indicator => searchText.includes(indicator));
   }
 
   /**
    * Generate week description
    * @param {Array} items - Fixtures or results
-   * @returns {string} Week description
+   * @returns {string}
    */
   generateWeekDescription(items) {
     if (items.length === 0) return 'No matches';
@@ -761,8 +733,8 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Generate unique batch ID
-   * @param {string} eventType - Event type
-   * @returns {string} Batch ID
+   * @param {string} eventType
+   * @returns {string}
    */
   generateBatchId(eventType) {
     const timestamp = Date.now();
@@ -772,8 +744,8 @@ codex/sort-and-merge-code-into-version-6.2
 
   /**
    * Calculate batch result statistics
-   * @param {Array} results - Results array
-   * @returns {Object} Statistics object
+   * @param {Array} results
+   * @returns {Object} stats
    */
   calculateBatchResultStats(results) {
     const stats = {
@@ -806,16 +778,17 @@ codex/sort-and-merge-code-into-version-6.2
 
     return stats;
   }
-}
+} // end class BatchFixturesManager
+
 
 // ==================== PUBLIC API FUNCTIONS ====================
 
 /**
  * Post league fixtures batch (public API)
- * @param {string} roundId - Round identifier
- * @param {Date} startDate - Start date
- * @param {Date} endDate - End date
- * @returns {Object} Posting result
+ * @param {string|null} roundId
+ * @param {Date|null} startDate
+ * @param {Date|null} endDate
+ * @returns {Object}
  */
 function postLeagueFixturesBatch(roundId = null, startDate = null, endDate = null) {
   const manager = new BatchFixturesManager();
@@ -824,10 +797,10 @@ function postLeagueFixturesBatch(roundId = null, startDate = null, endDate = nul
 
 /**
  * Post league results batch (public API)
- * @param {string} roundId - Round identifier
- * @param {Date} startDate - Start date
- * @param {Date} endDate - End date
- * @returns {Object} Posting result
+ * @param {string|null} roundId
+ * @param {Date|null} startDate
+ * @param {Date|null} endDate
+ * @returns {Object}
  */
 function postLeagueResultsBatch(roundId = null, startDate = null, endDate = null) {
   const manager = new BatchFixturesManager();
@@ -835,12 +808,10 @@ function postLeagueResultsBatch(roundId = null, startDate = null, endDate = null
 }
 
 /**
-<<<<< codex/sort-and-merge-code-into-version-6.2
-=======
- * Post monthly fixtures summary (public API)
- * @param {number} month - Month (1-12)
- * @param {number} year - Year
- * @returns {Object} Posting result
+ * Post monthly fixtures summary (public API) — delegated
+ * @param {number|null} month - 1–12
+ * @param {number|null} year
+ * @returns {Object}
  */
 function postMonthlyFixturesSummary(month = null, year = null) {
   const monthlyManager = new MonthlySummariesManager();
@@ -849,10 +820,10 @@ function postMonthlyFixturesSummary(month = null, year = null) {
 }
 
 /**
- * Post monthly results summary (public API)
- * @param {number} month - Month (1-12)
- * @param {number} year - Year
- * @returns {Object} Posting result
+ * Post monthly results summary (public API) — delegated
+ * @param {number|null} month - 1–12
+ * @param {number|null} year
+ * @returns {Object}
  */
 function postMonthlyResultsSummary(month = null, year = null) {
   const monthlyManager = new MonthlySummariesManager();
@@ -861,13 +832,12 @@ function postMonthlyResultsSummary(month = null, year = null) {
 }
 
 /**
-main
  * Post postponed match notification (public API)
- * @param {string} opponent - Opposition team
- * @param {Date} originalDate - Original match date
- * @param {string} reason - Postponement reason
- * @param {Date} newDate - New match date (optional)
- * @returns {Object} Posting result
+ * @param {string} opponent
+ * @param {Date} originalDate
+ * @param {string} reason
+ * @param {Date|null} newDate
+ * @returns {Object}
  */
 function postPostponed(opponent, originalDate, reason, newDate = null) {
   const manager = new BatchFixturesManager();
@@ -911,32 +881,4 @@ function initializeBatchFixtures() {
     logger.error('Batch fixtures initialization failed', { error: error.toString() });
     return { success: false, error: error.toString() };
   }
-
 }
-codex/sort-and-merge-code-into-version-6.2
-
-// ==================== BATCH FIXTURES MANAGER CLASS ====================
-
-/**
- * Batch Fixtures Manager - Handles all batch posting operations
- */
-class BatchFixturesManager {
-  
-  constructor() {
-    this.logger = logger.scope('BatchFixtures');
-    this.processedKeys = new Set(); // For idempotency
-  }
-
-  // ==================== BATCH FIXTURE POSTING ====================
-
-  /**
-   * Post league fixtures batch (NEW: From spec)
-   * @param {string} roundId - Round/weekend identifier
-   * @param {Date} startDate - Start date for fixtures
-   * @param {Date} endDate - End date for fixtures
-   * @returns {Object} Posting result
-   */
-  postLeagueFixturesBatch(roundId = null, startDate = null, endDate = null) {
-    this.logger
-
-main
