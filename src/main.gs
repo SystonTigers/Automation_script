@@ -64,7 +64,6 @@ class SystemCoordinator {
       }
  codex/sort-and-merge-code-into-version-6.2
       
-      >>>>>>> main
       if (isFeatureEnabled('PLAYER_MINUTES_TRACKING')) {
         results.components.playerManagement = initializePlayerManagement();
       }
