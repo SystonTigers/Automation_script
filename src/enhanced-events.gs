@@ -1040,4 +1040,3 @@ function initializeEnhancedEvents() {
     return { success: false, error: error.toString() };
   }
 }
-
