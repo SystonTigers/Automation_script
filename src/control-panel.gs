@@ -1439,6 +1439,13 @@ function updateFeatureFlags(flags) {
     Object.keys(flags || {}).forEach(function(k) {
       setConfig('FEATURES.' + k, !!flags[k]);
     });
+// Persist feature flags so they survive cold starts
+try {
+  PropertiesService.getScriptProperties()
+    .setProperty('FEATURE_FLAGS', JSON.stringify(flags));
+} catch (e) {
+  console.warn('Failed to persist FEATURE_FLAGS', e);
+}
     // Optional persistence so flags survive cold starts:
     try {
       PropertiesService.getScriptProperties()
