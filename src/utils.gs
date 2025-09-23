@@ -13,7 +13,30 @@
 /**
  * Sheet utilities for safe Google Sheets operations
  */
-const sheetLogger = logger.scope('SheetUtils');
+const sheetLoggerFallback = {
+  enterFunction() {},
+  exitFunction() {},
+  error(message, context = {}) {
+    if (typeof console !== 'undefined' && typeof console.error === 'function') {
+      console.error('[SheetUtils] ' + message, context);
+    }
+  }
+};
+
+let sheetLoggerInstance = null;
+
+function getSheetLogger() {
+  if (sheetLoggerInstance) {
+    return sheetLoggerInstance;
+  }
+
+  if (typeof logger !== 'undefined' && logger && typeof logger.scope === 'function') {
+    sheetLoggerInstance = logger.scope('SheetUtils');
+    return sheetLoggerInstance;
+  }
+
+  return sheetLoggerFallback;
+}
 
 const SheetUtils = {
   
@@ -24,6 +47,7 @@ const SheetUtils = {
    * @returns {GoogleAppsScript.Spreadsheet.Sheet|null} Sheet object or null
    */
   getOrCreateSheet(sheetName, requiredColumns = []) {
+    const sheetLogger = getSheetLogger();
     sheetLogger.enterFunction('getOrCreateSheet', {
       sheetName,
       requiredColumnsCount: requiredColumns.length
@@ -75,6 +99,7 @@ const SheetUtils = {
    * @param {Array<string>} requiredColumns - Required columns
   */
   ensureColumnsExist(sheet, requiredColumns) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('ensureColumnsExist', {
@@ -122,6 +147,7 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   addRowFromObject(sheet, dataObject) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('addRowFromObject', {
@@ -164,6 +190,7 @@ const SheetUtils = {
    * @returns {Object|null} Found row object or null
    */
   findRowByCriteria(sheet, criteria) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('findRowByCriteria', {
@@ -209,6 +236,7 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   updateRowByCriteria(sheet, criteria, updates) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('updateRowByCriteria', {
@@ -286,6 +314,7 @@ const SheetUtils = {
    * @returns {Array<Object>} Array of row objects
    */
   getAllDataAsObjects(sheet, startRow = 2) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('getAllDataAsObjects', {
@@ -337,6 +366,7 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   clearDataKeepHeaders(sheet) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('clearDataKeepHeaders', {
@@ -382,6 +412,7 @@ const SheetUtils = {
    * @returns {number} Column index (1-based) or -1 if not found
    */
   getColumnIndex(sheet, headerName) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('getColumnIndex', {
@@ -427,6 +458,7 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   sortByColumn(sheet, columnHeader, ascending = true) {
+    const sheetLogger = getSheetLogger();
     const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
 
     sheetLogger.enterFunction('sortByColumn', {
