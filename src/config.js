@@ -492,6 +492,40 @@ MONTHLY_SUMMARIES: [
       birthday: 'player_birthday',
       gotm_voting_open: 'gotm_voting_start',
       gotm_winner: 'gotm_winner_announcement'
+    },
+
+    // Router content slot mapping for template variants
+    CONTENT_SLOTS: {
+      fixtures_1_league: 'fixtures',
+      fixtures_2_league: 'fixtures',
+      fixtures_3_league: 'fixtures',
+      fixtures_4_league: 'fixtures',
+      fixtures_5_league: 'fixtures',
+      results_1_league: 'results',
+      results_2_league: 'results',
+      results_3_league: 'results',
+      results_4_league: 'results',
+      results_5_league: 'results',
+      weekly_fixtures: 'fixtures',
+      weekly_no_match: 'rest_week',
+      weekly_quotes: 'quotes',
+      weekly_stats: 'stats',
+      weekly_throwback: 'throwback',
+      weekly_countdown_3: 'countdown',
+      weekly_countdown_2: 'countdown',
+      weekly_countdown_1: 'countdown',
+      fixtures_this_month: 'monthly_fixtures',
+      results_this_month: 'monthly_results',
+      player_stats_summary: 'stats',
+      match_postponed: 'postponed_alert',
+      goal_team: 'live_goal',
+      goal_opposition: 'live_goal',
+      card_yellow: 'discipline',
+      card_red: 'discipline',
+      card_second_yellow: 'discipline',
+      card_sin_bin: 'discipline',
+      motm: 'matchday',
+      substitution: 'matchday'
     }
   },
 
@@ -545,7 +579,470 @@ MONTHLY_SUMMARIES: [
       WEEKLY_CONTENT: [
         'content_title', 'content_text', 'background_image', 'overlay_color',
         'quote_text', 'quote_author', 'countdown_days', 'next_match_info'
+      ],
+      COUNTDOWN: [
+        'headline', 'countdown_days', 'opponent', 'match_date',
+        'match_time', 'match_competition', 'call_to_action'
+      ],
+      THROWBACK: [
+        'headline', 'year', 'description', 'image_url', 'cta_text'
+      ],
+      REST_WEEK: [
+        'headline', 'message', 'next_fixture_opponent', 'next_fixture_date',
+        'call_to_action'
+      ],
+      MONTHLY_FIXTURES: [
+        'month_name', 'fixtures_count', 'standout_fixture', 'call_to_action'
+      ],
+      MONTHLY_RESULTS: [
+        'month_name', 'results_count', 'top_result', 'summary_text'
+      ],
+      POSTPONED_ALERT: [
+        'opponent', 'original_date', 'message', 'rescheduled_date'
       ]
+    },
+    VARIANT_SETTINGS: {
+      MAX_PER_POST_TYPE: 15,
+      MIN_RECOMMENDED: 10
+    },
+    TEMPLATE_VARIANTS: {
+      FIXTURES: [
+        {
+          variant_id: 'fixtures_classic_dark',
+          template_id: 'FIX-CL-001',
+          name: 'Classic Dark Fixture Board',
+          placeholder_bindings: {
+            headline: 'static:This Week\'s Fixtures',
+            subheadline: 'week_description',
+            fixture_count: 'fixture_count',
+            primary_opponent: 'primary_fixture.opponent',
+            primary_date: 'primary_fixture.date',
+            primary_time: 'primary_fixture.time'
+          },
+          default_text: {
+            call_to_action: 'Be there to back the Tigers!'
+          },
+          style: {
+            layout: 'split',
+            tone: 'dark'
+          },
+          tags: ['fixtures', 'weekly']
+        },
+        {
+          variant_id: 'fixtures_grid_highlight',
+          template_id: 'FIX-GR-104',
+          name: 'Grid Highlight Fixtures',
+          placeholder_bindings: {
+            headline: 'static:Upcoming Battles',
+            feature_fixture: 'fixtures_list[0]',
+            fixtures_list: {
+              type: 'list',
+              source: 'fixtures_list',
+              limit: 5
+            }
+          },
+          default_text: {
+            strapline: 'All kick-off times UK',
+            call_to_action: 'Save the dates'
+          },
+          style: {
+            layout: 'grid',
+            tone: 'vibrant'
+          },
+          tags: ['fixtures', 'grid']
+        },
+        {
+          variant_id: 'fixtures_social_story',
+          template_id: 'FIX-ST-207',
+          name: 'Story Countdown Fixture',
+          placeholder_bindings: {
+            headline: 'static:Fixtures Incoming',
+            subheadline: 'week_description',
+            next_match: 'primary_fixture'
+          },
+          default_text: {
+            call_to_action: 'Share & invite the squad'
+          },
+          style: {
+            layout: 'story',
+            tone: 'bold'
+          },
+          tags: ['fixtures', 'story']
+        }
+      ],
+      RESULTS: [
+        {
+          variant_id: 'results_scoreline_focus',
+          template_id: 'RES-SC-310',
+          name: 'Scoreline Focus Recap',
+          placeholder_bindings: {
+            headline: 'static:Weekend Results',
+            top_result: 'primary_result',
+            results_list: {
+              type: 'list',
+              source: 'results_list',
+              limit: 5
+            }
+          },
+          default_text: {
+            summary: 'Full-time scores from across the club'
+          },
+          style: {
+            layout: 'stacked',
+            tone: 'dark'
+          },
+          tags: ['results']
+        },
+        {
+          variant_id: 'results_momentum',
+          template_id: 'RES-MO-122',
+          name: 'Momentum Recap',
+          placeholder_bindings: {
+            headline: 'static:Results Roundup',
+            subheadline: 'summary_text',
+            hero_result: 'primary_result'
+          },
+          default_text: {
+            call_to_action: 'Relive the key moments'
+          },
+          style: {
+            layout: 'hero',
+            tone: 'energetic'
+          },
+          tags: ['results', 'hero']
+        },
+        {
+          variant_id: 'results_statboard',
+          template_id: 'RES-ST-520',
+          name: 'Results Statboard',
+          placeholder_bindings: {
+            headline: 'static:Stats & Results',
+            wins: 'statistics.wins',
+            draws: 'statistics.draws',
+            losses: 'statistics.losses',
+            goal_difference: 'statistics.goal_difference'
+          },
+          default_text: {
+            call_to_action: 'Keep the momentum going'
+          },
+          style: {
+            layout: 'statboard',
+            tone: 'professional'
+          },
+          tags: ['results', 'stats']
+        }
+      ],
+      QUOTES: [
+        {
+          variant_id: 'quotes_motivation',
+          template_id: 'QTE-MO-011',
+          name: 'Motivation Spotlight',
+          placeholder_bindings: {
+            headline: 'static:Tuesday Motivation',
+            quote_text: 'quote_text',
+            quote_author: 'quote_author'
+          },
+          default_text: {
+            call_to_action: 'Pass the motivation on'
+          },
+          style: {
+            layout: 'centered',
+            tone: 'inspirational'
+          },
+          tags: ['quotes']
+        },
+        {
+          variant_id: 'quotes_textured',
+          template_id: 'QTE-TX-204',
+          name: 'Textured Quote Card',
+          placeholder_bindings: {
+            headline: 'static:Words to Win',
+            quote_text: 'quote_text',
+            quote_author: 'quote_author',
+            theme: 'inspiration_theme'
+          },
+          default_text: {
+            call_to_action: 'Share your favourite quote'
+          },
+          style: {
+            layout: 'textured',
+            tone: 'warm'
+          },
+          tags: ['quotes', 'engagement']
+        }
+      ],
+      STATS: [
+        {
+          variant_id: 'stats_monthly_overview',
+          template_id: 'STA-MO-301',
+          name: 'Monthly Overview Board',
+          placeholder_bindings: {
+            headline: 'content_title',
+            reporting_period: 'reporting_period',
+            summary: 'stats_summary'
+          },
+          default_text: {
+            call_to_action: 'Dive into the numbers'
+          },
+          style: {
+            layout: 'dashboard',
+            tone: 'analytical'
+          },
+          tags: ['stats', 'monthly']
+        },
+        {
+          variant_id: 'stats_opposition_focus',
+          template_id: 'STA-OP-118',
+          name: 'Opposition Focus Sheet',
+          placeholder_bindings: {
+            headline: 'content_title',
+            opponent: 'opponent_name',
+            previous_meetings: 'previous_meetings',
+            key_players: 'key_players'
+          },
+          default_text: {
+            call_to_action: 'Know the opposition'
+          },
+          style: {
+            layout: 'analysis',
+            tone: 'strategic'
+          },
+          tags: ['stats', 'opposition']
+        }
+      ],
+      THROWBACK: [
+        {
+          variant_id: 'throwback_polaroid',
+          template_id: 'THB-PL-090',
+          name: 'Polaroid Throwback',
+          placeholder_bindings: {
+            headline: 'static:Throwback Thursday',
+            year: 'throwback_year',
+            description: 'throwback_description',
+            image_url: 'image_url'
+          },
+          default_text: {
+            call_to_action: 'Share your memories'
+          },
+          style: {
+            layout: 'collage',
+            tone: 'nostalgic'
+          },
+          tags: ['throwback']
+        }
+      ],
+      COUNTDOWN: [
+        {
+          variant_id: 'countdown_bold',
+          template_id: 'CDN-BD-045',
+          name: 'Bold Countdown',
+          placeholder_bindings: {
+            headline: 'content_title',
+            countdown_days: 'countdown_days',
+            opponent: 'match_opponent',
+            match_date: 'match_date',
+            match_time: 'match_time',
+            call_to_action: 'anticipation_message'
+          },
+          default_text: {
+            strapline: 'Are you ready?'
+          },
+          style: {
+            layout: 'poster',
+            tone: 'electric'
+          },
+          tags: ['countdown']
+        },
+        {
+          variant_id: 'countdown_story',
+          template_id: 'CDN-ST-212',
+          name: 'Story Countdown',
+          placeholder_bindings: {
+            headline: 'content_title',
+            countdown_days: 'countdown_days',
+            opponent: 'match_opponent',
+            match_date: 'match_date'
+          },
+          default_text: {
+            call_to_action: 'Share the hype'
+          },
+          style: {
+            layout: 'story',
+            tone: 'high-energy'
+          },
+          tags: ['countdown', 'story']
+        }
+      ],
+      REST_WEEK: [
+        {
+          variant_id: 'rest_week_relax',
+          template_id: 'RST-RL-030',
+          name: 'Rest Week Reminder',
+          placeholder_bindings: {
+            headline: 'content_title',
+            message: 'message',
+            next_fixture_opponent: 'next_fixture.opponent',
+            next_fixture_date: 'next_fixture.date'
+          },
+          default_text: {
+            call_to_action: 'Recharge and get ready'
+          },
+          style: {
+            layout: 'calm',
+            tone: 'relaxed'
+          },
+          tags: ['rest', 'weekly']
+        }
+      ],
+      MONTHLY_FIXTURES: [
+        {
+          variant_id: 'monthly_fixtures_digest',
+          template_id: 'MON-FX-601',
+          name: 'Monthly Fixture Digest',
+          placeholder_bindings: {
+            month_name: 'month_name',
+            fixtures_count: 'fixtures_count',
+            standout_fixture: 'fixtures[0]'
+          },
+          default_text: {
+            call_to_action: 'Plan your month of football'
+          },
+          style: {
+            layout: 'digest',
+            tone: 'club'
+          },
+          tags: ['monthly', 'fixtures']
+        }
+      ],
+      MONTHLY_RESULTS: [
+        {
+          variant_id: 'monthly_results_digest',
+          template_id: 'MON-RS-602',
+          name: 'Monthly Results Recap',
+          placeholder_bindings: {
+            month_name: 'month_name',
+            results_count: 'results_count',
+            top_result: 'results[0]',
+            summary_text: 'statistics_summary'
+          },
+          default_text: {
+            call_to_action: 'Relive the highlights'
+          },
+          style: {
+            layout: 'digest',
+            tone: 'club'
+          },
+          tags: ['monthly', 'results']
+        }
+      ],
+      POSTPONED_ALERT: [
+        {
+          variant_id: 'postponed_notice',
+          template_id: 'PST-PN-401',
+          name: 'Match Postponed Notice',
+          placeholder_bindings: {
+            opponent: 'opponent',
+            original_date: 'original_date',
+            message: 'reason',
+            rescheduled_date: 'new_date'
+          },
+          default_text: {
+            call_to_action: 'Stay tuned for updates'
+          },
+          style: {
+            layout: 'alert',
+            tone: 'warning'
+          },
+          tags: ['alert']
+        }
+      ],
+      MATCHDAY: [
+        {
+          variant_id: 'matchday_motm',
+          template_id: 'MCH-MO-715',
+          name: 'Matchday Spotlight',
+          placeholder_bindings: {
+            headline: 'static:Matchday Live',
+            feature_player: 'motm_player',
+            opponent: 'opponent'
+          },
+          default_text: {
+            call_to_action: 'Follow the updates'
+          },
+          style: {
+            layout: 'spotlight',
+            tone: 'matchday'
+          },
+          tags: ['matchday']
+        }
+      ]
+    }
+  },
+
+  BUYER_INTAKE: {
+    CLUB_DETAILS: {
+      NAME: 'Syston Tigers',
+      CONTACT: 'media@systontigers.co.uk'
+    },
+    BRAND_COLORS: {
+      PRIMARY: '#F05A28',
+      SECONDARY: '#0E1A2B',
+      ACCENT: '#FFD447',
+      NEUTRAL: '#FFFFFF'
+    },
+    CREST_URLS: {
+      PRIMARY: 'https://cdn.systontigers.co.uk/crest-primary.png',
+      SECONDARY: 'https://cdn.systontigers.co.uk/crest-secondary.png'
+    },
+    TYPOGRAPHY: {
+      PRIMARY_FONT: 'Montserrat',
+      SECONDARY_FONT: 'Oswald'
+    },
+    TEXT_OVERRIDES: {
+      fixtures: {
+        headline: 'Upcoming Tigers Fixtures',
+        call_to_action: 'Secure your spot today'
+      },
+      results: {
+        headline: 'Final Whistle Recap',
+        call_to_action: 'Share the victories'
+      },
+      quotes: {
+        headline: 'Fuel for Tuesday',
+        call_to_action: 'Tag a teammate who needs this'
+      },
+      stats: {
+        headline: 'Tigers by the Numbers',
+        call_to_action: 'Study the form guide'
+      },
+      throwback: {
+        headline: 'Throwback to Glory',
+        call_to_action: 'Comment with your memories'
+      },
+      countdown: {
+        headline: 'Countdown to Kick-off',
+        call_to_action: 'Rally the pride'
+      },
+      rest_week: {
+        headline: 'Reset & Refocus',
+        call_to_action: 'Train smart this week'
+      },
+      monthly_fixtures: {
+        headline: 'Month of Matches',
+        call_to_action: 'Add fixtures to your diary'
+      },
+      monthly_results: {
+        headline: 'Monthly Results Recap',
+        call_to_action: 'Celebrate the moments'
+      },
+      postponed_alert: {
+        headline: 'Fixture Postponed',
+        call_to_action: 'Keep notifications on for updates'
+      },
+      matchday: {
+        headline: 'Matchday Hub',
+        call_to_action: 'Follow live for every update'
+      }
     }
   },
 
