@@ -1270,32 +1270,60 @@ class WeeklyScheduler {
    * @returns {Object} Send result
    */
   sendToMake(payload) {
+    let consentDecision = null;
     try {
+      const consentContext = {
+        module: 'weekly_scheduler',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: []
+      };
+
+      // @testHook(weekly_payload_consent_start)
+      consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(weekly_payload_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Weekly scheduler payload blocked by consent gate', {
+          event_type: payload.event_type,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       const webhookUrl = getWebhookUrl();
       if (!webhookUrl) {
         throw new Error('Webhook URL not configured');
       }
-      
+
       const response = UrlFetchApp.fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify(enrichedPayload),
         muteHttpExceptions: true
       });
-      
+
       const success = response.getResponseCode() === 200;
-      
+
       return {
         success: success,
         response_code: response.getResponseCode(),
-        response_text: response.getContentText()
+        response_text: response.getContentText(),
+        consent: consentDecision
       };
-      
+
     } catch (error) {
       this.logger.error('Failed to send to Make.com', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      return { success: false, error: error.toString(), consent: consentDecision };
     }
   }
 

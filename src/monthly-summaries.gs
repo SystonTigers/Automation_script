@@ -96,8 +96,43 @@ class MonthlySummariesManager {
       const idempotencyKey = this.buildIdempotencyKey('fixtures', monthKey);
       const payload = this.buildMonthlyFixturesPayload(fixturesData, statistics, monthKey, idempotencyKey);
 
+      const consentContext = {
+        module: 'monthly_summaries',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: []
+      };
+
+      // @testHook(monthly_fixtures_consent_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(monthly_fixtures_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Monthly fixtures summary blocked by consent gate', {
+          month_key: monthKey,
+          reason: consentDecision.reason
+        });
+        this.logger.exitFunction('postMonthlyFixturesSummary', {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       // @testHook(monthly_fixtures_make_dispatch_start)
-      const makeResult = this.makeIntegration.sendToMake(payload, { idempotencyKey });
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey,
+        consentDecision,
+        consentContext
+      });
       // @testHook(monthly_fixtures_make_dispatch_complete)
 
       if (makeResult.success) {
@@ -118,7 +153,8 @@ class MonthlySummariesManager {
         count: fixturesData.fixtures.length,
         statistics,
         make_result: makeResult,
-        idempotency_key: idempotencyKey
+        idempotency_key: idempotencyKey,
+        consent: consentDecision
       };
 
       this.logger.exitFunction('postMonthlyFixturesSummary', result);
@@ -195,8 +231,43 @@ class MonthlySummariesManager {
       const idempotencyKey = this.buildIdempotencyKey('results', monthKey);
       const payload = this.buildMonthlyResultsPayload(resultsData, statistics, monthKey, idempotencyKey);
 
+      const consentContext = {
+        module: 'monthly_summaries',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: []
+      };
+
+      // @testHook(monthly_results_consent_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(monthly_results_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Monthly results summary blocked by consent gate', {
+          month_key: monthKey,
+          reason: consentDecision.reason
+        });
+        this.logger.exitFunction('postMonthlyResultsSummary', {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       // @testHook(monthly_results_make_dispatch_start)
-      const makeResult = this.makeIntegration.sendToMake(payload, { idempotencyKey });
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey,
+        consentDecision,
+        consentContext
+      });
       // @testHook(monthly_results_make_dispatch_complete)
 
       if (makeResult.success) {
@@ -217,7 +288,8 @@ class MonthlySummariesManager {
         count: resultsData.results.length,
         statistics,
         make_result: makeResult,
-        idempotency_key: idempotencyKey
+        idempotency_key: idempotencyKey,
+        consent: consentDecision
       };
 
       this.logger.exitFunction('postMonthlyResultsSummary', result);

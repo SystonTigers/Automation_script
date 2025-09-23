@@ -113,6 +113,20 @@ This ensures any code generated respects your standards.
 - Use `clasp push` to deploy the complete system to your Google Apps Script project
 - All security features are enabled by default with enhanced authentication
 
+## 🔐 Privacy & Consent Workflow (v6.2.0)
+
+- **Live Consent Registry** – Player and guardian records live in the `Privacy Players`, `Privacy Consents`, and `Privacy Audit Log` sheets with automatic caching and retention enforcement.
+- **Consent Gate** – Every Make.com payload (live events, weekly content, fixtures/results batches, and video clips) now flows through `ConsentGate.evaluatePost`, ensuring minors and revoked/expired consents fail closed.
+- **Anonymisation Controls** – Global safeguards (`anonymiseFaces`, `useInitialsOnly`) live in the control panel and propagate with every payload so downstream tooling can mask faces or redact names.
+- **Nightly Monitoring** – `sendConsentExpiryReport` runs nightly at the configured hour, logging audit entries and emailing stakeholders (when recipients are set) before consents lapse.
+- **Operational Dashboard** – The control panel privacy card surfaces minors without consent, expiring consents, and recent blocks so staff can react immediately.
+
+### QA Evidence
+
+- **Control Panel Validation** – Verified toggles persist via Script Properties and rehydrate on load, while the dashboard mirrors sheet data for minors and expiring consents.
+- **Webhook Gating** – Confirmed that blocking consent prevents Make.com calls (goal events, batch posts, weekly posts, video clips, monthly summaries) and that anonymisation flags ride along when allowed.
+- **Scheduled Report** – Trigger scheduler now provisions a nightly `sendConsentExpiryReport` job, emitting audit rows and optional mail when recipients are configured.
+
 ---
 
 ## 🗄️ Free Backup to Google Docs/Drive (optional)

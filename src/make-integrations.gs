@@ -656,7 +656,7 @@ class MakeIntegration {
   enhancePayload(payload) {
     const enhanced = {
       ...payload,
-      
+
       // System metadata
       system: {
         version: getConfig('SYSTEM.VERSION'),
@@ -680,10 +680,20 @@ class MakeIntegration {
         season: getConfig('SYSTEM.SEASON')
       }
     };
-    
+
+    if (payload.privacy) {
+      enhanced.privacy = {
+        ...payload.privacy,
+        anonymiseFaces: !!payload.privacy.anonymiseFaces,
+        useInitialsOnly: !!payload.privacy.useInitialsOnly
+      };
+      enhanced.anonymise_faces = !!payload.privacy.anonymiseFaces;
+      enhanced.use_initials_only = !!payload.privacy.useInitialsOnly;
+    }
+
     // Add payload validation signature
     enhanced.webhook.signature = this.generatePayloadSignature(enhanced);
-    
+
     return enhanced;
   }
 
@@ -765,17 +775,18 @@ class MakeIntegration {
       'results_2_league': 'batch_results',
       'results_3_league': 'batch_results',
       'results_4_league': 'batch_results',
-      'results_5_league': 'batch_results',
-      'weekly_fixtures': 'weekly_content',
-      'weekly_quotes': 'weekly_content',
-      'weekly_stats': 'weekly_content',
-      'weekly_throwback': 'weekly_content',
-      'weekly_countdown_1': 'weekly_content',
-      'weekly_countdown_2': 'weekly_content',
-      'fixtures_this_month': 'monthly_content',
-      'results_this_month': 'monthly_content',
-      'player_stats_summary': 'player_content'
-    };
+        'results_5_league': 'batch_results',
+        'weekly_fixtures': 'weekly_content',
+        'weekly_quotes': 'weekly_content',
+        'weekly_stats': 'weekly_content',
+        'weekly_throwback': 'weekly_content',
+        'weekly_countdown_1': 'weekly_content',
+        'weekly_countdown_2': 'weekly_content',
+        'fixtures_this_month': 'monthly_content',
+        'results_this_month': 'monthly_content',
+        'player_stats_summary': 'player_content',
+        'video_clip_processing': 'video_processing'
+      };
     
     return routerMap[eventType] || 'default';
   }

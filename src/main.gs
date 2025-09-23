@@ -1426,6 +1426,7 @@ function setupScheduledTriggers() {
       monthly_fixtures: false,
       monthly_results: false,
       player_stats: false,
+      privacy_report: false,
       existing_triggers_cleaned: false
     };
 
@@ -1434,7 +1435,8 @@ function setupScheduledTriggers() {
       'runWeeklyContentAutomation',
       'postMonthlyFixturesSummary',
       'postMonthlyResultsSummary',
-      'postPlayerStatsSummary'
+      'postPlayerStatsSummary',
+      'sendConsentExpiryReport'
     ];
 
     ScriptApp.getProjectTriggers()
@@ -1495,6 +1497,17 @@ function setupScheduledTriggers() {
         .atHour(10)
         .create();
       results.player_stats = true;
+    }
+
+    const privacyReporting = getConfig('PRIVACY.REPORTING', {});
+    if (!privacyReporting || privacyReporting.ENABLED !== false) {
+      const reportHour = Math.min(Math.max(privacyReporting.NIGHTLY_HOUR || 22, 0), 23);
+      ScriptApp.newTrigger('sendConsentExpiryReport')
+        .timeBased()
+        .everyDays(1)
+        .atHour(reportHour)
+        .create();
+      results.privacy_report = true;
     }
 
     logger.exitFunction('System.setupScheduledTriggers', { success: true });

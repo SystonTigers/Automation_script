@@ -34,6 +34,12 @@
     .kv div { padding:4px 0; border-bottom:1px dashed #262626; }
     .kv div:nth-child(odd) { color:#ccc; }
     small.code { display:inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#0f0f0f; border:1px solid #222; border-radius:6px; padding:2px 6px; color:#ddd; }
+    .privacy-list { list-style:none; margin:8px 0 0 0; padding:0; }
+    .privacy-list li { padding:6px 0; border-bottom:1px solid #1f1f1f; font-size:13px; }
+    .privacy-list li:last-child { border-bottom:none; }
+    .privacy-block { margin-top:12px; }
+    .toggle-stack { display:flex; flex-direction:column; gap:10px; width:100%; }
+    .toggle-item small { color:#6b7280; }
   </style>
 </head>
 <body>
@@ -60,6 +66,16 @@
             <button class="btn primary" onclick="saveFeatures()">Save changes</button>
             <button class="btn ghost" onclick="loadState()">Reset</button>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Privacy & Consent</h2>
+        <div id="privacySummary" class="kv"></div>
+        <div id="privacyExpiry" class="privacy-block"></div>
+        <div class="row">
+          <div class="muted">Safeguards</div>
+          <div id="privacyToggles" class="toggle-stack"></div>
         </div>
       </div>
 
@@ -91,7 +107,8 @@
     const pills = (arr) => arr.map(x => `<span class="pill ${x.cls}">${x.text}</span>`).join('');
 
     function loadState() {
-      google.script.run.withSuccessHandler(({features, info, validation}) => {
+      google.script.run.withSuccessHandler(state => {
+        const { features, info, validation, privacy, privacyFlags } = state;
         // info
         el('#sysInfo').innerHTML = `
           <div>Version</div><div>${info.version}</div>
@@ -125,14 +142,64 @@
         }).join('');
         el('#featureList').innerHTML = html;
 
+        // privacy summary
+        const summary = (privacy && privacy.success !== false) ? (privacy.summary || {}) : {};
+        if (Object.keys(summary).length > 0) {
+          el('#privacySummary').innerHTML = `
+            <div>Total players</div><div>${summary.total_players ?? 0}</div>
+            <div>Minors</div><div>${summary.minors ?? 0}</div>
+            <div>Minors needing consent</div><div>${summary.minors_without_active_consent ?? 0}</div>
+            <div>Blocked (7d)</div><div>${summary.audit?.blocked_last_7_days ?? 0}</div>
+          `;
+
+          const expiring = summary.expiring_consents || [];
+          if (expiring.length) {
+            const list = expiring.slice(0, 5).map(item => `
+              <li><strong>${item.playerName}</strong> · ${item.consentType} · ${item.days_remaining} day(s)</li>
+            `).join('');
+            el('#privacyExpiry').innerHTML = `<div class="muted">Expiring soon</div><ul class="privacy-list">${list}</ul>`;
+          } else {
+            el('#privacyExpiry').innerHTML = '<div class="muted">No consents expiring in the next window.</div>';
+          }
+        } else {
+          el('#privacySummary').innerHTML = '<div class="muted">Privacy summary unavailable.</div>';
+          el('#privacyExpiry').innerHTML = '';
+        }
+
+        const pFlags = privacyFlags || {};
+        el('#privacyToggles').innerHTML = `
+          <div class="toggle-item">
+            <label class="switch">
+              <input type="checkbox" data-privacy="anonymiseFaces" ${pFlags.anonymiseFaces ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+            <div class="label">Force anonymised faces when uncertain<br><small>Applies to all outbound media</small></div>
+          </div>
+          <div class="toggle-item">
+            <label class="switch">
+              <input type="checkbox" data-privacy="useInitialsOnly" ${pFlags.useInitialsOnly ? 'checked' : ''}>
+              <span class="slider"></span>
+            </label>
+            <div class="label">Use initials for minors or sensitive posts<br><small>Overrides player names automatically</small></div>
+          </div>
+        `;
+
       }).getControlPanelState();
     }
 
     function saveFeatures() {
-      const inputs = [...document.querySelectorAll('input[data-key]')];
-      const payload = {};
-      inputs.forEach(i => payload[i.dataset.key] = i.checked);
-      google.script.run.withSuccessHandler(loadState).updateFeatureFlags(payload);
+      const featureInputs = [...document.querySelectorAll('input[data-key]')];
+      const features = {};
+      featureInputs.forEach(i => features[i.dataset.key] = i.checked);
+
+      const privacyInputs = [...document.querySelectorAll('input[data-privacy]')];
+      const privacyFlags = {};
+      privacyInputs.forEach(i => privacyFlags[i.dataset.privacy] = i.checked);
+
+      google.script.run.withSuccessHandler(loadState).updateControlPanelSettings({
+        features,
+        privacyFlags
+      });
     }
 
     function refreshValidation() {
