@@ -10,9 +10,36 @@
 
 // ==================== SHEET UTILITIES ====================
 
+const sheetLogger = logger.scope('SheetUtils');
+
 /**
  * Sheet utilities for safe Google Sheets operations
  */
+const sheetLoggerFallback = {
+  enterFunction() {},
+  exitFunction() {},
+  error(message, context = {}) {
+    if (typeof console !== 'undefined' && typeof console.error === 'function') {
+      console.error('[SheetUtils] ' + message, context);
+    }
+  }
+};
+
+let sheetLoggerInstance = null;
+
+function getSheetLogger() {
+  if (sheetLoggerInstance) {
+    return sheetLoggerInstance;
+  }
+
+  if (typeof logger !== 'undefined' && logger && typeof logger.scope === 'function') {
+    sheetLoggerInstance = logger.scope('SheetUtils');
+    return sheetLoggerInstance;
+  }
+
+  return sheetLoggerFallback;
+}
+
 const SheetUtils = {
   
   /**
@@ -22,45 +49,120 @@ const SheetUtils = {
    * @returns {GoogleAppsScript.Spreadsheet.Sheet|null} Sheet object or null
    */
   getOrCreateSheet(sheetName, requiredColumns = []) {
+
+    const sheetLogger = getSheetLogger();
+    sheetLogger.enterFunction('getOrCreateSheet', {
+      sheetName,
+      requiredColumnsCount: requiredColumns.length
+    });
+
+    let sheet = null;
+    let sheetCreated = false;
+    let failure = null;
+
+
+    sheetLogger.enterFunction('getOrCreateSheet', {
+      sheetName,
+      requiredColumnsCount: Array.isArray(requiredColumns) ? requiredColumns.length : 0
+    });
+    let sheet = null;
+    let sheetCreated = false;
+
     try {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-      let sheet = spreadsheet.getSheetByName(sheetName);
-      
+      sheet = spreadsheet.getSheetByName(sheetName);
+
       if (!sheet) {
         sheet = spreadsheet.insertSheet(sheetName);
-        
-        // Add required columns if specified
+        sheetCreated = true;
+
+
         if (requiredColumns.length > 0) {
+
+        if (Array.isArray(requiredColumns) && requiredColumns.length > 0) {
+
           const headerRange = sheet.getRange(1, 1, 1, requiredColumns.length);
           headerRange.setValues([requiredColumns]);
           headerRange.setFontWeight('bold');
           headerRange.setBackground('#f0f0f0');
         }
+
       } else if (requiredColumns.length > 0) {
-        // Verify and add missing columns
         this.ensureColumnsExist(sheet, requiredColumns);
       }
-      
-      return sheet;
     } catch (error) {
-      console.error(`Failed to get or create sheet: ${sheetName}`, error);
-      return null;
+      failure = error;
+      sheetLogger.error(`Failed to get or create sheet: ${sheetName}`, {
+        sheetName,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+
+      } else if (Array.isArray(requiredColumns) && requiredColumns.length > 0) {
+        this.ensureColumnsExist(sheet, requiredColumns);
+      }
+    } catch (error) {
+      sheetLogger.error(`Failed to get or create sheet: ${sheetName}`, {
+        error,
+        sheetName,
+        requiredColumns
+
+      });
+      sheet = null;
+    } finally {
+      sheetLogger.exitFunction('getOrCreateSheet', {
+
+        success: sheet !== null,
+        sheetName,
+        sheetCreated,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+        sheetName,
+        created: sheetCreated,
+        success: !!sheet
+      });
+    }
+
+    return sheet;
   },
 
   /**
    * Ensure required columns exist in sheet
    * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - Sheet object
    * @param {Array<string>} requiredColumns - Required columns
-   */
+  */
   ensureColumnsExist(sheet, requiredColumns) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('ensureColumnsExist', {
+      sheetName,
+      requiredColumnsCount: requiredColumns.length
+    });
+
+    let missingColumns = [];
+    let failure = null;
+
+
+    sheetLogger.enterFunction('ensureColumnsExist', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+      requiredColumnsCount: Array.isArray(requiredColumns) ? requiredColumns.length : 0
+    });
+    let missingColumns = [];
+
     try {
       const lastColumn = sheet.getLastColumn();
-      const currentHeaders = lastColumn > 0 ? 
+      const currentHeaders = lastColumn > 0 ?
         sheet.getRange(1, 1, 1, lastColumn).getValues()[0] : [];
-      
-      const missingColumns = requiredColumns.filter(col => !currentHeaders.includes(col));
-      
+
+
+      missingColumns = requiredColumns.filter(col => !currentHeaders.includes(col));
+
+      missingColumns = Array.isArray(requiredColumns) ?
+        requiredColumns.filter(col => !currentHeaders.includes(col)) : [];
+
+
       if (missingColumns.length > 0) {
         const startColumn = currentHeaders.length + 1;
         const range = sheet.getRange(1, startColumn, 1, missingColumns.length);
@@ -69,7 +171,29 @@ const SheetUtils = {
         range.setBackground('#f0f0f0');
       }
     } catch (error) {
-      console.error('Failed to ensure columns exist:', error);
+
+      failure = error;
+      sheetLogger.error('Failed to ensure columns exist', {
+        sheetName,
+        requiredColumns,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+      });
+    } finally {
+      sheetLogger.exitFunction('ensureColumnsExist', {
+        sheetName,
+        missingColumnsCount: missingColumns.length,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+
+      sheetLogger.error('Failed to ensure columns exist', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        requiredColumns
+      });
+    } finally {
+      sheetLogger.exitFunction('ensureColumnsExist', {
+        addedColumns: missingColumns
+
+      });
     }
   },
 
@@ -80,18 +204,63 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   addRowFromObject(sheet, dataObject) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('addRowFromObject', {
+      sheetName,
+      dataKeys: Object.keys(dataObject || {})
+    });
+
+    let success = false;
+    let failure = null;
+
+
+    sheetLogger.enterFunction('addRowFromObject', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+      keys: dataObject ? Object.keys(dataObject) : []
+    });
+    let success = false;
+
     try {
       const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
       const rowData = headers.map(header => dataObject[header] || '');
-      
+
       const nextRow = sheet.getLastRow() + 1;
       sheet.getRange(nextRow, 1, 1, rowData.length).setValues([rowData]);
-      
-      return true;
+      success = true;
     } catch (error) {
-      console.error('Failed to add row from object:', error);
-      return false;
+
+      failure = error;
+      sheetLogger.error('Failed to add row from object', {
+        sheetName,
+        dataKeys: Object.keys(dataObject || {}),
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+      });
+    } finally {
+      sheetLogger.exitFunction('addRowFromObject', {
+        sheetName,
+        success,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+
+      sheetLogger.error('Failed to add row from object', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        dataObject
+      });
+      success = false;
+    } finally {
+      sheetLogger.exitFunction('addRowFromObject', {
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        success
+      });
+    }
+
+    return success;
   },
 
   /**
@@ -101,18 +270,61 @@ const SheetUtils = {
    * @returns {Object|null} Found row object or null
    */
   findRowByCriteria(sheet, criteria) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('findRowByCriteria', {
+      sheetName,
+      criteriaKeys: Object.keys(criteria || {})
+    });
+
+    let result = null;
+    let failure = null;
+
+
+    sheetLogger.enterFunction('findRowByCriteria', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+      criteriaKeys: criteria ? Object.keys(criteria) : []
+    });
+    let result = null;
+
     try {
       const data = this.getAllDataAsObjects(sheet);
-      
-      return data.find(row => {
+
+      result = data.find(row => {
         return Object.keys(criteria).every(key => {
           return String(row[key]).trim() === String(criteria[key]).trim();
         });
-      });
+      }) || null;
     } catch (error) {
-      console.error('Failed to find row by criteria:', error);
-      return null;
+
+      failure = error;
+      sheetLogger.error('Failed to find row by criteria', {
+        sheetName,
+        criteria,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+
+      sheetLogger.error('Failed to find row by criteria', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        criteria
+
+      });
+      result = null;
+    } finally {
+      sheetLogger.exitFunction('findRowByCriteria', {
+
+        sheetName,
+        found: result !== null,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+        found: !!result
+      });
+    }
+    return result;
   },
 
   /**
@@ -123,44 +335,107 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   updateRowByCriteria(sheet, criteria, updates) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('updateRowByCriteria', {
+      sheetName,
+      criteriaKeys: Object.keys(criteria || {}),
+      updateKeys: Object.keys(updates || {})
+    });
+
+    let success = false;
+    let rowsEvaluated = 0;
+    let failure = null;
+    let exitReason = 'completed';
+
+
+    sheetLogger.enterFunction('updateRowByCriteria', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+      criteriaKeys: criteria ? Object.keys(criteria) : [],
+      updateKeys: updates ? Object.keys(updates) : []
+    });
+    let success = false;
+
     try {
       const lastRow = sheet.getLastRow();
       const lastColumn = sheet.getLastColumn();
-      
-      if (lastRow <= 1 || lastColumn === 0) return false;
-      
-      const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-      const data = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
-      
-      for (let i = 0; i < data.length; i++) {
-        const row = {};
-        headers.forEach((header, index) => {
-          row[header] = data[i][index];
-        });
-        
-        // Check if row matches criteria
-        const matches = Object.keys(criteria).every(key => {
-          return String(row[key]).trim() === String(criteria[key]).trim();
-        });
-        
-        if (matches) {
-          // Apply updates
-          Object.keys(updates).forEach(key => {
-            const columnIndex = headers.indexOf(key);
-            if (columnIndex !== -1) {
-              const value = updates[key];
-              sheet.getRange(i + 2, columnIndex + 1).setValue(value);
-            }
+
+
+      if (lastRow <= 1 || lastColumn === 0) {
+        exitReason = 'no_data';
+      } else {
+
+      if (lastRow > 1 && lastColumn !== 0) {
+
+        const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+        const data = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
+
+        for (let i = 0; i < data.length && !success; i++) {
+          const row = {};
+          headers.forEach((header, index) => {
+            row[header] = data[i][index];
           });
-          return true;
+
+
+          rowsEvaluated++;
+
+
+          const matches = Object.keys(criteria).every(key => {
+            return String(row[key]).trim() === String(criteria[key]).trim();
+          });
+
+          if (matches) {
+            Object.keys(updates).forEach(key => {
+              const columnIndex = headers.indexOf(key);
+              if (columnIndex !== -1) {
+                const value = updates[key];
+                sheet.getRange(i + 2, columnIndex + 1).setValue(value);
+              }
+            });
+            success = true;
+
+            exitReason = 'updated';
+
+          }
         }
       }
-      
-      return false;
     } catch (error) {
-      console.error('Failed to update row by criteria:', error);
-      return false;
+
+      failure = error;
+      sheetLogger.error('Failed to update row by criteria', {
+        sheetName,
+        criteria,
+        updates,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+
+      sheetLogger.error('Failed to update row by criteria', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        criteria,
+        updates
+
+      });
+      success = false;
+    } finally {
+      sheetLogger.exitFunction('updateRowByCriteria', {
+
+        sheetName,
+        success,
+        rowsEvaluated,
+        exitReason,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        success
+      });
+    }
+
+    return success;
   },
 
   /**
@@ -170,26 +445,76 @@ const SheetUtils = {
    * @returns {Array<Object>} Array of row objects
    */
   getAllDataAsObjects(sheet, startRow = 2) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('getAllDataAsObjects', {
+      sheetName,
+      startRow
+    });
+
+    let result = [];
+    let failure = null;
+
+
+    sheetLogger.enterFunction('getAllDataAsObjects', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+      startRow
+    });
+    let result = [];
+
     try {
       const lastRow = sheet.getLastRow();
       const lastColumn = sheet.getLastColumn();
-      
-      if (lastRow < startRow || lastColumn === 0) return [];
-      
-      const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-      const data = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastColumn).getValues();
-      
-      return data.map(row => {
-        const obj = {};
-        headers.forEach((header, index) => {
-          obj[header] = row[index];
+
+
+      if (lastRow >= startRow && lastColumn > 0) {
+
+      if (lastRow >= startRow && lastColumn !== 0) {
+
+        const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+        const data = sheet.getRange(startRow, 1, lastRow - startRow + 1, lastColumn).getValues();
+
+        result = data.map(row => {
+          const obj = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index];
+          });
+          return obj;
         });
-        return obj;
-      });
+      }
     } catch (error) {
-      console.error('Failed to get all data as objects:', error);
-      return [];
+
+      failure = error;
+      sheetLogger.error('Failed to get all data as objects', {
+        sheetName,
+        startRow,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+
+      sheetLogger.error('Failed to get all data as objects', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        startRow
+
+      });
+      result = [];
+    } finally {
+      sheetLogger.exitFunction('getAllDataAsObjects', {
+
+        sheetName,
+        rowsReturned: result.length,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        rowCount: result.length
+      });
+    }
+
+    return result;
   },
 
   /**
@@ -198,21 +523,67 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   clearDataKeepHeaders(sheet) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('clearDataKeepHeaders', {
+      sheetName
+    });
+
+    let success = true;
+    let failure = null;
+    let clearedRows = 0;
+
+    sheetLogger.enterFunction('clearDataKeepHeaders', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined
+    });
+    let success = true;
+
     try {
       const lastRow = sheet.getLastRow();
-      if (lastRow <= 1) return true; // No data to clear
-      
       const lastColumn = sheet.getLastColumn();
-      if (lastColumn === 0) return true;
-      
-      const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
-      range.clear();
-      
-      return true;
+
+
+      if (lastRow > 1 && lastColumn > 0) {
+        const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+        clearedRows = range.getNumRows();
+        range.clear();
+      }
     } catch (error) {
-      console.error('Failed to clear sheet data:', error);
-      return false;
+      failure = error;
+      sheetLogger.error('Failed to clear sheet data', {
+        sheetName,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+
+      if (lastRow > 1 && lastColumn !== 0) {
+        const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+        range.clear();
+      }
+    } catch (error) {
+      sheetLogger.error('Failed to clear sheet data', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined
+
+      });
+      success = false;
+    } finally {
+      sheetLogger.exitFunction('clearDataKeepHeaders', {
+
+        sheetName,
+        success,
+        clearedRows,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        success
+      });
+    }
+
+    return success;
   },
 
   /**
@@ -222,18 +593,69 @@ const SheetUtils = {
    * @returns {number} Column index (1-based) or -1 if not found
    */
   getColumnIndex(sheet, headerName) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('getColumnIndex', {
+      sheetName,
+      headerName
+    });
+
+    let index = -1;
+    let failure = null;
+
     try {
       const lastColumn = sheet.getLastColumn();
-      if (lastColumn === 0) return -1;
-      
-      const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-      const index = headers.indexOf(headerName);
-      
-      return index === -1 ? -1 : index + 1; // Convert to 1-based
+      if (lastColumn > 0) {
+        const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+        const foundIndex = headers.indexOf(headerName);
+        index = foundIndex === -1 ? -1 : foundIndex + 1;
+      }
     } catch (error) {
-      console.error('Failed to get column index:', error);
-      return -1;
+      failure = error;
+      sheetLogger.error('Failed to get column index', {
+        sheetName,
+        headerName,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+
+    sheetLogger.enterFunction('getColumnIndex', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+      headerName
+    });
+    let index = -1;
+    try {
+      const lastColumn = sheet.getLastColumn();
+      if (lastColumn !== 0) {
+        const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+        const headerIndex = headers.indexOf(headerName);
+        index = headerIndex === -1 ? -1 : headerIndex + 1;
+      }
+    } catch (error) {
+      sheetLogger.error('Failed to get column index', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        headerName
+
+      });
+      index = -1;
+    } finally {
+      sheetLogger.exitFunction('getColumnIndex', {
+
+        sheetName,
+        headerName,
+        columnIndex: index,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        result: index
+      });
+    }
+
+    return index;
   },
 
   /**
@@ -244,23 +666,85 @@ const SheetUtils = {
    * @returns {boolean} Success status
    */
   sortByColumn(sheet, columnHeader, ascending = true) {
+
+    const sheetLogger = getSheetLogger();
+    const sheetName = (sheet && typeof sheet.getName === 'function') ? sheet.getName() : 'UnknownSheet';
+
+    sheetLogger.enterFunction('sortByColumn', {
+      sheetName,
+      columnHeader,
+      ascending
+    });
+
+    let success = false;
+    let failure = null;
+    let rowsSorted = 0;
+
+
+    sheetLogger.enterFunction('sortByColumn', {
+      sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+      columnHeader,
+      ascending
+    });
+    let success = false;
+
     try {
       const columnIndex = this.getColumnIndex(sheet, columnHeader);
-      if (columnIndex === -1) return false;
-      
-      const lastRow = sheet.getLastRow();
-      const lastColumn = sheet.getLastColumn();
-      
-      if (lastRow <= 2) return true; // No data to sort
-      
-      const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
-      range.sort({column: columnIndex, ascending: ascending});
-      
-      return true;
+      if (columnIndex !== -1) {
+        const lastRow = sheet.getLastRow();
+        const lastColumn = sheet.getLastColumn();
+
+        if (lastRow <= 2 || lastColumn === 0) {
+          success = true;
+
+          rowsSorted = Math.max(0, lastRow - 1);
+        } else {
+          const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+          rowsSorted = range.getNumRows();
+
+        } else {
+          const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+
+          range.sort({column: columnIndex, ascending: ascending});
+          success = true;
+        }
+      }
     } catch (error) {
-      console.error('Failed to sort by column:', error);
-      return false;
+
+      failure = error;
+      sheetLogger.error('Failed to sort by column', {
+        sheetName,
+        columnHeader,
+        ascending,
+        error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+
+      sheetLogger.error('Failed to sort by column', {
+        error,
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        columnHeader,
+        ascending
+
+      });
+      success = false;
+    } finally {
+      sheetLogger.exitFunction('sortByColumn', {
+
+        sheetName,
+        columnHeader,
+        ascending,
+        success,
+        rowsSorted,
+        ...(failure ? { errorMessage: failure.message || String(failure) } : {})
+      });
     }
+
+
+        sheetName: sheet && typeof sheet.getName === 'function' ? sheet.getName() : undefined,
+        success
+      });
+    }
+
+    return success;
   }
 };
 

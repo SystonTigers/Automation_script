@@ -1,6 +1,6 @@
 /**
  * @fileoverview Enhanced Security Manager with Critical Fixes
- * @version 6.0.1
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description SECURITY PATCHES for critical vulnerabilities
  */

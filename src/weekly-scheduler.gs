@@ -28,6 +28,7 @@ class WeeklyScheduler {
     this.makeIntegration = new MakeIntegration();
     this.today = DateUtils.now();
     this.dayOfWeek = DateUtils.getDayOfWeek(this.today); // 0=Sunday, 1=Monday, etc.
+    this.variantBuilderAvailable = typeof buildTemplateVariantCollection === 'function';
   }
 
   // ==================== MAIN SCHEDULE RUNNER ====================
@@ -890,36 +891,77 @@ class WeeklyScheduler {
   // ==================== PAYLOAD CREATION METHODS ====================
 
   /**
+   * Build template variant collection for a post type.
+   * @param {string} postType - Post type identifier.
+   * @param {Object} context - Context data for placeholders.
+   * @returns {Object} Variant collection.
+   */
+  buildTemplateVariants(postType, context = {}) {
+    if (!this.variantBuilderAvailable) {
+      return {};
+    }
+
+    try {
+      return buildTemplateVariantCollection(postType, context);
+    } catch (error) {
+      this.logger.warn('Template variant generation failed', {
+        error: error.toString(),
+        post_type: postType
+      });
+      return {};
+    }
+  }
+
+  /**
    * Create weekly fixtures payload
    * @param {Array} fixtures - This week's fixtures
    * @returns {Object} Payload object
    */
   createWeeklyFixturesPayload(fixtures) {
+    const fixturesList = fixtures.map(fixture => ({
+      date: fixture.Date,
+      time: fixture.Time,
+      opponent: fixture.Opposition,
+      venue: fixture.Venue,
+      competition: fixture.Competition,
+      home_away: fixture['Home/Away']
+    }));
+
+    const weekDescription = this.generateWeekDescription(fixtures);
+    const weekStart = DateUtils.formatUK(DateUtils.getWeekStart(this.today));
+    const variantContext = {
+      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      fixture_count: fixtures.length,
+      fixtures_list: fixturesList,
+      primary_fixture: fixturesList[0] || null,
+      week_description: weekDescription,
+      week_start_date: weekStart,
+      generated_for_date: DateUtils.formatUK(this.today)
+    };
+
+    const templateVariants = this.buildTemplateVariants('fixtures', variantContext);
+
     return {
       event_type: 'weekly_fixtures',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
+
       // Weekly fixtures data
-      week_start_date: DateUtils.formatUK(DateUtils.getWeekStart(this.today)),
+      week_start_date: weekStart,
       fixture_count: fixtures.length,
-      fixtures_list: fixtures.map(fixture => ({
-        date: fixture.Date,
-        time: fixture.Time,
-        opponent: fixture.Opposition,
-        venue: fixture.Venue,
-        competition: fixture.Competition,
-        home_away: fixture['Home/Away']
-      })),
-      
+      fixtures_list: fixturesList,
+
       // Content metadata
       content_title: `This Week's Fixtures`,
-      week_description: this.generateWeekDescription(fixtures),
+      week_description: weekDescription,
       season: getConfig('SYSTEM.SEASON'),
-      
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -928,11 +970,29 @@ class WeeklyScheduler {
    * @returns {Object} Payload object
    */
   createNoMatchPayload() {
+    const nextFixture = this.getNextFixture();
+    const normalizedNextFixture = nextFixture
+      ? {
+          opponent: nextFixture.Opposition,
+          date: nextFixture.Date,
+          time: nextFixture.Time,
+          venue: nextFixture.Venue
+        }
+      : null;
+
+    const variantContext = {
+      content_title: 'Rest Week',
+      message: 'No match scheduled this week',
+      next_fixture: normalizedNextFixture
+    };
+
+    const templateVariants = this.buildTemplateVariants('rest_week', variantContext);
+
     return {
       event_type: 'weekly_no_match',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
+
       // No match data
       week_start_date: DateUtils.formatUK(DateUtils.getWeekStart(this.today)),
       message: 'No match scheduled this week',
@@ -940,11 +1000,14 @@ class WeeklyScheduler {
       
       // Alternative content
       training_focus: 'Use this week to focus on training and preparation',
-      next_fixture: this.getNextFixture(),
-      
+      next_fixture: normalizedNextFixture,
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -954,23 +1017,37 @@ class WeeklyScheduler {
    * @returns {Object} Payload object
    */
   createQuotesPayload(quote) {
+    const inspirationTheme = this.getInspirationalTheme();
+    const variantContext = {
+      content_title: 'Tuesday Motivation',
+      quote_text: quote.text,
+      quote_author: quote.author,
+      inspiration_theme: inspirationTheme,
+      generated_for_date: DateUtils.formatUK(this.today)
+    };
+
+    const templateVariants = this.buildTemplateVariants('quotes', variantContext);
+
     return {
       event_type: 'weekly_quotes',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
+
       // Quote data
       quote_text: quote.text,
       quote_author: quote.author,
       quote_category: quote.category,
       content_title: 'Tuesday Motivation',
-      
+
       // Metadata
-      inspiration_theme: this.getInspirationalTheme(),
-      
+      inspiration_theme: inspirationTheme,
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -979,22 +1056,35 @@ class WeeklyScheduler {
    * @returns {Object} Payload object
    */
   createMonthlyStatsPayload() {
+    const reportingPeriod = DateUtils.getMonthName(this.today.getMonth() + 1);
+    const variantContext = {
+      content_title: 'Monthly Player Statistics',
+      reporting_period: reportingPeriod,
+      stats_summary: 'Detailed player statistics for this month',
+      generated_for_date: DateUtils.formatUK(this.today)
+    };
+
+    const templateVariants = this.buildTemplateVariants('stats', variantContext);
+
     return {
       event_type: 'weekly_stats',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
+
       // Stats data
       stats_type: 'monthly_summary',
       content_title: 'Monthly Player Statistics',
-      reporting_period: DateUtils.getMonthName(this.today.getMonth() + 1),
-      
+      reporting_period: reportingPeriod,
+
       // Note: Actual stats would be pulled from player management
       stats_summary: 'Detailed player statistics for this month',
-      
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -1004,11 +1094,24 @@ class WeeklyScheduler {
    * @returns {Object} Payload object
    */
   createOppositionAnalysisPayload(match) {
+    const previousMeetings = this.getPreviousMeetings(match.Opposition);
+    const keyPlayers = 'Opposition key players to watch';
+    const variantContext = {
+      content_title: `Facing ${match.Opposition}`,
+      opponent_name: match.Opposition,
+      match_date: match.Date,
+      previous_meetings: previousMeetings,
+      opposition_form: 'Recent form analysis',
+      key_players: keyPlayers
+    };
+
+    const templateVariants = this.buildTemplateVariants('stats', variantContext);
+
     return {
       event_type: 'weekly_stats',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
+
       // Opposition analysis
       stats_type: 'opposition_analysis',
       content_title: `Facing ${match.Opposition}`,
@@ -1016,13 +1119,16 @@ class WeeklyScheduler {
       match_date: match.Date,
       
       // Analysis data
-      previous_meetings: this.getPreviousMeetings(match.Opposition),
+      previous_meetings: previousMeetings,
       opposition_form: 'Recent form analysis',
-      key_players: 'Opposition key players to watch',
-      
+      key_players: keyPlayers,
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -1031,11 +1137,20 @@ class WeeklyScheduler {
    * @returns {Object} Payload object
    */
   createGeneralStatsPayload() {
+    const variantContext = {
+      content_title: 'Team Statistics Update',
+      stats_summary: 'Current season statistics',
+      season_progress: 'Current season statistics',
+      team_form: 'Recent team performance'
+    };
+
+    const templateVariants = this.buildTemplateVariants('stats', variantContext);
+
     return {
       event_type: 'weekly_stats',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
+
       // General stats
       stats_type: 'general_update',
       content_title: 'Team Statistics Update',
@@ -1043,10 +1158,13 @@ class WeeklyScheduler {
       // Basic stats
       season_progress: 'Current season statistics',
       team_form: 'Recent team performance',
-      
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -1056,11 +1174,20 @@ class WeeklyScheduler {
    * @returns {Object} Payload object
    */
   createThrowbackPayload(throwback) {
+    const variantContext = {
+      content_title: 'Throwback Thursday',
+      throwback_year: throwback.year,
+      throwback_description: throwback.description,
+      image_url: throwback.image_url || ''
+    };
+
+    const templateVariants = this.buildTemplateVariants('throwback', variantContext);
+
     return {
       event_type: 'weekly_throwback',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
-      
+
       // Throwback data
       throwback_title: throwback.title,
       throwback_description: throwback.description,
@@ -1071,10 +1198,13 @@ class WeeklyScheduler {
       // Content metadata
       content_title: 'Throwback Thursday',
       nostalgia_factor: 'high',
-      
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -1085,10 +1215,23 @@ class WeeklyScheduler {
    * @returns {Object} Payload object
    */
   createCountdownPayload(match, daysToGo) {
-    const eventType = daysToGo === 2 ? 'weekly_countdown_2' : 
-                     daysToGo === 1 ? 'weekly_countdown_1' : 
+    const eventType = daysToGo === 2 ? 'weekly_countdown_2' :
+                     daysToGo === 1 ? 'weekly_countdown_1' :
                      'weekly_countdown_3';
-    
+
+    const anticipationMessage = this.getAnticipationMessage(daysToGo);
+    const variantContext = {
+      content_title: `${daysToGo} ${daysToGo === 1 ? 'Day' : 'Days'} To Go`,
+      countdown_days: daysToGo,
+      match_opponent: match.Opposition,
+      match_date: match.Date,
+      match_time: match.Time,
+      match_competition: match.Competition,
+      anticipation_message: anticipationMessage
+    };
+
+    const templateVariants = this.buildTemplateVariants('countdown', variantContext);
+
     return {
       event_type: eventType,
       system_version: getConfig('SYSTEM.VERSION'),
@@ -1108,11 +1251,14 @@ class WeeklyScheduler {
       
       // Excitement metadata
       excitement_level: daysToGo === 1 ? 'maximum' : 'high',
-      anticipation_message: this.getAnticipationMessage(daysToGo),
-      
+      anticipation_message: anticipationMessage,
+
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      generated_for_date: DateUtils.formatUK(this.today)
+      generated_for_date: DateUtils.formatUK(this.today),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -1124,32 +1270,60 @@ class WeeklyScheduler {
    * @returns {Object} Send result
    */
   sendToMake(payload) {
+    let consentDecision = null;
     try {
+      const consentContext = {
+        module: 'weekly_scheduler',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: []
+      };
+
+      // @testHook(weekly_payload_consent_start)
+      consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(weekly_payload_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Weekly scheduler payload blocked by consent gate', {
+          event_type: payload.event_type,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       const webhookUrl = getWebhookUrl();
       if (!webhookUrl) {
         throw new Error('Webhook URL not configured');
       }
-      
+
       const response = UrlFetchApp.fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify(enrichedPayload),
         muteHttpExceptions: true
       });
-      
+
       const success = response.getResponseCode() === 200;
-      
+
       return {
         success: success,
         response_code: response.getResponseCode(),
-        response_text: response.getContentText()
+        response_text: response.getContentText(),
+        consent: consentDecision
       };
-      
+
     } catch (error) {
       this.logger.error('Failed to send to Make.com', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      return { success: false, error: error.toString(), consent: consentDecision };
     }
   }
 
