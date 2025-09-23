@@ -1124,8 +1124,8 @@ class WeeklyScheduler {
    * @returns {Object} Send result
    */
   sendToMake(payload) {
+    let consentDecision = null;
     try {
-      let consentDecision = null;
       const consentContext = {
         module: 'weekly_scheduler',
         eventType: payload.event_type,
