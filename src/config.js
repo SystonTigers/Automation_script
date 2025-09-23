@@ -47,7 +47,7 @@ const SYSTEM_CONFIG = {
     CLUB_SHORT_NAME: 'Syston',
     SEASON: '2024/25',
     LEAGUE: 'Leicester & District Football League',
-    AGE_GROUP: 'Senior Men's',
+    AGE_GROUP: "Senior Men's",
     LAST_UPDATED: '2025-09-20',
     
     // Bible compliance settings
@@ -72,7 +72,7 @@ const SYSTEM_CONFIG = {
       clubName: 'Syston Tigers',
       clubShortName: 'Syston',
       league: 'Leicester & District Football League',
-      ageGroup: 'Senior Men's',
+      ageGroup: "Senior Men's",
       primaryColor: '#ff6600',
       secondaryColor: '#000000',
       badgeUrl: '',
