@@ -67,6 +67,20 @@ This repository houses the **production Google Apps Script code** that powers li
 
 ---
 
+## 🆕 Buyer Self-Provisioning Workflow
+
+New partner clubs can configure the automation stack without engineering support:
+
+1. Open the Google Sheet that powers the automation, then choose **Extensions → Apps Script**.
+2. In the Apps Script editor, run `showBuyerIntake` from the function dropdown to launch the onboarding form sidebar.
+3. Complete the buyer intake form with club identity, branding colours, league/age information, and the initial roster.
+4. Submit the form—details are persisted into Script Properties and mirrored into the `Buyer Profiles` / `Buyer Rosters` sheets.
+5. Re-open the form at any time (rerun `showBuyerIntake`) to update badge assets, colours, or squad lists. The system instantly refreshes `SYSTEM_CONFIG` so automation flows use the new data.
+
+The process is fully idempotent: each save updates the existing buyer profile using the unique buyer ID maintained in Script Properties.
+
+---
+
 ## 📝 Workflow for Code & AI Collaboration
 
 - All architectural context lives in **CLAUDE.md**, **PLANNING.md**, **TASKS.md**.  

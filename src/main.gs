@@ -773,6 +773,215 @@ function getSystemStatus() {
   }
 }
 
+// ==================== BUYER INTAKE CONTROLLER ====================
+
+/**
+ * Buyer intake controller handles onboarding and persistence
+ */
+class BuyerIntakeController {
+
+  constructor() {
+    this.logger = logger.scope('BuyerIntakeController');
+  }
+
+  /**
+   * Render intake form with prefilled data
+   * @returns {GoogleAppsScript.HTML.HtmlOutput} Html output
+   */
+  showForm() {
+    this.logger.enterFunction('showForm');
+
+    try {
+      const profile = getBuyerProfile(true) || {};
+      const template = HtmlService.createTemplateFromFile('buyerIntake');
+      template.prefillData = profile;
+
+      // @testHook(buyer_intake_template_start)
+      const output = template.evaluate();
+      // @testHook(buyer_intake_template_complete)
+
+      output.setTitle('Buyer Intake Onboarding');
+      output.setWidth(780);
+
+      this.logger.exitFunction('showForm', { success: true });
+      return output;
+
+    } catch (error) {
+      this.logger.error('Failed to render buyer intake form', {
+        error: error.toString(),
+        stack: error.stack
+      });
+      this.logger.exitFunction('showForm', { success: false, error: error.toString() });
+      throw error;
+    }
+  }
+
+  /**
+   * Sanitize roster entries
+   * @param {Array<Object>} rosterEntries - Roster entries from client
+   * @returns {Array<Object>} Sanitized roster
+   */
+  sanitizeRoster(rosterEntries) {
+    if (!Array.isArray(rosterEntries)) {
+      return [];
+    }
+
+    const uniqueMap = new Map();
+
+    rosterEntries.forEach(entry => {
+      if (!entry) return;
+
+      const cleanedName = StringUtils.cleanPlayerName(entry.playerName || '');
+
+      if (!cleanedName) {
+        return;
+      }
+
+      const rosterKey = cleanedName.toLowerCase();
+      const sanitizedEntry = {
+        playerName: cleanedName,
+        position: StringUtils.toTitleCase((entry.position || '').trim()),
+        squadNumber: (entry.squadNumber || '').trim()
+      };
+
+      if (sanitizedEntry.squadNumber && !/^\d{1,3}$/.test(sanitizedEntry.squadNumber)) {
+        sanitizedEntry.squadNumber = sanitizedEntry.squadNumber.replace(/[^0-9]/g, '').slice(0, 3);
+      }
+
+      if (!uniqueMap.has(rosterKey)) {
+        uniqueMap.set(rosterKey, sanitizedEntry);
+      } else {
+        const existing = uniqueMap.get(rosterKey);
+        uniqueMap.set(rosterKey, {
+          playerName: sanitizedEntry.playerName,
+          position: sanitizedEntry.position || existing.position,
+          squadNumber: sanitizedEntry.squadNumber || existing.squadNumber
+        });
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }
+
+  /**
+   * Build sanitized profile payload
+   * @param {Object} formData - Raw form data
+   * @returns {Object} Sanitized profile
+   */
+  buildProfile(formData) {
+    const rosterEntries = this.sanitizeRoster(formData.rosterEntries);
+
+    return {
+      buyerId: ensureBuyerProfileId(),
+      clubName: StringUtils.toTitleCase((formData.clubName || '').trim()),
+      clubShortName: StringUtils.toTitleCase((formData.clubShortName || '').trim()),
+      league: StringUtils.toTitleCase((formData.league || '').trim()),
+      ageGroup: StringUtils.toTitleCase((formData.ageGroup || '').trim()),
+      primaryColor: (formData.primaryColor || '').trim(),
+      secondaryColor: (formData.secondaryColor || '').trim(),
+      badgeUrl: (formData.badgeUrl || '').trim(),
+      badgeBase64: (formData.badgeBase64 || '').trim(),
+      rosterEntries: rosterEntries
+    };
+  }
+
+  /**
+   * Handle intake submission
+   * @param {Object} formData - Submitted data
+   * @returns {Object} Response payload
+   */
+  submitForm(formData) {
+    this.logger.enterFunction('submitForm', { hasFormData: !!formData });
+
+    try {
+      if (!formData || typeof formData !== 'object') {
+        throw new Error('No form data received');
+      }
+
+      const profile = this.buildProfile(formData);
+
+      const validation = ValidationUtils.validateRequiredFields(profile, [
+        'clubName',
+        'league',
+        'ageGroup',
+        'primaryColor'
+      ]);
+
+      if (!validation.isValid) {
+        throw new Error(`Missing required fields: ${validation.missingFields.join(', ')}`);
+      }
+
+      if (!profile.badgeUrl && !profile.badgeBase64) {
+        throw new Error('Provide either a badge URL or an uploaded badge image.');
+      }
+
+      const hexPattern = /^#([0-9a-f]{3}){1,2}$/i;
+      if (profile.primaryColor && !hexPattern.test(profile.primaryColor)) {
+        throw new Error('Primary colour must be a valid hex code.');
+      }
+
+      if (profile.secondaryColor && !hexPattern.test(profile.secondaryColor)) {
+        throw new Error('Secondary colour must be a valid hex code.');
+      }
+
+      if (!Array.isArray(profile.rosterEntries) || profile.rosterEntries.length === 0) {
+        throw new Error('Add at least one player to the roster.');
+      }
+
+      if (profile.badgeBase64 && profile.badgeBase64.length > 2000000) {
+        throw new Error('Badge upload exceeds the maximum allowed size.');
+      }
+
+      // @testHook(buyer_profile_save_start)
+      const saveResult = saveBuyerProfile(profile);
+      // @testHook(buyer_profile_save_complete)
+
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || 'Failed to save buyer profile.');
+      }
+
+      const responseProfile = Object.assign({}, saveResult.profile);
+      delete responseProfile.badgeBase64;
+
+      const response = {
+        success: true,
+        message: 'Buyer profile saved successfully and configuration updated.',
+        profile: responseProfile
+      };
+
+      this.logger.exitFunction('submitForm', { success: true });
+      return response;
+
+    } catch (error) {
+      this.logger.error('Buyer intake submission failed', {
+        error: error.toString(),
+        stack: error.stack
+      });
+      this.logger.exitFunction('submitForm', { success: false, error: error.toString() });
+      return { success: false, error: error.toString() };
+    }
+  }
+}
+
+/**
+ * Expose buyer intake form
+ * @returns {GoogleAppsScript.HTML.HtmlOutput} Html output
+ */
+function showBuyerIntake() {
+  const controller = new BuyerIntakeController();
+  return controller.showForm();
+}
+
+/**
+ * Handle buyer intake submission
+ * @param {Object} formData - Submitted data
+ * @returns {Object} Response payload
+ */
+function submitBuyerIntake(formData) {
+  const controller = new BuyerIntakeController();
+  return controller.submitForm(formData);
+}
+
 /**
  * Run system tests (public API)
  * @returns {Object} Test results
