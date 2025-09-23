@@ -34,7 +34,15 @@ class SystemCoordinator {
     
     try {
       if (this.initialized && !forceReinit) {
-        return { success: true, message: 'System already initialized' };
+        const alreadyInitializedResult = {
+          success: true,
+          message: 'System already initialized'
+        };
+        this.logger.exitFunction('initializeSystem', {
+          success: true,
+          already_initialized: true
+        });
+        return alreadyInitializedResult;
       }
       
       // @testHook(system_init_start)
@@ -99,26 +107,32 @@ class SystemCoordinator {
         });
       }
       
-      this.logger.exitFunction('initializeSystem', { success });
-      
-      return {
+      const response = {
         success: success,
         failed_components: failedComponents,
         results: results
       };
-      
+
+      this.logger.exitFunction('initializeSystem', { success });
+
+      return response;
+
     } catch (error) {
       this.healthStatus = 'unhealthy';
-      this.logger.error('System initialization failed', { 
+      this.logger.error('System initialization failed', {
         error: error.toString(),
-        stack: error.stack 
+        stack: error.stack
       });
-      
-      return {
+      const failureResponse = {
         success: false,
         error: error.toString(),
         timestamp: DateUtils.formatISO(DateUtils.now())
       };
+      this.logger.exitFunction('initializeSystem', {
+        success: false,
+        error: error.toString()
+      });
+      return failureResponse;
     }
   }
 
@@ -417,13 +431,28 @@ function runWeeklyContentAutomation(forceRun = false) {
   try {
     if (!isFeatureEnabled('WEEKLY_CONTENT_AUTOMATION')) {
       logger.info('Weekly content automation disabled');
-      return { success: true, skipped: true, message: 'Feature disabled' };
+      const disabledResult = { success: true, skipped: true, message: 'Feature disabled' };
+      logger.exitFunction('System.runWeeklyContentAutomation', {
+        success: true,
+        skipped: true,
+        reason: 'feature_disabled'
+      });
+      return disabledResult;
     }
 
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for weekly content automation wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.runWeeklyContentAutomation', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
 
     const result = runWeeklyScheduleAutomation(forceRun);
@@ -433,7 +462,12 @@ function runWeeklyContentAutomation(forceRun = false) {
 
   } catch (error) {
     logger.error('Weekly content automation failed', { error: error.toString() });
-    return { success: false, error: error.toString() };
+    const failureResult = { success: false, error: error.toString() };
+    logger.exitFunction('System.runWeeklyContentAutomation', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -450,13 +484,28 @@ function postBatchFixtures(competitionType = 'league', upcomingOnly = true, days
   try {
     if (!isFeatureEnabled('BATCH_POSTING')) {
       logger.info('Batch posting disabled');
-      return { success: true, skipped: true, message: 'Feature disabled' };
+      const disabledResult = { success: true, skipped: true, message: 'Feature disabled' };
+      logger.exitFunction('System.postBatchFixtures', {
+        success: true,
+        skipped: true,
+        reason: 'feature_disabled'
+      });
+      return disabledResult;
     }
 
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for batch fixtures wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.postBatchFixtures', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
 
     const manager = new BatchFixturesManager();
@@ -471,7 +520,12 @@ function postBatchFixtures(competitionType = 'league', upcomingOnly = true, days
 
   } catch (error) {
     logger.error('Batch fixtures posting failed', { error: error.toString() });
-    return { success: false, error: error.toString() };
+    const failureResult = { success: false, error: error.toString() };
+    logger.exitFunction('System.postBatchFixtures', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -487,13 +541,28 @@ function postBatchResults(competitionType = 'league', daysBack = 7) {
   try {
     if (!isFeatureEnabled('BATCH_POSTING')) {
       logger.info('Batch posting disabled');
-      return { success: true, skipped: true, message: 'Feature disabled' };
+      const disabledResult = { success: true, skipped: true, message: 'Feature disabled' };
+      logger.exitFunction('System.postBatchResults', {
+        success: true,
+        skipped: true,
+        reason: 'feature_disabled'
+      });
+      return disabledResult;
     }
 
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for batch results wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.postBatchResults', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
 
     const manager = new BatchFixturesManager();
@@ -507,7 +576,12 @@ function postBatchResults(competitionType = 'league', daysBack = 7) {
 
   } catch (error) {
     logger.error('Batch results posting failed', { error: error.toString() });
-    return { success: false, error: error.toString() };
+    const failureResult = { success: false, error: error.toString() };
+    logger.exitFunction('System.postBatchResults', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -523,13 +597,28 @@ function generateMonthlyPlayerStats(month = null, year = null) {
   try {
     if (!isFeatureEnabled('MONTHLY_SUMMARIES')) {
       logger.info('Monthly summaries disabled');
-      return { success: true, skipped: true, message: 'Feature disabled' };
+      const disabledResult = { success: true, skipped: true, message: 'Feature disabled' };
+      logger.exitFunction('System.generateMonthlyPlayerStats', {
+        success: true,
+        skipped: true,
+        reason: 'feature_disabled'
+      });
+      return disabledResult;
     }
 
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for monthly player stats wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.generateMonthlyPlayerStats', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
 
     let reportingPeriod = null;
@@ -549,7 +638,12 @@ function generateMonthlyPlayerStats(month = null, year = null) {
 
   } catch (error) {
     logger.error('Monthly player stats generation failed', { error: error.toString() });
-    return { success: false, error: error.toString() };
+    const failureResult = { success: false, error: error.toString() };
+    logger.exitFunction('System.generateMonthlyPlayerStats', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -564,7 +658,16 @@ function performSystemHealthCheck() {
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for system health check wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.performSystemHealthCheck', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
     const health = systemCoordinator.checkSystemHealth();
     logger.exitFunction('System.performSystemHealthCheck', { status: health.overall_status });
@@ -572,7 +675,12 @@ function performSystemHealthCheck() {
 
   } catch (error) {
     logger.error('System health check failed', { error: error.toString() });
-    return { overall_status: 'unhealthy', error: error.toString() };
+    const failureResult = { overall_status: 'unhealthy', error: error.toString() };
+    logger.exitFunction('System.performSystemHealthCheck', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -595,7 +703,16 @@ function getSystemMetrics() {
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for system metrics wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.getSystemMetrics', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
     const metrics = systemCoordinator.getSystemMetrics();
     logger.exitFunction('System.getSystemMetrics', { success: !metrics.error });
@@ -603,7 +720,12 @@ function getSystemMetrics() {
 
   } catch (error) {
     logger.error('Failed to get system metrics', { error: error.toString() });
-    return { error: error.toString() };
+    const failureResult = { error: error.toString() };
+    logger.exitFunction('System.getSystemMetrics', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -636,14 +758,19 @@ function getSystemStatus() {
     
     logger.exitFunction('System.getSystemStatus', { success: true });
     return status;
-    
+
   } catch (error) {
     logger.error('Failed to get system status', { error: error.toString() });
-    return {
+    const failureResult = {
       system_health: 'unhealthy',
       error: error.toString(),
       timestamp: DateUtils.formatISO(DateUtils.now())
     };
+    logger.exitFunction('System.getSystemStatus', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -694,20 +821,25 @@ function runSystemTests() {
     
     testResults.overall_success = allTestsPassed;
     
-    logger.exitFunction('System.runSystemTests', { 
+    logger.exitFunction('System.runSystemTests', {
       success: allTestsPassed,
       tests_run: Object.keys(testResults.tests).length
     });
-    
+
     return testResults;
-    
+
   } catch (error) {
     logger.error('System tests failed', { error: error.toString() });
-    return {
+    const failureResult = {
       overall_success: false,
       error: error.toString(),
       timestamp: DateUtils.formatISO(DateUtils.now())
     };
+    logger.exitFunction('System.runSystemTests', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -1016,7 +1148,16 @@ function dailyMaintenanceTasks() {
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for daily maintenance wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.dailyMaintenanceTasks', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
 
     const maintenance = performSystemMaintenance();
@@ -1039,7 +1180,12 @@ function dailyMaintenanceTasks() {
 
   } catch (error) {
     logger.error('Daily maintenance failed', { error: error.toString() });
-    return { success: false, error: error.toString() };
+    const failureResult = { success: false, error: error.toString() };
+    logger.exitFunction('System.dailyMaintenanceTasks', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
@@ -1054,7 +1200,16 @@ function setupScheduledTriggers() {
     const initResult = autoInitializeIfNeeded();
     if (initResult?.success === false) {
       logger.error('Initialization failed for scheduled trigger setup wrapper', { details: initResult });
-      return { success: false, error: 'Initialization failed', details: initResult };
+      const failureResult = {
+        success: false,
+        error: 'Initialization failed',
+        details: initResult
+      };
+      logger.exitFunction('System.setupScheduledTriggers', {
+        success: false,
+        reason: 'initialization_failed'
+      });
+      return failureResult;
     }
 
     const results = {
@@ -1139,7 +1294,12 @@ function setupScheduledTriggers() {
 
   } catch (error) {
     logger.error('Trigger setup failed', { error: error.toString() });
-    return { success: false, error: error.toString() };
+    const failureResult = { success: false, error: error.toString() };
+    logger.exitFunction('System.setupScheduledTriggers', {
+      success: false,
+      error: error.toString()
+    });
+    return failureResult;
   }
 }
 
