@@ -864,40 +864,101 @@ class EnhancedEventsManager {
    */
   sendToMake(payload) {
     this.logger.enterFunction('sendToMake', { event_type: payload.event_type });
-    
+
     try {
+      const consentContext = {
+        module: 'enhanced_events',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: this.resolveConsentPlayers(payload),
+        matchId: payload.match_id || payload.matchId || null
+      };
+
+      // @testHook(consent_gate_check_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(consent_gate_check_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Consent gate blocked Make.com payload', {
+          event_type: payload.event_type,
+          reason: consentDecision.reason
+        });
+        this.logger.exitFunction('sendToMake', {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       // @testHook(webhook_send_start)
-      
+
       const webhookUrl = getWebhookUrl();
       if (!webhookUrl) {
         throw new Error('Webhook URL not configured');
       }
-      
+
       const response = UrlFetchApp.fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify(enrichedPayload),
         muteHttpExceptions: true
       });
-      
+
       const success = response.getResponseCode() === 200;
-      
+
       // @testHook(webhook_send_complete)
-      
+
       this.logger.exitFunction('sendToMake', { success, response_code: response.getResponseCode() });
-      
+
       return {
         success: success,
         response_code: response.getResponseCode(),
-        response_text: response.getContentText()
+        response_text: response.getContentText(),
+        consent: consentDecision
       };
-      
+
     } catch (error) {
       this.logger.error('Failed to send to Make.com', { error: error.toString() });
       return { success: false, error: error.toString() };
     }
+  }
+
+  /**
+   * Resolve players included in payload for consent evaluation
+   * @param {Object} payload - Event payload
+   * @returns {Array<Object>} Player references
+   */
+  resolveConsentPlayers(payload) {
+    const players = [];
+    const seen = new Set();
+
+    if (payload.player_name && payload.player_name !== 'Opposition') {
+      const key = payload.player_name.toString().trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        players.push({ player: payload.player_name });
+      }
+    }
+
+    if (payload.player && payload.player !== 'Opposition') {
+      const key = payload.player.toString().trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        players.push({ player: payload.player });
+      }
+    }
+
+    return players;
   }
 
   // ==================== LOGGING METHODS ====================

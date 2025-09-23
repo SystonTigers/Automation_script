@@ -1,6 +1,6 @@
 /**
  * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
- * @version 6.2.1
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Handles batch posting (1–5 fixtures/results), postponed notifications,
  *              and provides idempotent integrations with Make.com. Monthly summaries are delegated.
@@ -566,7 +566,40 @@ class BatchFixturesManager {
   sendBatchToMake(payload) {
     this.logger.enterFunction('sendBatchToMake', { event_type: payload.event_type });
 
+    let consentDecision = null;
+
     try {
+      const consentContext = {
+        module: 'batch_fixtures',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: []
+      };
+
+      // @testHook(consent_gate_check_start)
+      consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(consent_gate_check_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Consent gate blocked batch payload', {
+          event_type: payload.event_type,
+          reason: consentDecision.reason
+        });
+        this.logger.exitFunction('sendBatchToMake', {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       // @testHook(batch_webhook_start)
 
       const webhookUrl = getWebhookUrl();
@@ -586,7 +619,7 @@ class BatchFixturesManager {
           lastResponse = UrlFetchApp.fetch(webhookUrl, {
             method: 'POST',
             contentType: 'application/json',
-            payload: JSON.stringify(payload),
+            payload: JSON.stringify(enrichedPayload),
             muteHttpExceptions: true,
             followRedirects: true
           });
@@ -594,7 +627,12 @@ class BatchFixturesManager {
           const ok = code >= 200 && code < 300;
           if (ok) {
             this.logger.exitFunction('sendBatchToMake', { success: true, response_code: code, attempt });
-            return { success: true, response_code: code, response_text: lastResponse.getContentText() };
+            return {
+              success: true,
+              response_code: code,
+              response_text: lastResponse.getContentText(),
+              consent: consentDecision
+            };
           }
           this.logger.warn('Webhook non-2xx response', { code, attempt, text: lastResponse.getContentText() });
         } catch (inner) {
@@ -618,12 +656,13 @@ class BatchFixturesManager {
       return {
         success: false,
         response_code: lastResponse ? lastResponse.getResponseCode() : 0,
-        response_text: lastResponse ? lastResponse.getContentText() : ''
+        response_text: lastResponse ? lastResponse.getContentText() : '',
+        consent: consentDecision
       };
 
     } catch (error) {
       this.logger.error('Failed to send batch to Make.com', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      return { success: false, error: error.toString(), consent: consentDecision };
     }
   }
 

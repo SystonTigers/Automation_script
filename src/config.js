@@ -316,7 +316,10 @@ const SYSTEM_CONFIG = {
       NOTES: 'Notes',
       QUOTES: 'Quotes',
       HISTORICAL_DATA: 'Historical Data',
-      
+      PRIVACY_PLAYERS: 'Privacy Players',
+      PRIVACY_CONSENTS: 'Privacy Consents',
+      PRIVACY_AUDIT: 'Privacy Audit Log',
+
       // Future sheets
       SEASON_STATS: 'Season Stats',
       GOAL_OF_MONTH: 'GOTM Tracking',
@@ -370,7 +373,13 @@ const SYSTEM_CONFIG = {
       OPPOSITION_EVENTS: [
         'Match ID', 'Date', 'Event Type', 'Minute', 'Details',
         'Posted', 'Timestamp'
-      ],     
+      ],
+      VIDEO_CLIPS: mergeUniqueArrays(
+        [
+          'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
+          'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
+          'Folder Path', 'Created'
+        ],
         [
           'Match Date', 'Local Path', 'Notes'
         ]
@@ -387,23 +396,26 @@ const SYSTEM_CONFIG = {
         'Make Result'
       ],
       WEEKLY_CONTENT: [
-        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes' 
+        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes'
       ],
-VIDEO_CLIPS: mergeUniqueArrays(
-  [
-    'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
-    'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
-    'Folder Path', 'Created'
-  ],
-  [
-    'Match Date', 'Local Path', 'Notes'
-  ]
-),
-
-MONTHLY_SUMMARIES: [
-  'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
-  'Summary_Data', 'Posted', 'Responses', 'Created'
-]
+      MONTHLY_SUMMARIES: [
+        'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
+        'Summary_Data', 'Posted', 'Responses', 'Created'
+      ],
+      PRIVACY_PLAYERS: [
+        'Player ID', 'Full Name', 'Date of Birth', 'Guardian Name', 'Guardian Email',
+        'Guardian Phone', 'Default Consent Status', 'Default Consent Expiry',
+        'Anonymise Faces', 'Use Initials Only', 'Last Reviewed'
+      ],
+      PRIVACY_CONSENTS: [
+        'Consent ID', 'Player ID', 'Consent Type', 'Status', 'Captured At',
+        'Expires At', 'Proof Reference', 'Source', 'Notes', 'Revoked At',
+        'Anonymise Faces', 'Use Initials Only'
+      ],
+      PRIVACY_AUDIT: [
+        'Timestamp', 'Player ID', 'Player Name', 'Action', 'Media Type',
+        'Platform', 'Decision', 'Reason', 'Context', 'Performed By'
+      ]
     }
   },
 
@@ -468,6 +480,7 @@ MONTHLY_SUMMARIES: [
       WEEKLY_THROWBACK: 'weekly_throwback',
       WEEKLY_COUNTDOWN_2: 'weekly_countdown_2',
       WEEKLY_COUNTDOWN_1: 'weekly_countdown_1',
+      VIDEO_CLIP_PROCESSING: 'video_clip_processing',
       MONDAY_FIXTURES: 'weekly_fixtures',
       TUESDAY_QUOTES: 'weekly_quotes',
       WEDNESDAY_STATS: 'weekly_stats',
@@ -492,6 +505,33 @@ MONTHLY_SUMMARIES: [
       birthday: 'player_birthday',
       gotm_voting_open: 'gotm_voting_start',
       gotm_winner: 'gotm_winner_announcement'
+    }
+  },
+
+  // ==================== PRIVACY & CONSENT MANAGEMENT ====================
+  PRIVACY: {
+    FAIL_CLOSED: true,
+    MINOR_AGE_THRESHOLD: 16,
+    CACHE_TTL_MS: 5 * 60 * 1000,
+    EXPIRY_NOTICE_DAYS: 30,
+    GLOBAL_FLAGS: {
+      ANONYMISE_FACES: false,
+      USE_INITIALS_ONLY: false
+    },
+    CONSENT_TYPES: {
+      GENERAL_MEDIA: 'general_media',
+      MATCHDAY: 'matchday',
+      VIDEO_HIGHLIGHTS: 'video_highlights',
+      PORTRAIT: 'portrait_photography'
+    },
+    REPORTING: {
+      NIGHTLY_HOUR: 22,
+      RECIPIENT_PROPERTY: 'PRIVACY_REPORT_EMAIL',
+      ENABLED: true
+    },
+    AUDIT: {
+      ENABLED: true,
+      MAX_ROWS: 2000
     }
   },
 

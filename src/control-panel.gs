@@ -1430,32 +1430,77 @@ function getControlPanelState() {
     webhook: !!getWebhookUrl()
   };
   var validation = validateConfiguration();
-  return { features: features, info: info, validation: validation };
+  var privacySummary = getConsentDashboardSummary();
+  var privacyFlags = {
+    anonymiseFaces: getConfig('PRIVACY.GLOBAL_FLAGS.ANONYMISE_FACES', false),
+    useInitialsOnly: getConfig('PRIVACY.GLOBAL_FLAGS.USE_INITIALS_ONLY', false)
+  };
+  return {
+    features: features,
+    info: info,
+    validation: validation,
+    privacy: privacySummary,
+    privacyFlags: privacyFlags
+  };
 }
 
 /** Save feature toggles from ControlPanel.html */
 function updateFeatureFlags(flags) {
   try {
-    Object.keys(flags || {}).forEach(function(k) {
-      setConfig('FEATURES.' + k, !!flags[k]);
-    });
-// Persist feature flags so they survive cold starts
-try {
-  PropertiesService.getScriptProperties()
-    .setProperty('FEATURE_FLAGS', JSON.stringify(flags));
-} catch (e) {
-  console.warn('Failed to persist FEATURE_FLAGS', e);
-}
-    // Optional persistence so flags survive cold starts:
-    try {
-      PropertiesService.getScriptProperties()
-        .setProperty('FEATURE_FLAGS', JSON.stringify(flags));
-    } catch (e) {
-      console.warn('FEATURE_FLAGS persist failed', e);
-    }
-    return { ok: true };
+    return updateControlPanelSettings({ features: flags });
   } catch (e) {
     return { ok: false, message: e.toString() };
+  }
+}
+
+/** Update control panel feature and privacy flags */
+function updateControlPanelSettings(settings) {
+  const panelLogger = logger.scope('ControlPanelSettings');
+  panelLogger.enterFunction('updateControlPanelSettings');
+
+  try {
+    const featureFlags = settings.features || {};
+    const privacyFlags = settings.privacyFlags || {};
+
+    Object.keys(featureFlags).forEach(function(k) {
+      setConfig('FEATURES.' + k, !!featureFlags[k]);
+    });
+
+    Object.keys(privacyFlags).forEach(function(k) {
+      var path;
+      switch (k) {
+        case 'anonymiseFaces':
+          path = 'PRIVACY.GLOBAL_FLAGS.ANONYMISE_FACES';
+          break;
+        case 'useInitialsOnly':
+          path = 'PRIVACY.GLOBAL_FLAGS.USE_INITIALS_ONLY';
+          break;
+        default:
+          path = 'PRIVACY.GLOBAL_FLAGS.' + k.toUpperCase();
+      }
+      setConfig(path, !!privacyFlags[k]);
+    });
+
+    try {
+      PropertiesService.getScriptProperties()
+        .setProperty('FEATURE_FLAGS', JSON.stringify(featureFlags));
+    } catch (featureError) {
+      console.warn('FEATURE_FLAGS persist failed', featureError);
+    }
+
+    try {
+      PropertiesService.getScriptProperties()
+        .setProperty('PRIVACY_FLAGS', JSON.stringify(privacyFlags));
+    } catch (privacyError) {
+      console.warn('PRIVACY_FLAGS persist failed', privacyError);
+    }
+
+    panelLogger.exitFunction('updateControlPanelSettings', { success: true });
+    return { success: true };
+
+  } catch (error) {
+    panelLogger.error('updateControlPanelSettings failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
   }
 }
 
@@ -1509,6 +1554,22 @@ function getValidation() {
     // console.log('Hydrated feature flags:', saved);
   } catch (e) {
     console.warn('Feature flag hydrate failed', e);
+  }
+})();
+
+(function hydratePrivacyFlags() {
+  try {
+    var rawPrivacy = PropertiesService.getScriptProperties().getProperty('PRIVACY_FLAGS');
+    if (!rawPrivacy) return;
+    var savedPrivacy = JSON.parse(rawPrivacy);
+    if (savedPrivacy.hasOwnProperty('anonymiseFaces')) {
+      SYSTEM_CONFIG.PRIVACY.GLOBAL_FLAGS.ANONYMISE_FACES = !!savedPrivacy.anonymiseFaces;
+    }
+    if (savedPrivacy.hasOwnProperty('useInitialsOnly')) {
+      SYSTEM_CONFIG.PRIVACY.GLOBAL_FLAGS.USE_INITIALS_ONLY = !!savedPrivacy.useInitialsOnly;
+    }
+  } catch (e) {
+    console.warn('Privacy flag hydrate failed', e);
   }
 })();
 

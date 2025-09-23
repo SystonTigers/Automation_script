@@ -35,8 +35,22 @@ class PrivacyComplianceManager {
       'emergency_contact', 'address', 'registration_number'
     ];
     this.retentionPolicies = new Map();
-    this.consentRecords = new Map();
     this.dataProcessingLog = [];
+
+    // Consent persistence
+    this.privacyConfig = getConfig('PRIVACY', {});
+    this.playersSheetName = getConfig('SHEETS.TAB_NAMES.PRIVACY_PLAYERS');
+    this.consentsSheetName = getConfig('SHEETS.TAB_NAMES.PRIVACY_CONSENTS');
+    this.auditSheetName = getConfig('SHEETS.TAB_NAMES.PRIVACY_AUDIT');
+    this.cacheTtlMs = this.privacyConfig.CACHE_TTL_MS || (5 * 60 * 1000);
+    this.failClosed = this.privacyConfig.FAIL_CLOSED !== false;
+    this.minorAgeThreshold = this.privacyConfig.MINOR_AGE_THRESHOLD || 16;
+    this.auditEnabled = !!(this.privacyConfig.AUDIT && this.privacyConfig.AUDIT.ENABLED !== false);
+
+    this.playerConsentCache = new Map();
+    this.playerLookupIndex = new Map();
+    this.consentRecordIndex = new Map();
+    this.lastConsentHydration = 0;
   }
 
   // ==================== PII DETECTION AND CLASSIFICATION ====================
@@ -329,6 +343,1079 @@ class PrivacyComplianceManager {
         }
         return value.charAt(0) + '*'.repeat(value.length - 2) + value.charAt(value.length - 1);
     }
+  }
+
+  // ==================== CONSENT DATA PERSISTENCE & EVALUATION ====================
+
+  /**
+   * Refresh cached consent data from Google Sheets
+   * @param {boolean} forceReload - Force hydration even if cache valid
+   * @returns {Object} Hydration result
+   */
+  refreshConsentCaches(forceReload = false) {
+    const now = Date.now();
+    const cacheValid = (now - this.lastConsentHydration) < this.cacheTtlMs;
+
+    if (!forceReload && cacheValid && this.playerConsentCache.size > 0) {
+      return { success: true, refreshed: false };
+    }
+
+    return this.hydrateConsentData();
+  }
+
+  /**
+   * Hydrate consent data from the Players and Consents sheets
+   * @returns {Object} Hydration summary
+   */
+  hydrateConsentData() {
+    this.logger.enterFunction('hydrateConsentData');
+
+    try {
+      const playerColumns = getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_PLAYERS', []);
+      const consentColumns = getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_CONSENTS', []);
+
+      const playersSheet = SheetUtils.getOrCreateSheet(this.playersSheetName, playerColumns);
+      if (!playersSheet) {
+        throw new Error('Privacy players sheet unavailable');
+      }
+
+      const consentsSheet = SheetUtils.getOrCreateSheet(this.consentsSheetName, consentColumns);
+
+      const playerRows = SheetUtils.getAllDataAsObjects(playersSheet);
+      const consentRows = consentsSheet ? SheetUtils.getAllDataAsObjects(consentsSheet) : [];
+
+      this.playerConsentCache.clear();
+      this.playerLookupIndex.clear();
+      this.consentRecordIndex.clear();
+
+      playerRows.forEach(row => {
+        const profile = this.buildPlayerProfile(row);
+        if (!profile) {
+          return;
+        }
+
+        this.playerConsentCache.set(profile.cacheKey, profile);
+        if (profile.nameKey) {
+          if (!this.playerLookupIndex.has(profile.nameKey)) {
+            this.playerLookupIndex.set(profile.nameKey, profile.cacheKey);
+          }
+        }
+      });
+
+      consentRows.forEach(row => {
+        const record = this.buildConsentRecord(row);
+        if (!record) {
+          return;
+        }
+
+        const cacheKey = this.normalizeKey(record.playerId);
+        if (!this.consentRecordIndex.has(cacheKey)) {
+          this.consentRecordIndex.set(cacheKey, []);
+        }
+        this.consentRecordIndex.get(cacheKey).push(record);
+      });
+
+      this.consentRecordIndex.forEach(records => {
+        records.sort((a, b) => (b.capturedAt || 0) - (a.capturedAt || 0));
+      });
+
+      this.lastConsentHydration = Date.now();
+
+      const hydrationSummary = {
+        success: true,
+        refreshed: true,
+        players: this.playerConsentCache.size,
+        consents: consentRows.length
+      };
+
+      this.logger.exitFunction('hydrateConsentData', hydrationSummary);
+      return hydrationSummary;
+
+    } catch (error) {
+      this.logger.error('Consent data hydration failed', { error: error.toString() });
+
+      if (this.failClosed) {
+        this.playerConsentCache.clear();
+        this.consentRecordIndex.clear();
+      }
+
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  /**
+   * Build normalized player profile from sheet row
+   * @param {Object} row - Sheet row
+   * @returns {Object|null} Player profile
+   */
+  buildPlayerProfile(row) {
+    if (!row) {
+      return null;
+    }
+
+    const playerIdRaw = row['Player ID'] || row.player_id || row.Id || '';
+    const fullNameRaw = row['Full Name'] || row['Player Name'] || row.full_name || row.name || '';
+
+    if (!playerIdRaw && !fullNameRaw) {
+      return null;
+    }
+
+    const cacheKey = this.normalizeKey(playerIdRaw || fullNameRaw);
+    const nameKey = fullNameRaw ? this.normalizeKey(fullNameRaw) : null;
+    const cleanedName = fullNameRaw ? StringUtils.cleanPlayerName(fullNameRaw) : '';
+
+    const dob = this.parseDate(row['Date of Birth'] || row.dob || row['DOB']);
+    const ageYears = this.calculateAge(dob);
+    const isMinor = typeof ageYears === 'number' ? ageYears < this.minorAgeThreshold : false;
+
+    const defaultStatusRaw = (row['Default Consent Status'] || row.consent_status || '').toString();
+    const defaultStatus = this.normalizeKey(defaultStatusRaw);
+    const defaultExpiry = this.parseDate(row['Default Consent Expiry'] || row.consent_expiry);
+
+    return {
+      playerId: playerIdRaw ? playerIdRaw.toString().trim() : cleanedName,
+      cacheKey: cacheKey,
+      fullName: cleanedName,
+      nameKey: nameKey,
+      dateOfBirth: dob ? DateUtils.formatISO(dob) : null,
+      dobDate: dob,
+      ageYears: ageYears,
+      isMinor: isMinor,
+      defaultStatus: defaultStatus,
+      defaultExpiry: defaultExpiry,
+      anonymiseFaces: this.toBoolean(row['Anonymise Faces'] || row.anonymise_faces, false),
+      useInitialsOnly: this.toBoolean(row['Use Initials Only'] || row.use_initials_only, false),
+      guardianName: row['Guardian Name'] || row.guardian_name || '',
+      guardianEmail: row['Guardian Email'] || row.guardian_email || '',
+      guardianPhone: row['Guardian Phone'] || row.guardian_phone || '',
+      lastReviewed: row['Last Reviewed'] || row.last_reviewed || ''
+    };
+  }
+
+  /**
+   * Build normalized consent record from sheet row
+   * @param {Object} row - Sheet row data
+   * @returns {Object|null} Consent record
+   */
+  buildConsentRecord(row) {
+    if (!row) {
+      return null;
+    }
+
+    const playerIdRaw = row['Player ID'] || row.player_id || row.PlayerId;
+    if (!playerIdRaw) {
+      return null;
+    }
+
+    const consentTypeRaw = row['Consent Type'] || row.consent_type || this.privacyConfig.CONSENT_TYPES?.GENERAL_MEDIA;
+    const statusRaw = row['Status'] || row.status || '';
+    const capturedAt = this.parseDate(row['Captured At'] || row.captured_at);
+    const expiresAt = this.parseDate(row['Expires At'] || row.expires_at);
+    const revokedAt = this.parseDate(row['Revoked At'] || row.revoked_at);
+
+    return {
+      playerId: playerIdRaw.toString().trim(),
+      consentType: this.normalizeKey(consentTypeRaw || 'general_media'),
+      status: this.normalizeConsentStatus(statusRaw),
+      capturedAt: capturedAt ? capturedAt.getTime() : null,
+      capturedDate: capturedAt,
+      expiresAt: expiresAt ? expiresAt.getTime() : null,
+      expiresDate: expiresAt,
+      revokedAt: revokedAt ? revokedAt.getTime() : null,
+      revokedDate: revokedAt,
+      proofReference: row['Proof Reference'] || row.proof || '',
+      source: row['Source'] || row.source || '',
+      notes: row['Notes'] || row.notes || '',
+      anonymiseFaces: this.toBoolean(row['Anonymise Faces'] || row.anonymise_faces, false),
+      useInitialsOnly: this.toBoolean(row['Use Initials Only'] || row.use_initials_only, false)
+    };
+  }
+
+  /**
+   * Evaluate media consent for players
+   * @param {Object} context - Evaluation context
+   * @returns {Object} Consent decision
+   */
+  evaluateConsentForMedia(context = {}) {
+    const players = Array.isArray(context.players) ? context.players : [];
+    const eventType = context.eventType || context.mediaType || 'general_media';
+    const moduleName = context.module || 'unknown';
+
+    this.logger.enterFunction('evaluateConsentForMedia', {
+      module: moduleName,
+      eventType,
+      playerCount: players.length,
+      platform: context.platform || 'unspecified'
+    });
+
+    try {
+      const hydration = this.refreshConsentCaches(false);
+      if (!hydration.success && this.failClosed) {
+        throw new Error(hydration.error || 'Consent data unavailable');
+      }
+
+      const globalFlags = this.privacyConfig.GLOBAL_FLAGS || {};
+      const aggregatedFlags = {
+        anonymiseFaces: this.toBoolean(globalFlags.ANONYMISE_FACES, false),
+        useInitialsOnly: this.toBoolean(globalFlags.USE_INITIALS_ONLY, false)
+      };
+
+      const playerResults = players.map(playerRef =>
+        this.evaluatePlayerConsent(playerRef, context, aggregatedFlags)
+      );
+
+      playerResults.forEach(result => {
+        aggregatedFlags.anonymiseFaces = aggregatedFlags.anonymiseFaces || result.anonymiseFaces;
+        aggregatedFlags.useInitialsOnly = aggregatedFlags.useInitialsOnly || result.useInitialsOnly;
+      });
+
+      const blockedPlayer = playerResults.find(result => !result.allowed);
+      const allowed = players.length === 0 ? true : !blockedPlayer;
+      const decisionReason = blockedPlayer ? blockedPlayer.reason : 'consent_granted';
+
+      const decision = {
+        allowed: allowed,
+        reason: decisionReason,
+        mediaType: context.mediaType || eventType,
+        platform: context.platform || 'unspecified',
+        module: moduleName,
+        eventType: eventType,
+        anonymiseFaces: aggregatedFlags.anonymiseFaces,
+        useInitialsOnly: aggregatedFlags.useInitialsOnly,
+        players: playerResults,
+        evaluated_at: DateUtils.formatISO(DateUtils.now()),
+        matchId: context.matchId || context.match_id || null
+      };
+
+      if (!context.skipAudit) {
+        this.recordConsentAudit(decision, context);
+      }
+
+      this.logger.exitFunction('evaluateConsentForMedia', {
+        allowed: decision.allowed,
+        anonymiseFaces: decision.anonymiseFaces,
+        useInitialsOnly: decision.useInitialsOnly
+      });
+
+      return decision;
+
+    } catch (error) {
+      this.logger.error('Consent evaluation failed', { error: error.toString(), context });
+
+      const fallbackDecision = {
+        allowed: false,
+        reason: `consent_evaluation_error:${error.message || error.toString()}`,
+        mediaType: context.mediaType || 'general_media',
+        platform: context.platform || 'unspecified',
+        module: moduleName,
+        eventType: eventType,
+        anonymiseFaces: true,
+        useInitialsOnly: true,
+        players: [],
+        evaluated_at: DateUtils.formatISO(DateUtils.now()),
+        matchId: context.matchId || context.match_id || null
+      };
+
+      if (!context.skipAudit) {
+        this.recordConsentAudit(fallbackDecision, { ...context, error: error.toString() });
+      }
+
+      return fallbackDecision;
+    }
+  }
+
+  /**
+   * Evaluate consent for a single player
+   * @param {Object|string} playerRef - Player reference (ID or name)
+   * @param {Object} context - Evaluation context
+   * @param {Object} aggregatedFlags - Aggregated anonymisation flags
+   * @returns {Object} Player consent result
+   */
+  evaluatePlayerConsent(playerRef, context, aggregatedFlags) {
+    const consentType = this.normalizeKey(context.mediaType || this.privacyConfig.CONSENT_TYPES?.GENERAL_MEDIA || 'general_media');
+    const normalizedRef = this.normalizePlayerRef(playerRef);
+
+    if (!normalizedRef.value) {
+      return this.buildFailedConsentResult(null, 'missing_player_reference');
+    }
+
+    const profile = this.getPlayerProfile(normalizedRef);
+    if (!profile) {
+      return this.buildFailedConsentResult(normalizedRef.value, 'player_not_registered');
+    }
+
+    const records = this.consentRecordIndex.get(profile.cacheKey) || [];
+    const filteredRecords = this.filterConsentRecords(records, consentType);
+
+    const consentStatus = this.resolveConsentStatus(profile, filteredRecords, context, aggregatedFlags);
+
+    return {
+      playerId: profile.playerId,
+      playerName: profile.fullName,
+      isMinor: profile.isMinor,
+      consentStatus: consentStatus.status,
+      allowed: consentStatus.allowed,
+      reason: consentStatus.reason,
+      expiresAt: consentStatus.expiresAt,
+      anonymiseFaces: consentStatus.anonymiseFaces,
+      useInitialsOnly: consentStatus.useInitialsOnly,
+      proofReference: consentStatus.proofReference,
+      consentType: consentType,
+      lastReviewed: profile.lastReviewed || null
+    };
+  }
+
+  /**
+   * Build failed consent result for fail-closed scenarios
+   * @param {string|null} playerRef - Player reference
+   * @param {string} reason - Failure reason
+   * @returns {Object} Consent result
+   */
+  buildFailedConsentResult(playerRef, reason) {
+    return {
+      playerId: playerRef || '',
+      playerName: playerRef || '',
+      isMinor: false,
+      consentStatus: 'unknown',
+      allowed: this.failClosed ? false : true,
+      reason: reason,
+      expiresAt: null,
+      anonymiseFaces: true,
+      useInitialsOnly: true,
+      proofReference: '',
+      consentType: 'general_media',
+      lastReviewed: null
+    };
+  }
+
+  /**
+   * Normalize consent status values
+   * @param {string} status - Raw status
+   * @returns {string} Normalized status
+   */
+  normalizeConsentStatus(status) {
+    const normalized = this.normalizeKey(status);
+
+    if (['granted', 'approved', 'allow', 'allowed'].includes(normalized)) {
+      return 'granted';
+    }
+
+    if (['revoked', 'withdrawn', 'cancelled', 'denied', 'declined'].includes(normalized)) {
+      return 'revoked';
+    }
+
+    if (['pending', 'awaiting', 'requested'].includes(normalized)) {
+      return 'pending';
+    }
+
+    if (normalized === 'expired') {
+      return 'expired';
+    }
+
+    return normalized || 'unknown';
+  }
+
+  /**
+   * Filter consent records by type with fallbacks
+   * @param {Array<Object>} records - Consent records
+   * @param {string} consentType - Consent type key
+   * @returns {Array<Object>} Filtered records
+   */
+  filterConsentRecords(records, consentType) {
+    if (!records || records.length === 0) {
+      return [];
+    }
+
+    const fallbacks = [
+      consentType,
+      this.normalizeKey(this.privacyConfig.CONSENT_TYPES?.GENERAL_MEDIA || 'general_media'),
+      'all',
+      'all_media'
+    ];
+
+    return records.filter(record => fallbacks.includes(record.consentType));
+  }
+
+  /**
+   * Resolve consent status using profile and records
+   * @param {Object} profile - Player profile
+   * @param {Array<Object>} records - Consent records
+   * @param {Object} context - Evaluation context
+   * @param {Object} aggregatedFlags - Aggregated anonymisation flags
+   * @returns {Object} Consent resolution result
+   */
+  resolveConsentStatus(profile, records, context, aggregatedFlags) {
+    const now = DateUtils.now();
+    const nowTime = now.getTime();
+    let status = 'unknown';
+    let allowed = false;
+    let reason = '';
+    let expiresAtIso = null;
+    let proofReference = '';
+
+    let anonymiseFaces = aggregatedFlags.anonymiseFaces || profile.anonymiseFaces;
+    let useInitialsOnly = aggregatedFlags.useInitialsOnly || profile.useInitialsOnly;
+
+    const revokedRecord = records.find(record => record.status === 'revoked' && (!record.revokedDate || record.revokedDate <= nowTime));
+    if (revokedRecord) {
+      status = 'revoked';
+      reason = 'consent_revoked';
+      anonymiseFaces = true;
+      useInitialsOnly = true;
+      proofReference = revokedRecord.proofReference || '';
+      return {
+        allowed: false,
+        status,
+        reason,
+        expiresAt: null,
+        anonymiseFaces,
+        useInitialsOnly,
+        proofReference
+      };
+    }
+
+    const grantedRecord = records.find(record => record.status === 'granted');
+    if (grantedRecord) {
+      if (grantedRecord.expiresDate && grantedRecord.expiresDate.getTime() < nowTime) {
+        status = 'expired';
+        reason = 'consent_expired';
+        anonymiseFaces = true;
+        useInitialsOnly = true;
+        expiresAtIso = DateUtils.formatISO(grantedRecord.expiresDate);
+      } else {
+        status = 'granted';
+        allowed = true;
+        expiresAtIso = grantedRecord.expiresDate ? DateUtils.formatISO(grantedRecord.expiresDate) : null;
+        anonymiseFaces = anonymiseFaces || grantedRecord.anonymiseFaces;
+        useInitialsOnly = useInitialsOnly || grantedRecord.useInitialsOnly;
+        proofReference = grantedRecord.proofReference || '';
+      }
+    } else if (records.some(record => record.status === 'pending')) {
+      status = 'pending';
+      reason = 'consent_pending';
+      anonymiseFaces = true;
+      useInitialsOnly = true;
+    } else {
+      status = profile.defaultStatus || 'unknown';
+
+      if (status === 'granted') {
+        const defaultExpiry = profile.defaultExpiry;
+        if (defaultExpiry && defaultExpiry.getTime() < nowTime) {
+          status = 'expired';
+          reason = 'default_consent_expired';
+          anonymiseFaces = true;
+          useInitialsOnly = true;
+          expiresAtIso = DateUtils.formatISO(defaultExpiry);
+        } else {
+          allowed = !profile.isMinor; // minors require explicit consent record
+          expiresAtIso = defaultExpiry ? DateUtils.formatISO(defaultExpiry) : null;
+        }
+      } else {
+        status = 'missing';
+        reason = 'no_consent_record';
+        anonymiseFaces = true;
+        useInitialsOnly = true;
+      }
+    }
+
+    if (profile.isMinor && allowed) {
+      // Fail closed for minors unless explicit granted record exists
+      const hasExplicitGrant = records.some(record => {
+        if (record.status !== 'granted') {
+          return false;
+        }
+        if (!record.expiresDate) {
+          return true;
+        }
+        return record.expiresDate.getTime() >= nowTime;
+      });
+      if (!hasExplicitGrant) {
+        allowed = false;
+        status = 'missing';
+        reason = 'minor_requires_documented_consent';
+        anonymiseFaces = true;
+        useInitialsOnly = true;
+      }
+    }
+
+    if (!allowed && !reason) {
+      reason = `consent_${status}`;
+    }
+
+    return {
+      allowed: allowed,
+      status,
+      reason,
+      expiresAt: expiresAtIso,
+      anonymiseFaces,
+      useInitialsOnly,
+      proofReference
+    };
+  }
+
+  /**
+   * Normalize player reference to identifier or name key
+   * @param {Object|string} playerRef - Player reference
+   * @returns {Object} Normalized reference
+   */
+  normalizePlayerRef(playerRef) {
+    if (!playerRef && playerRef !== 0) {
+      return { value: '', type: 'unknown' };
+    }
+
+    if (typeof playerRef === 'object') {
+      if (playerRef.playerId || playerRef.player_id || playerRef.id) {
+        return { value: this.normalizeKey(playerRef.playerId || playerRef.player_id || playerRef.id), type: 'id' };
+      }
+      if (playerRef.player || playerRef.fullName || playerRef.name) {
+        return { value: this.normalizeKey(playerRef.player || playerRef.fullName || playerRef.name), type: 'name' };
+      }
+    }
+
+    const value = playerRef.toString().trim();
+    if (!value) {
+      return { value: '', type: 'unknown' };
+    }
+
+    const normalized = this.normalizeKey(value);
+    if (this.playerConsentCache.has(normalized)) {
+      return { value: normalized, type: 'id' };
+    }
+
+    return { value: normalized, type: 'name' };
+  }
+
+  /**
+   * Get cached player profile
+   * @param {Object} normalizedRef - Normalized reference
+   * @returns {Object|null} Player profile
+   */
+  getPlayerProfile(normalizedRef) {
+    if (!normalizedRef || !normalizedRef.value) {
+      return null;
+    }
+
+    if (normalizedRef.type === 'id') {
+      return this.playerConsentCache.get(normalizedRef.value) || null;
+    }
+
+    const cacheKey = this.playerLookupIndex.get(normalizedRef.value);
+    if (cacheKey) {
+      return this.playerConsentCache.get(cacheKey) || null;
+    }
+
+    for (const profile of this.playerConsentCache.values()) {
+      if (this.normalizeKey(profile.fullName) === normalizedRef.value) {
+        return profile;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Record consent decision to audit log
+   * @param {Object} decision - Consent decision
+   * @param {Object} context - Evaluation context
+   */
+  recordConsentAudit(decision, context = {}) {
+    if (!this.auditEnabled) {
+      return;
+    }
+
+    try {
+      const columns = getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', []);
+      const sheet = SheetUtils.getOrCreateSheet(this.auditSheetName, columns);
+      if (!sheet) {
+        return;
+      }
+
+      const timestamp = decision.evaluated_at || DateUtils.formatISO(DateUtils.now());
+      const players = decision.players && decision.players.length > 0 ? decision.players : [
+        {
+          playerId: '',
+          playerName: '',
+          reason: decision.reason,
+          consentStatus: 'n/a'
+        }
+      ];
+
+      players.forEach(player => {
+        const row = {
+          'Timestamp': timestamp,
+          'Player ID': player.playerId || '',
+          'Player Name': player.playerName || '',
+          'Action': 'media_post_evaluation',
+          'Media Type': decision.mediaType,
+          'Platform': decision.platform,
+          'Decision': decision.allowed ? 'allowed' : 'blocked',
+          'Reason': player.reason || decision.reason,
+          'Context': JSON.stringify({
+            module: decision.module,
+            eventType: decision.eventType,
+            matchId: decision.matchId || null,
+            consentStatus: player.consentStatus || 'unknown'
+          }),
+          'Performed By': 'automation'
+        };
+
+        SheetUtils.addRowFromObject(sheet, row);
+      });
+
+      this.enforceAuditRetention(sheet);
+
+    } catch (error) {
+      this.logger.warn('Consent audit logging failed', { error: error.toString() });
+    }
+  }
+
+  /**
+   * Enforce audit sheet retention limits
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - Audit sheet
+   */
+  enforceAuditRetention(sheet) {
+    try {
+      const maxRows = (this.privacyConfig.AUDIT && this.privacyConfig.AUDIT.MAX_ROWS) || 2000;
+      const lastRow = sheet.getLastRow();
+      if (lastRow <= 1 || maxRows <= 0) {
+        return;
+      }
+
+      const allowedRows = maxRows + 1; // include header row
+      if (lastRow > allowedRows) {
+        const rowsToDelete = lastRow - allowedRows;
+        sheet.deleteRows(2, rowsToDelete);
+      }
+    } catch (error) {
+      this.logger.warn('Audit retention enforcement failed', { error: error.toString() });
+    }
+  }
+
+  /**
+   * Build consent dashboard summary for control panel
+   * @param {number|null} windowDays - Expiry window in days
+   * @returns {Object} Summary data
+   */
+  getConsentDashboardSummary(windowDays = null) {
+    this.logger.enterFunction('getConsentDashboardSummary', { windowDays });
+
+    try {
+      const hydration = this.refreshConsentCaches(false);
+      if (!hydration.success && this.failClosed) {
+        throw new Error(hydration.error || 'Consent data unavailable');
+      }
+
+      const players = Array.from(this.playerConsentCache.values());
+      const minors = players.filter(profile => profile.isMinor);
+      const globalFlags = this.privacyConfig.GLOBAL_FLAGS || {};
+      let minorsWithoutConsent = 0;
+
+      minors.forEach(profile => {
+        const result = this.evaluatePlayerConsent(
+          { playerId: profile.playerId },
+          {
+            mediaType: this.privacyConfig.CONSENT_TYPES?.GENERAL_MEDIA || 'general_media',
+            module: 'dashboard',
+            platform: 'control_panel',
+            skipAudit: true
+          },
+          {
+            anonymiseFaces: this.toBoolean(globalFlags.ANONYMISE_FACES, false),
+            useInitialsOnly: this.toBoolean(globalFlags.USE_INITIALS_ONLY, false)
+          }
+        );
+
+        if (!result.allowed) {
+          minorsWithoutConsent += 1;
+        }
+      });
+
+      const expiring = this.getConsentExpiryReport(windowDays, true);
+      const auditSummary = this.getAuditSummary();
+
+      const summary = {
+        total_players: players.length,
+        minors: minors.length,
+        minors_without_active_consent: minorsWithoutConsent,
+        global_flags: {
+          anonymiseFaces: this.toBoolean(globalFlags.ANONYMISE_FACES, false),
+          useInitialsOnly: this.toBoolean(globalFlags.USE_INITIALS_ONLY, false)
+        },
+        expiring_consents: expiring.slice(0, 10),
+        audit: auditSummary
+      };
+
+      this.logger.exitFunction('getConsentDashboardSummary', { success: true });
+      return { success: true, summary };
+
+    } catch (error) {
+      this.logger.error('Consent dashboard summary failed', { error: error.toString() });
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  /**
+   * Get audit summary for control panel
+   * @param {number} days - Lookback window
+   * @returns {Object} Audit summary
+   */
+  getAuditSummary(days = 7) {
+    if (!this.auditEnabled) {
+      return { enabled: false };
+    }
+
+    try {
+      const sheet = SheetUtils.getOrCreateSheet(
+        this.auditSheetName,
+        getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', [])
+      );
+
+      if (!sheet) {
+        return { enabled: false };
+      }
+
+      const rows = SheetUtils.getAllDataAsObjects(sheet);
+      if (!rows || rows.length === 0) {
+        return { enabled: true, blocked_last_7_days: 0, last_decision: null };
+      }
+
+      const threshold = DateUtils.addDays(DateUtils.now(), -Math.abs(days));
+      let blocked = 0;
+      let lastDecision = null;
+
+      rows.forEach(row => {
+        const timestamp = this.parseDate(row.Timestamp || row.timestamp);
+        if (!lastDecision) {
+          lastDecision = {
+            timestamp: row.Timestamp || row.timestamp || '',
+            decision: row.Decision || row.decision || '',
+            playerName: row['Player Name'] || row.player_name || '',
+            reason: row.Reason || row.reason || ''
+          };
+        }
+
+        if (timestamp && timestamp >= threshold) {
+          const decision = (row.Decision || row.decision || '').toString().toLowerCase();
+          if (decision === 'blocked') {
+            blocked += 1;
+          }
+        }
+      });
+
+      return {
+        enabled: true,
+        blocked_last_7_days: blocked,
+        last_decision: lastDecision
+      };
+
+    } catch (error) {
+      this.logger.warn('Consent audit summary failed', { error: error.toString() });
+      return { enabled: false, error: error.toString() };
+    }
+  }
+
+  /**
+   * Get consents expiring within a window
+   * @param {number|null} windowDays - Days until expiry
+   * @param {boolean} skipAudit - Skip logging
+   * @returns {Array<Object>} Expiring consents
+   */
+  getConsentExpiryReport(windowDays = null, skipAudit = false) {
+    const days = typeof windowDays === 'number' ? windowDays : (this.privacyConfig.EXPIRY_NOTICE_DAYS || 30);
+    const now = DateUtils.now();
+    const nowTime = now.getTime();
+    const threshold = DateUtils.addDays(new Date(now.getTime()), days);
+    const thresholdTime = threshold.getTime();
+
+    this.refreshConsentCaches(false);
+
+    const expiring = [];
+
+    this.consentRecordIndex.forEach((records, cacheKey) => {
+      const profile = this.playerConsentCache.get(cacheKey) || null;
+
+      records.forEach(record => {
+        if (record.status !== 'granted' || !record.expiresDate) {
+          return;
+        }
+
+        const expiresTime = record.expiresDate.getTime();
+
+        if (expiresTime >= nowTime && expiresTime <= thresholdTime) {
+          expiring.push({
+            playerId: profile ? profile.playerId : record.playerId,
+            playerName: profile ? profile.fullName : record.playerId,
+            consentType: record.consentType,
+            expires_at: DateUtils.formatISO(record.expiresDate),
+            days_remaining: Math.ceil((expiresTime - nowTime) / (1000 * 60 * 60 * 24)),
+            anonymiseFaces: record.anonymiseFaces || (profile ? profile.anonymiseFaces : false),
+            useInitialsOnly: record.useInitialsOnly || (profile ? profile.useInitialsOnly : false)
+          });
+        }
+      });
+    });
+
+    expiring.sort((a, b) => a.expires_at.localeCompare(b.expires_at));
+
+    if (!skipAudit && this.auditEnabled) {
+      this.logExpiryReport(expiring, days);
+    }
+
+    return expiring;
+  }
+
+  /**
+   * Send nightly consent expiry report
+   * @param {number|null} windowDays - Window for expiry
+   * @returns {Object} Report result
+   */
+  sendConsentExpiryReport(windowDays = null) {
+    this.logger.enterFunction('sendConsentExpiryReport', { windowDays });
+
+    try {
+      const expiring = this.getConsentExpiryReport(windowDays, false);
+      const generatedAt = DateUtils.formatISO(DateUtils.now());
+
+      const reporting = this.privacyConfig.REPORTING || {};
+      const recipientsProperty = reporting.RECIPIENT_PROPERTY;
+      let emailResult = { sent: false };
+
+      if (reporting.ENABLED !== false && recipientsProperty) {
+        const recipients = PropertiesService.getScriptProperties().getProperty(recipientsProperty);
+
+        if (recipients && typeof MailApp !== 'undefined') {
+          const emailBody = this.buildExpiryEmailHtml(expiring, generatedAt, windowDays);
+
+          try {
+            // @testHook(consent_expiry_email_start)
+            MailApp.sendEmail({
+              to: recipients,
+              subject: 'Syston Tigers – Consent expiry report',
+              htmlBody: emailBody,
+              name: 'Syston Tigers Automation'
+            });
+            // @testHook(consent_expiry_email_complete)
+            emailResult = { sent: true, recipients };
+          } catch (emailError) {
+            this.logger.warn('Consent expiry email failed', { error: emailError.toString() });
+            emailResult = { sent: false, error: emailError.toString() };
+          }
+        }
+      }
+
+      this.logger.exitFunction('sendConsentExpiryReport', {
+        success: true,
+        expiring_count: expiring.length,
+        email_sent: emailResult.sent
+      });
+
+      return {
+        success: true,
+        generated_at: generatedAt,
+        expiring,
+        email: emailResult
+      };
+
+    } catch (error) {
+      this.logger.error('Consent expiry report failed', { error: error.toString() });
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  /**
+   * Log expiry report to audit sheet
+   * @param {Array<Object>} expiring - Expiring consents
+   * @param {number} windowDays - Window days
+   */
+  logExpiryReport(expiring, windowDays) {
+    if (!this.auditEnabled) {
+      return;
+    }
+
+    try {
+      const sheet = SheetUtils.getOrCreateSheet(
+        this.auditSheetName,
+        getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', [])
+      );
+
+      if (!sheet) {
+        return;
+      }
+
+      const timestamp = DateUtils.formatISO(DateUtils.now());
+
+      if (!expiring || expiring.length === 0) {
+        SheetUtils.addRowFromObject(sheet, {
+          'Timestamp': timestamp,
+          'Player ID': '',
+          'Player Name': 'N/A',
+          'Action': 'expiry_report',
+          'Media Type': 'general_media',
+          'Platform': 'automation',
+          'Decision': 'clear',
+          'Reason': `no_consents_expiring_${windowDays || this.privacyConfig.EXPIRY_NOTICE_DAYS || 30}`,
+          'Context': '{}',
+          'Performed By': 'automation'
+        });
+      } else {
+        expiring.forEach(item => {
+          SheetUtils.addRowFromObject(sheet, {
+            'Timestamp': timestamp,
+            'Player ID': item.playerId,
+            'Player Name': item.playerName,
+            'Action': 'expiry_report',
+            'Media Type': item.consentType,
+            'Platform': 'automation',
+            'Decision': 'requires_attention',
+            'Reason': `expires_in_${item.days_remaining}_days`,
+            'Context': JSON.stringify({ expires_at: item.expires_at }),
+            'Performed By': 'automation'
+          });
+        });
+      }
+
+      this.enforceAuditRetention(sheet);
+
+    } catch (error) {
+      this.logger.warn('Expiry report logging failed', { error: error.toString() });
+    }
+  }
+
+  /**
+   * Build expiry email body
+   * @param {Array<Object>} expiring - Expiring consents
+   * @param {string} generatedAt - Timestamp
+   * @param {number|null} windowDays - Window
+   * @returns {string} Email HTML
+   */
+  buildExpiryEmailHtml(expiring, generatedAt, windowDays) {
+    const days = windowDays || this.privacyConfig.EXPIRY_NOTICE_DAYS || 30;
+    if (!expiring || expiring.length === 0) {
+      return `<p>Consent expiry report generated at ${generatedAt}.</p><p>No consents are due to expire within ${days} days.</p>`;
+    }
+
+    const rows = expiring.map(item => {
+      return `<tr>
+        <td>${item.playerName}</td>
+        <td>${item.consentType}</td>
+        <td>${item.expires_at}</td>
+        <td>${item.days_remaining}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <p>Consent expiry report generated at ${generatedAt}.</p>
+      <p>The following consents expire within ${days} days:</p>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Consent Type</th>
+            <th>Expires At</th>
+            <th>Days Remaining</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  /**
+   * Normalize string keys
+   * @param {any} value - Value to normalize
+   * @returns {string} Normalized key
+   */
+  normalizeKey(value) {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return value.toString().trim().toLowerCase();
+  }
+
+  /**
+   * Convert value to boolean with fallback
+   * @param {any} value - Value to convert
+   * @param {boolean} fallback - Fallback value
+   * @returns {boolean} Parsed boolean
+   */
+  toBoolean(value, fallback = false) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['yes', 'true', '1', 'y'].includes(normalized)) {
+        return true;
+      }
+      if (['no', 'false', '0', 'n'].includes(normalized)) {
+        return false;
+      }
+    }
+
+    return fallback;
+  }
+
+  /**
+   * Parse various date formats safely
+   * @param {any} value - Date value
+   * @returns {Date|null} Parsed date
+   */
+  parseDate(value) {
+    if (!value && value !== 0) {
+      return null;
+    }
+
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      const fromNumber = new Date(value);
+      return isNaN(fromNumber.getTime()) ? null : fromNumber;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+
+      const isoDate = new Date(trimmed);
+      if (!isNaN(isoDate.getTime())) {
+        return isoDate;
+      }
+
+      const ukDate = DateUtils.parseUK(trimmed);
+      if (ukDate) {
+        return ukDate;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Calculate age from date of birth
+   * @param {Date|null} date - Date of birth
+   * @returns {number|null} Age in years
+   */
+  calculateAge(date) {
+    if (!date) {
+      return null;
+    }
+
+    const diff = DateUtils.now().getTime() - date.getTime();
+    if (diff <= 0) {
+      return null;
+    }
+
+    const ageDate = new Date(diff);
+    return Math.abs(ageDate.getUTCFullYear() - 1970);
   }
 
   // ==================== GDPR COMPLIANCE FEATURES ====================
@@ -819,6 +1906,93 @@ class PrivacyComplianceManager {
  */
 const PrivacyManager = new PrivacyComplianceManager();
 
+// ==================== CONSENT GATE HELPER ====================
+
+/**
+ * ConsentGate provides reusable consent evaluation for outbound posts
+ */
+class ConsentGate {
+
+  /**
+   * Evaluate whether a payload can be published based on consent rules
+   * @param {Object} payload - Payload destined for Make.com
+   * @param {Object} context - Additional context metadata
+   * @returns {Object} Consent decision
+   */
+  static evaluatePost(payload, context = {}) {
+    const gateLogger = logger.scope('ConsentGate');
+    const eventType = context.eventType || payload?.event_type || 'unspecified';
+    const moduleName = context.module || 'unknown';
+
+    gateLogger.enterFunction('evaluatePost', {
+      module: moduleName,
+      eventType,
+      platform: context.platform || payload?.platform || 'unspecified'
+    });
+
+    try {
+      const decision = PrivacyManager.evaluateConsentForMedia({
+        players: context.players || [],
+        mediaType: context.mediaType || payload?.media_type || eventType,
+        platform: context.platform || payload?.platform || 'unspecified',
+        module: moduleName,
+        eventType,
+        matchId: context.matchId || payload?.match_id || payload?.matchId || null,
+        skipAudit: context.skipAudit === true
+      });
+
+      gateLogger.exitFunction('evaluatePost', {
+        allowed: decision.allowed,
+        anonymiseFaces: decision.anonymiseFaces,
+        useInitialsOnly: decision.useInitialsOnly
+      });
+
+      return decision;
+
+    } catch (error) {
+      gateLogger.error('Consent gate evaluation failed', { error: error.toString() });
+      return {
+        allowed: false,
+        reason: error.toString(),
+        anonymiseFaces: true,
+        useInitialsOnly: true,
+        players: [],
+        mediaType: context.mediaType || payload?.media_type || 'general_media',
+        platform: context.platform || payload?.platform || 'unspecified',
+        module: moduleName,
+        eventType,
+        evaluated_at: DateUtils.formatISO(DateUtils.now())
+      };
+    }
+  }
+
+  /**
+   * Apply consent directives to payload metadata
+   * @param {Object} payload - Original payload
+   * @param {Object} decision - Consent decision
+   * @returns {Object} Payload with privacy metadata
+   */
+  static applyDecisionToPayload(payload, decision) {
+    if (!payload || !decision) {
+      return payload;
+    }
+
+    const privacyDirectives = {
+      allowed: decision.allowed,
+      anonymiseFaces: !!decision.anonymiseFaces,
+      useInitialsOnly: !!decision.useInitialsOnly,
+      reason: decision.reason,
+      evaluated_at: decision.evaluated_at,
+      players: decision.players || []
+    };
+
+    return {
+      ...payload,
+      privacy: privacyDirectives
+    };
+  }
+}
+
 /**
  * Detect PII in data - Global function
  * @param {Object} data - Data to analyze
@@ -826,6 +2000,15 @@ const PrivacyManager = new PrivacyComplianceManager();
  */
 function detectPII(data) {
   return PrivacyManager.detectPII(data);
+}
+
+/**
+ * Evaluate consent for media payloads (global helper)
+ * @param {Object} context - Evaluation context
+ * @returns {Object} Consent decision
+ */
+function evaluateConsentForMedia(context = {}) {
+  return PrivacyManager.evaluateConsentForMedia(context);
 }
 
 /**
@@ -872,4 +2055,22 @@ function anonymizePlayerData(playerData) {
  */
 function applyDataRetentionPolicies(options = {}) {
   return PrivacyManager.applyRetentionPolicies(options);
+}
+
+/**
+ * Get consent dashboard summary for control panel
+ * @param {number|null} windowDays - Expiry window
+ * @returns {Object} Summary result
+ */
+function getConsentDashboardSummary(windowDays = null) {
+  return PrivacyManager.getConsentDashboardSummary(windowDays);
+}
+
+/**
+ * Generate and optionally email consent expiry report
+ * @param {number|null} windowDays - Expiry window
+ * @returns {Object} Report result
+ */
+function sendConsentExpiryReport(windowDays = null) {
+  return PrivacyManager.sendConsentExpiryReport(windowDays);
 }
