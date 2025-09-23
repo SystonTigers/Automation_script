@@ -189,6 +189,10 @@ class SystemCoordinator {
       
     } catch (error) {
       this.logger.error('Sheet initialization failed', { error: error.toString() });
+      this.logger.exitFunction('initializeRequiredSheets', {
+        success: false,
+        error: error.toString()
+      });
       return { success: false, error: error.toString() };
     }
   }
