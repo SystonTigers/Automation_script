@@ -204,11 +204,11 @@ class EnhancedEventsManager {
       
       // Auto-detect opposition cards
       const isOppositionCard = this.detectOppositionCard(player);
-      
+
       if (isOppositionCard) {
         return this.processOppositionCard(minute, cardType, matchId);
       }
-      
+
       // Check for 2nd yellow card
       if (this.isSecondYellow(player, cardType, matchId)) {
         return this.processSecondYellow(minute, player, matchId);
@@ -241,6 +241,10 @@ class EnhancedEventsManager {
    * @returns {boolean} True if second yellow
    */
   isSecondYellow(player, cardType, matchId) {
+    if (!isFeatureEnabled('SECOND_YELLOW_PROCESSING')) {
+      return false;
+    }
+
     if (cardType.toLowerCase().includes('red') && cardType.toLowerCase().includes('yellow')) {
       return true;
     }
@@ -607,20 +611,20 @@ class EnhancedEventsManager {
    */
   initializePlayerMinutes(matchId) {
     this.logger.enterFunction('initializePlayerMinutes', { matchId });
-    
+
     try {
       // Get starting XI from team sheet
       const starters = this.getStartingEleven(matchId);
-      
+
       starters.forEach(player => {
         this.playerMinutes.set(player, {
-          minutesPlayed: 0,
+          totalMinutes: 0,
           isOnPitch: true,
           subOnMinute: 0,
-          subOffMinute: null
+          projectedMinutes: 0
         });
       });
-      
+
       this.logger.exitFunction('initializePlayerMinutes', { 
         players_initialized: starters.length 
       });
@@ -638,23 +642,40 @@ class EnhancedEventsManager {
    * @param {string} matchId - Match identifier
    */
   updatePlayerMinutesOnSub(playerOff, playerOn, minute, matchId) {
-    const subMinute = parseInt(minute);
-    
-    // Player coming off
-    if (this.playerMinutes.has(playerOff)) {
-      const playerData = this.playerMinutes.get(playerOff);
-      playerData.subOffMinute = subMinute;
-      playerData.isOnPitch = false;
-      playerData.minutesPlayed = subMinute - playerData.subOnMinute;
+    const subMinute = parseInt(minute, 10);
+
+    if (!Number.isFinite(subMinute)) {
+      return;
     }
-    
-    // Player coming on
-    this.playerMinutes.set(playerOn, {
-      minutesPlayed: 0,
-      isOnPitch: true,
-      subOnMinute: subMinute,
-      subOffMinute: null
-    });
+
+    const offData = this.playerMinutes.get(playerOff) || {
+      totalMinutes: 0,
+      isOnPitch: false,
+      subOnMinute: null,
+      projectedMinutes: 0
+    };
+
+    if (offData.isOnPitch && offData.subOnMinute !== null) {
+      const segmentMinutes = Math.max(0, subMinute - offData.subOnMinute);
+      offData.totalMinutes += segmentMinutes;
+    }
+
+    offData.isOnPitch = false;
+    offData.subOnMinute = null;
+    offData.projectedMinutes = offData.totalMinutes;
+    this.playerMinutes.set(playerOff, offData);
+
+    const onData = this.playerMinutes.get(playerOn) || {
+      totalMinutes: 0,
+      isOnPitch: false,
+      subOnMinute: null,
+      projectedMinutes: 0
+    };
+
+    onData.isOnPitch = true;
+    onData.subOnMinute = subMinute;
+    onData.projectedMinutes = onData.totalMinutes;
+    this.playerMinutes.set(playerOn, onData);
   }
 
   /**
@@ -664,8 +685,10 @@ class EnhancedEventsManager {
    */
   updateAllPlayerMinutes(currentMinute, matchId) {
     this.playerMinutes.forEach((data, player) => {
-      if (data.isOnPitch) {
-        data.minutesPlayed = currentMinute - data.subOnMinute;
+      if (data.isOnPitch && data.subOnMinute !== null) {
+        data.projectedMinutes = data.totalMinutes + Math.max(0, currentMinute - data.subOnMinute);
+      } else {
+        data.projectedMinutes = data.totalMinutes;
       }
     });
   }
@@ -676,22 +699,25 @@ class EnhancedEventsManager {
    */
   finalizeAllPlayerMinutes(matchId) {
     this.logger.enterFunction('finalizeAllPlayerMinutes', { matchId });
-    
+
     try {
       const fullTimeMinute = this.fullTimeMinute;
-      
+
       // Finalize minutes for all players
       this.playerMinutes.forEach((data, player) => {
-        if (data.isOnPitch) {
-          data.minutesPlayed = fullTimeMinute - data.subOnMinute;
+        if (data.isOnPitch && data.subOnMinute !== null) {
+          data.totalMinutes += Math.max(0, fullTimeMinute - data.subOnMinute);
+          data.isOnPitch = false;
+          data.subOnMinute = null;
         }
-        
-        // Update player stats sheet
-        this.playerManager.updatePlayerMinutesInSheet(player, data.minutesPlayed);
+
+        data.projectedMinutes = data.totalMinutes;
+
+        this.playerManager.updatePlayerMinutesInSheet(player, data.totalMinutes);
       });
-      
-      this.logger.exitFunction('finalizeAllPlayerMinutes', { 
-        players_updated: this.playerMinutes.size 
+
+      this.logger.exitFunction('finalizeAllPlayerMinutes', {
+        players_updated: this.playerMinutes.size
       });
       
     } catch (error) {

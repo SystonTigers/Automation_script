@@ -480,13 +480,24 @@ class MonitoringAlertingSystem {
    */
   sendAlertNotification(alert) {
     try {
+      const criticalOnly = getConfig('MONITORING.ALERT_CRITICAL_ONLY', true);
+      const severity = (alert.severity || '').toLowerCase();
+      const isCritical = severity === 'critical';
+
       // Email notification (if configured)
       if (this.alertChannels.email && this.alertChannels.email.enabled) {
-        this.sendEmailAlert(alert);
+        if (!isCritical && criticalOnly) {
+          this.logger.info('Non-critical alert logged without email notification', {
+            alert_type: alert.type,
+            severity: alert.severity
+          });
+        } else {
+          this.sendEmailAlert(alert);
+        }
       }
 
       // Webhook notification (if configured)
-      if (this.alertChannels.webhook && this.alertChannels.webhook.enabled) {
+      if (this.alertChannels.webhook && this.alertChannels.webhook.enabled && isCritical) {
         this.sendWebhookAlert(alert);
       }
 
@@ -637,6 +648,28 @@ class MonitoringAlertingSystem {
     return currentMetrics;
   }
 
+  /**
+   * Generate weekly health summary snapshot
+   * @returns {Object} Weekly health summary
+   */
+  generateWeeklyHealthSummary() {
+    const currentMetrics = this.getCurrentMetrics();
+    const features = getConfig('FEATURES', {});
+    const disabledFeatures = Object.keys(features || {})
+      .filter(featureKey => !features[featureKey]);
+
+    return {
+      generated_at: DateUtils.formatISO(DateUtils.now()),
+      quota_usage: currentMetrics.quota_usage || 'not_tracked',
+      error_count: (currentMetrics.error_rates && currentMetrics.error_rates.errorCount) || 0,
+      last_post: currentMetrics.last_post || 'unknown',
+      disabled_features: disabledFeatures,
+      warnings: disabledFeatures.length > 0
+        ? ['One or more automation features are disabled in the Control Panel']
+        : []
+    };
+  }
+
   // ==================== CONFIGURATION ====================
 
   /**
@@ -689,8 +722,8 @@ class MonitoringAlertingSystem {
         recipients: getConfig('MONITORING.EMAIL_RECIPIENTS', '').split(',').filter(e => e.trim())
       },
       webhook: {
-        enabled: true,
-        url: getConfig('MONITORING.WEBHOOK_URL', '')
+        enabled: false,
+        url: ''
       },
       sheet: {
         enabled: true
