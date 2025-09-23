@@ -15,6 +15,343 @@
  * - Batch webhook processing
  */
 
+// ==================== TEMPLATE VARIANT BUILDER ====================
+
+/**
+ * Builds Canva template variant payloads enriched with buyer intake branding.
+ */
+class TemplateVariantBuilder {
+
+  constructor() {
+    this.logger = logger.scope('TemplateVariantBuilder');
+    this.templateConfig = getConfig('CANVA.TEMPLATE_VARIANTS', {});
+    this.variantSettings = getConfig('CANVA.VARIANT_SETTINGS', {});
+    this.buyerProfile = getConfig('BUYER_INTAKE', {});
+  }
+
+  /**
+   * Build variant list for a specific post type.
+   * @param {string} postType - Logical post type key (e.g. fixtures, quotes).
+   * @param {Object} context - Context data for placeholder binding.
+   * @returns {Array<Object>} Array of variant payload definitions.
+   */
+  buildVariants(postType, context = {}) {
+    const normalizedPostType = (postType || '').toLowerCase();
+    const configKey = normalizedPostType.toUpperCase();
+
+    this.logger.enterFunction('buildVariants', {
+      post_type: normalizedPostType,
+      context_keys: Object.keys(context || {})
+    });
+
+    try {
+      const variantsConfig = Array.isArray(this.templateConfig[configKey])
+        ? this.templateConfig[configKey]
+        : [];
+
+      if (variantsConfig.length === 0) {
+        this.logger.exitFunction('buildVariants', { count: 0 });
+        return [];
+      }
+
+      const limit = this.resolveVariantLimit(variantsConfig.length);
+      const theme = this.resolveTheme();
+      const crestUrls = this.resolveCrests();
+      const buyerOverrides = this.resolveTextOverrides(normalizedPostType);
+
+      const variants = variantsConfig.slice(0, limit).map(variantConfig => {
+        const defaultText = variantConfig.default_text || {};
+        const placeholders = this.resolvePlaceholderValues(
+          variantConfig.placeholder_bindings,
+          context
+        );
+
+        return {
+          variant_id: variantConfig.variant_id,
+          template_id: variantConfig.template_id,
+          name: variantConfig.name,
+          post_type: normalizedPostType,
+          theme: theme,
+          crest_urls: crestUrls,
+          text_overrides: {
+            ...defaultText,
+            ...buyerOverrides
+          },
+          placeholders: placeholders,
+          style: variantConfig.style || {},
+          tags: variantConfig.tags || []
+        };
+      });
+
+      this.logger.exitFunction('buildVariants', {
+        post_type: normalizedPostType,
+        count: variants.length
+      });
+
+      return variants;
+
+    } catch (error) {
+      this.logger.error('Failed to build template variants', {
+        error: error.toString(),
+        post_type: normalizedPostType
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Resolve post type for a given event type using config mapping.
+   * @param {string} eventType - Make.com event type identifier.
+   * @returns {string|null} Resolved post type or null.
+   */
+  static resolvePostType(eventType) {
+    if (!eventType) {
+      return null;
+    }
+
+    const mapping = getConfig('MAKE.CONTENT_SLOTS', {});
+    if (mapping && typeof mapping === 'object') {
+      if (mapping[eventType]) {
+        return mapping[eventType];
+      }
+
+      const upperKey = eventType.toUpperCase();
+      if (mapping[upperKey]) {
+        return mapping[upperKey];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve maximum variants per type respecting limits.
+   * @param {number} available - Available variant definitions.
+   * @returns {number} Limit to apply.
+   */
+  resolveVariantLimit(available) {
+    const maxAllowed = this.variantSettings?.MAX_PER_POST_TYPE || 15;
+    const minRecommended = this.variantSettings?.MIN_RECOMMENDED || 10;
+    const limit = Math.min(maxAllowed, available);
+    return Math.max(Math.min(limit, maxAllowed), Math.min(minRecommended, available));
+  }
+
+  /**
+   * Resolve buyer branding colours and typography.
+   * @returns {Object} Theme object for templates.
+   */
+  resolveTheme() {
+    const colors = this.buyerProfile?.BRAND_COLORS || {};
+    const typography = this.buyerProfile?.TYPOGRAPHY || {};
+
+    return {
+      primary_color: colors.PRIMARY || '#F05A28',
+      secondary_color: colors.SECONDARY || '#0E1A2B',
+      accent_color: colors.ACCENT || '#FFD447',
+      neutral_color: colors.NEUTRAL || '#FFFFFF',
+      typography: {
+        primary_font: typography.PRIMARY_FONT || 'Montserrat',
+        secondary_font: typography.SECONDARY_FONT || 'Roboto'
+      }
+    };
+  }
+
+  /**
+   * Resolve crest URLs for branding.
+   * @returns {Object} Crest URL map.
+   */
+  resolveCrests() {
+    const crests = this.buyerProfile?.CREST_URLS || {};
+    return {
+      primary: crests.PRIMARY || '',
+      secondary: crests.SECONDARY || crests.PRIMARY || '',
+      tertiary: crests.TERTIARY || ''
+    };
+  }
+
+  /**
+   * Resolve buyer text overrides for a post type.
+   * @param {string} postType - Post type key.
+   * @returns {Object} Overrides.
+   */
+  resolveTextOverrides(postType) {
+    const overrides = this.buyerProfile?.TEXT_OVERRIDES || {};
+    return overrides[postType] || {};
+  }
+
+  /**
+   * Resolve placeholder values using binding instructions.
+   * @param {Object} bindings - Placeholder binding map.
+   * @param {Object} context - Context data.
+   * @returns {Object} Placeholder values.
+   */
+  resolvePlaceholderValues(bindings, context) {
+    if (!bindings || typeof bindings !== 'object') {
+      return {};
+    }
+
+    const resolved = {};
+
+    Object.entries(bindings).forEach(([placeholderKey, binding]) => {
+      if (typeof binding === 'string') {
+        if (binding.startsWith('static:')) {
+          resolved[placeholderKey] = binding.slice(7);
+        } else {
+          resolved[placeholderKey] = this.getValueFromContext(binding, context);
+        }
+      } else if (binding && typeof binding === 'object') {
+        if (binding.type === 'list') {
+          const source = this.getValueFromContext(binding.source, context);
+          if (Array.isArray(source)) {
+            const limit = binding.limit || source.length;
+            resolved[placeholderKey] = source.slice(0, limit);
+          } else {
+            resolved[placeholderKey] = [];
+          }
+        } else if (binding.type === 'fallback') {
+          const value = this.getValueFromContext(binding.source, context);
+          resolved[placeholderKey] = value != null ? value : binding.default || null;
+        } else if (binding.type === 'static') {
+          resolved[placeholderKey] = binding.value;
+        } else {
+          resolved[placeholderKey] = this.getValueFromContext(binding.source, context);
+        }
+      } else {
+        resolved[placeholderKey] = binding;
+      }
+    });
+
+    return resolved;
+  }
+
+  /**
+   * Retrieve nested value from context via dot/bracket notation.
+   * @param {string} path - Context path (e.g., fixtures_list[0].opponent).
+   * @param {Object} context - Context object.
+   * @returns {*} Resolved value or null.
+   */
+  getValueFromContext(path, context) {
+    if (!path) {
+      return null;
+    }
+
+    const segments = path.split('.');
+    let current = context;
+
+    for (let i = 0; i < segments.length; i += 1) {
+      if (current == null) {
+        return null;
+      }
+
+      const segment = segments[i];
+      const match = segment.match(/^([a-zA-Z0-9_]+)(\[(\d+)\])?$/);
+      if (!match) {
+        return null;
+      }
+
+      const property = match[1];
+      if (!(property in current)) {
+        return null;
+      }
+
+      current = current[property];
+
+      if (match[2]) {
+        const index = parseInt(match[3], 10);
+        if (!Array.isArray(current) || index >= current.length) {
+          return null;
+        }
+        current = current[index];
+      }
+    }
+
+    return current != null ? current : null;
+  }
+}
+
+/** @type {TemplateVariantBuilder|null} */
+let __templateVariantBuilderInstance = null;
+
+/**
+ * Build template variant collection keyed by post type.
+ * @param {string} postType - Post type key.
+ * @param {Object} context - Context data for bindings.
+ * @returns {Object} Variant collection map.
+ */
+function buildTemplateVariantCollection(postType, context = {}) {
+  const variantLogger = logger.scope('TemplateVariantHelper');
+  variantLogger.enterFunction('buildTemplateVariantCollection', { post_type: postType });
+
+  try {
+    if (typeof TemplateVariantBuilder === 'undefined') {
+      variantLogger.warn('TemplateVariantBuilder not available');
+      variantLogger.exitFunction('buildTemplateVariantCollection', { count: 0 });
+      return {};
+    }
+
+    if (!__templateVariantBuilderInstance) {
+      __templateVariantBuilderInstance = new TemplateVariantBuilder();
+    }
+
+    const variants = __templateVariantBuilderInstance.buildVariants(postType, context);
+    const collection = variants.length > 0 ? { [postType]: variants } : {};
+
+    variantLogger.exitFunction('buildTemplateVariantCollection', {
+      post_type: postType,
+      count: variants.length
+    });
+
+    return collection;
+
+  } catch (error) {
+    variantLogger.error('Failed to build template variant collection', {
+      error: error.toString(),
+      post_type: postType
+    });
+    return {};
+  }
+}
+
+/**
+ * Build template variant collection from event type.
+ * @param {string} eventType - Event type identifier.
+ * @param {Object} context - Context data.
+ * @returns {Object} Variant collection map.
+ */
+function buildTemplateVariantsForEvent(eventType, context = {}) {
+  const helperLogger = logger.scope('TemplateVariantHelper');
+  helperLogger.enterFunction('buildTemplateVariantsForEvent', { event_type: eventType });
+
+  try {
+    const postType = TemplateVariantBuilder.resolvePostType(eventType);
+
+    if (!postType) {
+      helperLogger.exitFunction('buildTemplateVariantsForEvent', {
+        event_type: eventType,
+        count: 0
+      });
+      return {};
+    }
+
+    const collection = buildTemplateVariantCollection(postType, context);
+
+    helperLogger.exitFunction('buildTemplateVariantsForEvent', {
+      event_type: eventType,
+      post_type: postType,
+      count: (collection[postType] || []).length
+    });
+
+    return collection;
+
+  } catch (error) {
+    helperLogger.error('Failed to build template variants for event', {
+      error: error.toString(),
+      event_type: eventType
+    });
+    return {};
+  }
+}
+
 // ==================== MAKE INTEGRATION MANAGER CLASS ====================
 
 /**
@@ -451,24 +788,87 @@ class MakeIntegration {
     try {
       const eventTypes = getConfig('MAKE.EVENT_TYPES', {});
       const missingRoutes = [];
-      
+
       Object.values(eventTypes).forEach(eventType => {
         const routerHint = this.getRouterHint(eventType);
         if (routerHint === 'default') {
           missingRoutes.push(eventType);
         }
       });
-      
+
       return {
         valid: missingRoutes.length === 0,
         missing_routes: missingRoutes,
         total_event_types: Object.keys(eventTypes).length
       };
-      
+
     } catch (error) {
       return {
         valid: false,
         error: error.toString()
+      };
+    }
+  }
+
+  /**
+   * Build router documentation including template variant previews.
+   * @param {Object<string, Object>} contextOverrides - Optional context overrides keyed by event type or post type.
+   * @returns {Object} Router documentation payload.
+   */
+  getRouterDocumentation(contextOverrides = {}) {
+    this.logger.enterFunction('getRouterDocumentation', {
+      context_override_keys: Object.keys(contextOverrides || {})
+    });
+
+    try {
+      // @testHook(router_documentation_start)
+
+      const eventTypes = getConfig('MAKE.EVENT_TYPES', {});
+      const documentation = [];
+
+      Object.entries(eventTypes).forEach(([configKey, eventType]) => {
+        const postType = TemplateVariantBuilder.resolvePostType(eventType);
+        const context = contextOverrides[eventType]
+          || contextOverrides[postType]
+          || {};
+        const variants = postType
+          ? buildTemplateVariantCollection(postType, context)[postType] || []
+          : [];
+
+        documentation.push({
+          config_key: configKey,
+          event_type: eventType,
+          router_branch: this.getRouterHint(eventType),
+          post_type: postType,
+          variant_count: variants.length,
+          template_variants: variants
+        });
+      });
+
+      const payload = {
+        generated_at: DateUtils.formatISO(DateUtils.now()),
+        version: getConfig('SYSTEM.VERSION'),
+        total_routes: documentation.length,
+        routes: documentation
+      };
+
+      // @testHook(router_documentation_complete)
+
+      this.logger.exitFunction('getRouterDocumentation', {
+        total_routes: documentation.length
+      });
+
+      return payload;
+
+    } catch (error) {
+      this.logger.error('Router documentation generation failed', {
+        error: error.toString()
+      });
+      return {
+        error: error.toString(),
+        generated_at: DateUtils.formatISO(DateUtils.now()),
+        version: getConfig('SYSTEM.VERSION'),
+        routes: []
       };
     }
   }
@@ -867,5 +1267,15 @@ function initializeMakeIntegration() {
       error: error.toString() 
     };
   }
+}
+
+/**
+ * Retrieve Make.com router documentation including template variants.
+ * @param {Object<string, Object>} contextOverrides - Optional context overrides.
+ * @returns {Object} Router documentation payload.
+ */
+function getMakeRouterDocumentation(contextOverrides = {}) {
+  const integration = new MakeIntegration();
+  return integration.getRouterDocumentation(contextOverrides);
 }
 

@@ -26,6 +26,7 @@ class MonthlySummariesManager {
     this.maxResultsPerPayload = this.summaryConfig.MAX_RESULTS_PER_PAYLOAD || 10;
     this.cacheTtlSeconds = this.summaryConfig.CACHE_TTL_SECONDS || 21600;
     this.monthlySheet = null;
+    this.variantBuilderAvailable = typeof buildTemplateVariantCollection === 'function';
   }
 
   // ==================== PUBLIC SUMMARIES ====================
@@ -499,6 +500,28 @@ class MonthlySummariesManager {
   // ==================== PAYLOAD BUILDERS ====================
 
   /**
+   * Build template variant collection for a post type.
+   * @param {string} postType - Post type identifier.
+   * @param {Object} context - Context data for placeholder bindings.
+   * @returns {Object} Variant collection map.
+   */
+  buildTemplateVariants(postType, context = {}) {
+    if (!this.variantBuilderAvailable) {
+      return {};
+    }
+
+    try {
+      return buildTemplateVariantCollection(postType, context);
+    } catch (error) {
+      this.logger.warn('Monthly template variant build failed', {
+        error: error.toString(),
+        post_type: postType
+      });
+      return {};
+    }
+  }
+
+  /**
    * Build fixtures payload for Make.com.
    * @param {Object} fixturesData - Fixtures data and metadata
    * @param {Object} statistics - Calculated statistics
@@ -513,6 +536,23 @@ class MonthlySummariesManager {
     const yearNumber = parseInt(yearString, 10);
 
     const limitedFixtures = fixturesData.fixtures.slice(0, this.maxFixturesPerPayload);
+    const normalizedFixtures = limitedFixtures.map(fixture => ({
+      opponent: fixture.opponent,
+      date: fixture.dateFormatted || DateUtils.formatUK(fixture.date),
+      time: fixture.time,
+      venue: fixture.venue,
+      competition: fixture.competition
+    }));
+
+    const variantContext = {
+      month_name: DateUtils.getMonthName(monthNumber),
+      fixtures_count: fixturesData.fixtures.length,
+      fixtures: normalizedFixtures,
+      statistics,
+      standout_fixture: normalizedFixtures[0] || null
+    };
+
+    const templateVariants = this.buildTemplateVariants('monthly_fixtures', variantContext);
 
     return {
       event_type: eventType,
@@ -529,7 +569,10 @@ class MonthlySummariesManager {
       metadata: {
         posted_at: DateUtils.formatISO(DateUtils.now()),
         truncated: fixturesData.fixtures.length > limitedFixtures.length
-      }
+      },
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -548,6 +591,26 @@ class MonthlySummariesManager {
     const yearNumber = parseInt(yearString, 10);
 
     const limitedResults = resultsData.results.slice(0, this.maxResultsPerPayload);
+    const normalizedResults = limitedResults.map(result => ({
+      opponent: result.opponent,
+      date: result.dateFormatted || DateUtils.formatUK(result.date),
+      scoreline: result.scoreline,
+      competition: result.competition,
+      venue: result.venue
+    }));
+
+    const statisticsSummary = `Wins ${statistics.wins} • Draws ${statistics.draws} • Losses ${statistics.losses}`;
+
+    const variantContext = {
+      month_name: DateUtils.getMonthName(monthNumber),
+      results_count: resultsData.results.length,
+      results: normalizedResults,
+      statistics,
+      top_result: normalizedResults[0] || null,
+      statistics_summary: statisticsSummary
+    };
+
+    const templateVariants = this.buildTemplateVariants('monthly_results', variantContext);
 
     return {
       event_type: eventType,
@@ -564,7 +627,11 @@ class MonthlySummariesManager {
       metadata: {
         posted_at: DateUtils.formatISO(DateUtils.now()),
         truncated: resultsData.results.length > limitedResults.length
-      }
+      },
+      statistics_summary: statisticsSummary,
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
