@@ -43,23 +43,28 @@ class EnhancedEventsManager {
    */
   processGoalEvent(minute, player, assist = '', matchId = null) {
     this.logger.enterFunction('processGoalEvent', { minute, player, assist, matchId });
-    
+
+    let result = null;
+
     try {
       // @testHook(goal_event_start)
-      
+
       // Bible compliance: Auto-detect opposition goals
       const isOppositionGoal = this.detectOppositionGoal(player);
-      
+
       if (isOppositionGoal) {
-        return this.processOppositionGoal(minute, matchId);
+        result = this.processOppositionGoal(minute, matchId);
       } else {
-        return this.processTeamGoal(minute, player, assist, matchId);
+        result = this.processTeamGoal(minute, player, assist, matchId);
       }
-      
+
     } catch (error) {
       this.logger.error('Goal event processing failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      result = { success: false, error: error.toString() };
     }
+
+    this.logger.exitFunction('processGoalEvent', result);
+    return result;
   }
 
   /**
@@ -198,29 +203,32 @@ class EnhancedEventsManager {
    */
   processCardEvent(minute, player, cardType, matchId = null) {
     this.logger.enterFunction('processCardEvent', { minute, player, cardType, matchId });
-    
+
+    let result = null;
+
     try {
       // @testHook(card_event_start)
-      
+
       // Auto-detect opposition cards
       const isOppositionCard = this.detectOppositionCard(player);
 
       if (isOppositionCard) {
-        return this.processOppositionCard(minute, cardType, matchId);
+        result = this.processOppositionCard(minute, cardType, matchId);
+      } else if (this.isSecondYellow(player, cardType, matchId)) {
+        // Check for 2nd yellow card
+        result = this.processSecondYellow(minute, player, matchId);
+      } else {
+        // Process regular team card
+        result = this.processTeamCard(minute, player, cardType, matchId);
       }
 
-      // Check for 2nd yellow card
-      if (this.isSecondYellow(player, cardType, matchId)) {
-        return this.processSecondYellow(minute, player, matchId);
-      }
-      
-      // Process regular team card
-      return this.processTeamCard(minute, player, cardType, matchId);
-      
     } catch (error) {
       this.logger.error('Card event processing failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      result = { success: false, error: error.toString() };
     }
+
+    this.logger.exitFunction('processCardEvent', result);
+    return result;
   }
 
   /**
