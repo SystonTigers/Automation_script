@@ -43,22 +43,31 @@ class EnhancedEventsManager {
    */
   processGoalEvent(minute, player, assist = '', matchId = null) {
     this.logger.enterFunction('processGoalEvent', { minute, player, assist, matchId });
-    
+
     try {
       // @testHook(goal_event_start)
-      
+
       // Bible compliance: Auto-detect opposition goals
       const isOppositionGoal = this.detectOppositionGoal(player);
-      
+      let result;
+
       if (isOppositionGoal) {
-        return this.processOppositionGoal(minute, matchId);
+        result = this.processOppositionGoal(minute, matchId);
+        // @testHook(goal_event_exit_opposition)
       } else {
-        return this.processTeamGoal(minute, player, assist, matchId);
+        result = this.processTeamGoal(minute, player, assist, matchId);
+        // @testHook(goal_event_exit_team)
       }
-      
+
+      const resultContext = Object.assign({ branch: isOppositionGoal ? 'opposition' : 'team' }, result);
+      this.logger.exitFunction('processGoalEvent', resultContext);
+      return result;
+
     } catch (error) {
+      const errorResponse = { success: false, error: error.toString() };
       this.logger.error('Goal event processing failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      this.logger.exitFunction('processGoalEvent', errorResponse);
+      return errorResponse;
     }
   }
 
@@ -198,28 +207,38 @@ class EnhancedEventsManager {
    */
   processCardEvent(minute, player, cardType, matchId = null) {
     this.logger.enterFunction('processCardEvent', { minute, player, cardType, matchId });
-    
+
     try {
       // @testHook(card_event_start)
-      
+
       // Auto-detect opposition cards
       const isOppositionCard = this.detectOppositionCard(player);
+      let result;
+      let branch = 'team';
 
       if (isOppositionCard) {
-        return this.processOppositionCard(minute, cardType, matchId);
+        branch = 'opposition';
+        result = this.processOppositionCard(minute, cardType, matchId);
+        // @testHook(card_event_exit_opposition)
+      } else if (this.isSecondYellow(player, cardType, matchId)) {
+        branch = 'second_yellow';
+        result = this.processSecondYellow(minute, player, matchId);
+        // @testHook(card_event_exit_second_yellow)
+      } else {
+        branch = 'team';
+        result = this.processTeamCard(minute, player, cardType, matchId);
+        // @testHook(card_event_exit_team)
       }
 
-      // Check for 2nd yellow card
-      if (this.isSecondYellow(player, cardType, matchId)) {
-        return this.processSecondYellow(minute, player, matchId);
-      }
-      
-      // Process regular team card
-      return this.processTeamCard(minute, player, cardType, matchId);
-      
+      const resultContext = Object.assign({ branch: branch }, result);
+      this.logger.exitFunction('processCardEvent', resultContext);
+      return result;
+
     } catch (error) {
+      const errorResponse = { success: false, error: error.toString() };
       this.logger.error('Card event processing failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      this.logger.exitFunction('processCardEvent', errorResponse);
+      return errorResponse;
     }
   }
 
@@ -864,40 +883,101 @@ class EnhancedEventsManager {
    */
   sendToMake(payload) {
     this.logger.enterFunction('sendToMake', { event_type: payload.event_type });
-    
+
     try {
+      const consentContext = {
+        module: 'enhanced_events',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: this.resolveConsentPlayers(payload),
+        matchId: payload.match_id || payload.matchId || null
+      };
+
+      // @testHook(consent_gate_check_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(consent_gate_check_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Consent gate blocked Make.com payload', {
+          event_type: payload.event_type,
+          reason: consentDecision.reason
+        });
+        this.logger.exitFunction('sendToMake', {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       // @testHook(webhook_send_start)
-      
+
       const webhookUrl = getWebhookUrl();
       if (!webhookUrl) {
         throw new Error('Webhook URL not configured');
       }
-      
+
       const response = UrlFetchApp.fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify(enrichedPayload),
         muteHttpExceptions: true
       });
-      
+
       const success = response.getResponseCode() === 200;
-      
+
       // @testHook(webhook_send_complete)
-      
+
       this.logger.exitFunction('sendToMake', { success, response_code: response.getResponseCode() });
-      
+
       return {
         success: success,
         response_code: response.getResponseCode(),
-        response_text: response.getContentText()
+        response_text: response.getContentText(),
+        consent: consentDecision
       };
-      
+
     } catch (error) {
       this.logger.error('Failed to send to Make.com', { error: error.toString() });
       return { success: false, error: error.toString() };
     }
+  }
+
+  /**
+   * Resolve players included in payload for consent evaluation
+   * @param {Object} payload - Event payload
+   * @returns {Array<Object>} Player references
+   */
+  resolveConsentPlayers(payload) {
+    const players = [];
+    const seen = new Set();
+
+    if (payload.player_name && payload.player_name !== 'Opposition') {
+      const key = payload.player_name.toString().trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        players.push({ player: payload.player_name });
+      }
+    }
+
+    if (payload.player && payload.player !== 'Opposition') {
+      const key = payload.player.toString().trim().toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        players.push({ player: payload.player });
+      }
+    }
+
+    return players;
   }
 
   // ==================== LOGGING METHODS ====================

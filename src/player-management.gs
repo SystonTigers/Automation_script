@@ -845,10 +845,42 @@ class PlayerManagementManager {
    */
   sendPlayerStatsToMake(payload) {
     this.logger.enterFunction('sendPlayerStatsToMake', { event_type: payload.event_type });
-    
+
+    let consentDecision = null;
+
     try {
+      const consentContext = {
+        module: 'player_management',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: this.resolveConsentPlayers(payload)
+      };
+
+      // @testHook(player_stats_consent_start)
+      consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(player_stats_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Player stats payload blocked by consent gate', {
+          reason: consentDecision.reason
+        });
+        this.logger.exitFunction('sendPlayerStatsToMake', {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       // @testHook(player_stats_webhook_start)
-      
+
       const webhookUrl = getWebhookUrl();
       if (!webhookUrl) {
         throw new Error('Webhook URL not configured');
@@ -863,29 +895,62 @@ class PlayerManagementManager {
         headers: {
           'Content-Type': 'application/json'
         },
-        payload: JSON.stringify(payload),
+        payload: JSON.stringify(enrichedPayload),
         muteHttpExceptions: true
       });
-      
+
       const success = response.getResponseCode() === 200;
-      
+
       // @testHook(player_stats_webhook_complete)
-      
-      this.logger.exitFunction('sendPlayerStatsToMake', { 
-        success, 
-        response_code: response.getResponseCode() 
+
+      this.logger.exitFunction('sendPlayerStatsToMake', {
+        success,
+        response_code: response.getResponseCode()
       });
-      
+
       return {
         success: success,
         response_code: response.getResponseCode(),
-        response_text: response.getContentText()
+        response_text: response.getContentText(),
+        consent: consentDecision
       };
-      
+
     } catch (error) {
       this.logger.error('Failed to send player stats to Make.com', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      return { success: false, error: error.toString(), consent: consentDecision };
     }
+  }
+
+  /**
+   * Resolve players referenced in player stats payload
+   * @param {Object} payload - Player stats payload
+   * @returns {Array<Object>} Player references
+   */
+  resolveConsentPlayers(payload) {
+    const players = [];
+    const seen = new Set();
+
+    if (payload.top_scorer && payload.top_scorer.player) {
+      const key = payload.top_scorer.player.toString().trim().toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        players.push({ player: payload.top_scorer.player });
+      }
+    }
+
+    if (Array.isArray(payload.player_stats)) {
+      payload.player_stats.forEach(stat => {
+        if (stat.name) {
+          const key = stat.name.toString().trim().toLowerCase();
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            players.push({ player: stat.name });
+          }
+        }
+      });
+    }
+
+    return players;
   }
 
   /**

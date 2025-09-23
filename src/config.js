@@ -47,6 +47,7 @@ const SYSTEM_CONFIG = {
     CLUB_SHORT_NAME: 'Syston',
     SEASON: '2024/25',
     LEAGUE: 'Leicester & District Football League',
+    AGE_GROUP: 'Senior Men's',
     LAST_UPDATED: '2025-09-20',
     
     // Bible compliance settings
@@ -54,6 +55,42 @@ const SYSTEM_CONFIG = {
     WEEKLY_SCHEDULE_ENABLED: true,
     OPPOSITION_AUTO_DETECTION: true,
     PLAYER_MINUTES_AUTO_CALC: true
+  },
+
+  // ==================== BRANDING & CUSTOMER EXPERIENCE ====================
+  BRANDING: {
+    PRIMARY_COLOR: '#ff6600',
+    SECONDARY_COLOR: '#000000',
+    BADGE_URL: '',
+    BADGE_STORAGE_PROPERTY: 'BUYER_BADGE_BASE64',
+    LAST_ASSET_UPDATE: ''
+  },
+
+  CUSTOMER: {
+    DEFAULT_PROFILE: {
+      buyerId: 'default_buyer',
+      clubName: 'Syston Tigers',
+      clubShortName: 'Syston',
+      league: 'Leicester & District Football League',
+      ageGroup: 'Senior Men's',
+      primaryColor: '#ff6600',
+      secondaryColor: '#000000',
+      badgeUrl: '',
+      rosterEntries: []
+    },
+
+    PROPERTY_KEYS: {
+      PROFILE: 'BUYER_PROFILE',
+      PROFILE_ID: 'BUYER_PROFILE_ID',
+      BADGE_BASE64: 'BUYER_BADGE_BASE64'
+    },
+
+    SHEETS: {
+      PROFILE_TAB_KEY: 'BUYER_PROFILES',
+      ROSTER_TAB_KEY: 'BUYER_ROSTERS'
+    },
+
+    ACTIVE_PROFILE: null
   },
 
   // ==================== FEATURE FLAGS ====================
@@ -316,7 +353,16 @@ const SYSTEM_CONFIG = {
       NOTES: 'Notes',
       QUOTES: 'Quotes',
       HISTORICAL_DATA: 'Historical Data',
+
+      PRIVACY_PLAYERS: 'Privacy Players',
+      PRIVACY_CONSENTS: 'Privacy Consents',
+      PRIVACY_AUDIT: 'Privacy Audit Log',
+
+
+      BUYER_PROFILES: 'Buyer Profiles',
+      BUYER_ROSTERS: 'Buyer Rosters',
       
+
       // Future sheets
       SEASON_STATS: 'Season Stats',
       GOAL_OF_MONTH: 'GOTM Tracking',
@@ -358,6 +404,13 @@ const SYSTEM_CONFIG = {
         'Match ID', 'Date', 'Player', 'Event Type', 'Minute',
         'Details', 'Competition', 'Opposition', 'Timestamp'
       ],
+      BUYER_PROFILES: [
+        'Buyer ID', 'Club Name', 'Club Short Name', 'League', 'Age Group',
+        'Primary Colour', 'Secondary Colour', 'Badge URL', 'Last Updated'
+      ],
+      BUYER_ROSTERS: [
+        'Buyer ID', 'Player Name', 'Position', 'Squad Number', 'Last Updated'
+      ],
       SUBS_LOG: mergeUniqueArrays(
         [
           'Match ID', 'Date', 'Minute', 'Player Off', 'Player On',
@@ -370,7 +423,13 @@ const SYSTEM_CONFIG = {
       OPPOSITION_EVENTS: [
         'Match ID', 'Date', 'Event Type', 'Minute', 'Details',
         'Posted', 'Timestamp'
-      ],     
+      ],
+      VIDEO_CLIPS: mergeUniqueArrays(
+        [
+          'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
+          'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
+          'Folder Path', 'Created'
+        ],
         [
           'Match Date', 'Local Path', 'Notes'
         ]
@@ -387,23 +446,26 @@ const SYSTEM_CONFIG = {
         'Make Result'
       ],
       WEEKLY_CONTENT: [
-        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes' 
+        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes'
       ],
-VIDEO_CLIPS: mergeUniqueArrays(
-  [
-    'Match ID', 'Player', 'Event Type', 'Minute', 'Start Time',
-    'Duration', 'Title', 'Caption', 'Status', 'YouTube URL',
-    'Folder Path', 'Created'
-  ],
-  [
-    'Match Date', 'Local Path', 'Notes'
-  ]
-),
-
-MONTHLY_SUMMARIES: [
-  'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
-  'Summary_Data', 'Posted', 'Responses', 'Created'
-]
+      MONTHLY_SUMMARIES: [
+        'Timestamp', 'Month_Key', 'Summary_Type', 'Item_Count',
+        'Summary_Data', 'Posted', 'Responses', 'Created'
+      ],
+      PRIVACY_PLAYERS: [
+        'Player ID', 'Full Name', 'Date of Birth', 'Guardian Name', 'Guardian Email',
+        'Guardian Phone', 'Default Consent Status', 'Default Consent Expiry',
+        'Anonymise Faces', 'Use Initials Only', 'Last Reviewed'
+      ],
+      PRIVACY_CONSENTS: [
+        'Consent ID', 'Player ID', 'Consent Type', 'Status', 'Captured At',
+        'Expires At', 'Proof Reference', 'Source', 'Notes', 'Revoked At',
+        'Anonymise Faces', 'Use Initials Only'
+      ],
+      PRIVACY_AUDIT: [
+        'Timestamp', 'Player ID', 'Player Name', 'Action', 'Media Type',
+        'Platform', 'Decision', 'Reason', 'Context', 'Performed By'
+      ]
     }
   },
 
@@ -468,6 +530,7 @@ MONTHLY_SUMMARIES: [
       WEEKLY_THROWBACK: 'weekly_throwback',
       WEEKLY_COUNTDOWN_2: 'weekly_countdown_2',
       WEEKLY_COUNTDOWN_1: 'weekly_countdown_1',
+      VIDEO_CLIP_PROCESSING: 'video_clip_processing',
       MONDAY_FIXTURES: 'weekly_fixtures',
       TUESDAY_QUOTES: 'weekly_quotes',
       WEDNESDAY_STATS: 'weekly_stats',
@@ -492,6 +555,67 @@ MONTHLY_SUMMARIES: [
       birthday: 'player_birthday',
       gotm_voting_open: 'gotm_voting_start',
       gotm_winner: 'gotm_winner_announcement'
+    },
+
+    // Router content slot mapping for template variants
+    CONTENT_SLOTS: {
+      fixtures_1_league: 'fixtures',
+      fixtures_2_league: 'fixtures',
+      fixtures_3_league: 'fixtures',
+      fixtures_4_league: 'fixtures',
+      fixtures_5_league: 'fixtures',
+      results_1_league: 'results',
+      results_2_league: 'results',
+      results_3_league: 'results',
+      results_4_league: 'results',
+      results_5_league: 'results',
+      weekly_fixtures: 'fixtures',
+      weekly_no_match: 'rest_week',
+      weekly_quotes: 'quotes',
+      weekly_stats: 'stats',
+      weekly_throwback: 'throwback',
+      weekly_countdown_3: 'countdown',
+      weekly_countdown_2: 'countdown',
+      weekly_countdown_1: 'countdown',
+      fixtures_this_month: 'monthly_fixtures',
+      results_this_month: 'monthly_results',
+      player_stats_summary: 'stats',
+      match_postponed: 'postponed_alert',
+      goal_team: 'live_goal',
+      goal_opposition: 'live_goal',
+      card_yellow: 'discipline',
+      card_red: 'discipline',
+      card_second_yellow: 'discipline',
+      card_sin_bin: 'discipline',
+      motm: 'matchday',
+      substitution: 'matchday'
+    }
+  },
+
+  // ==================== PRIVACY & CONSENT MANAGEMENT ====================
+  PRIVACY: {
+    FAIL_CLOSED: true,
+    MINOR_AGE_THRESHOLD: 16,
+    CACHE_TTL_MS: 5 * 60 * 1000,
+    EXPIRY_NOTICE_DAYS: 30,
+    GLOBAL_FLAGS: {
+      ANONYMISE_FACES: false,
+      USE_INITIALS_ONLY: false
+    },
+    CONSENT_TYPES: {
+      GENERAL_MEDIA: 'general_media',
+      MATCHDAY: 'matchday',
+      VIDEO_HIGHLIGHTS: 'video_highlights',
+      PORTRAIT: 'portrait_photography'
+    },
+    REPORTING: {
+      NIGHTLY_HOUR: 22,
+      RECIPIENT_PROPERTY: 'PRIVACY_REPORT_EMAIL',
+      ENABLED: true
+    },
+    AUDIT: {
+      ENABLED: true,
+      MAX_ROWS: 2000
     }
   },
 
@@ -545,7 +669,470 @@ MONTHLY_SUMMARIES: [
       WEEKLY_CONTENT: [
         'content_title', 'content_text', 'background_image', 'overlay_color',
         'quote_text', 'quote_author', 'countdown_days', 'next_match_info'
+      ],
+      COUNTDOWN: [
+        'headline', 'countdown_days', 'opponent', 'match_date',
+        'match_time', 'match_competition', 'call_to_action'
+      ],
+      THROWBACK: [
+        'headline', 'year', 'description', 'image_url', 'cta_text'
+      ],
+      REST_WEEK: [
+        'headline', 'message', 'next_fixture_opponent', 'next_fixture_date',
+        'call_to_action'
+      ],
+      MONTHLY_FIXTURES: [
+        'month_name', 'fixtures_count', 'standout_fixture', 'call_to_action'
+      ],
+      MONTHLY_RESULTS: [
+        'month_name', 'results_count', 'top_result', 'summary_text'
+      ],
+      POSTPONED_ALERT: [
+        'opponent', 'original_date', 'message', 'rescheduled_date'
       ]
+    },
+    VARIANT_SETTINGS: {
+      MAX_PER_POST_TYPE: 15,
+      MIN_RECOMMENDED: 10
+    },
+    TEMPLATE_VARIANTS: {
+      FIXTURES: [
+        {
+          variant_id: 'fixtures_classic_dark',
+          template_id: 'FIX-CL-001',
+          name: 'Classic Dark Fixture Board',
+          placeholder_bindings: {
+            headline: 'static:This Week\'s Fixtures',
+            subheadline: 'week_description',
+            fixture_count: 'fixture_count',
+            primary_opponent: 'primary_fixture.opponent',
+            primary_date: 'primary_fixture.date',
+            primary_time: 'primary_fixture.time'
+          },
+          default_text: {
+            call_to_action: 'Be there to back the Tigers!'
+          },
+          style: {
+            layout: 'split',
+            tone: 'dark'
+          },
+          tags: ['fixtures', 'weekly']
+        },
+        {
+          variant_id: 'fixtures_grid_highlight',
+          template_id: 'FIX-GR-104',
+          name: 'Grid Highlight Fixtures',
+          placeholder_bindings: {
+            headline: 'static:Upcoming Battles',
+            feature_fixture: 'fixtures_list[0]',
+            fixtures_list: {
+              type: 'list',
+              source: 'fixtures_list',
+              limit: 5
+            }
+          },
+          default_text: {
+            strapline: 'All kick-off times UK',
+            call_to_action: 'Save the dates'
+          },
+          style: {
+            layout: 'grid',
+            tone: 'vibrant'
+          },
+          tags: ['fixtures', 'grid']
+        },
+        {
+          variant_id: 'fixtures_social_story',
+          template_id: 'FIX-ST-207',
+          name: 'Story Countdown Fixture',
+          placeholder_bindings: {
+            headline: 'static:Fixtures Incoming',
+            subheadline: 'week_description',
+            next_match: 'primary_fixture'
+          },
+          default_text: {
+            call_to_action: 'Share & invite the squad'
+          },
+          style: {
+            layout: 'story',
+            tone: 'bold'
+          },
+          tags: ['fixtures', 'story']
+        }
+      ],
+      RESULTS: [
+        {
+          variant_id: 'results_scoreline_focus',
+          template_id: 'RES-SC-310',
+          name: 'Scoreline Focus Recap',
+          placeholder_bindings: {
+            headline: 'static:Weekend Results',
+            top_result: 'primary_result',
+            results_list: {
+              type: 'list',
+              source: 'results_list',
+              limit: 5
+            }
+          },
+          default_text: {
+            summary: 'Full-time scores from across the club'
+          },
+          style: {
+            layout: 'stacked',
+            tone: 'dark'
+          },
+          tags: ['results']
+        },
+        {
+          variant_id: 'results_momentum',
+          template_id: 'RES-MO-122',
+          name: 'Momentum Recap',
+          placeholder_bindings: {
+            headline: 'static:Results Roundup',
+            subheadline: 'summary_text',
+            hero_result: 'primary_result'
+          },
+          default_text: {
+            call_to_action: 'Relive the key moments'
+          },
+          style: {
+            layout: 'hero',
+            tone: 'energetic'
+          },
+          tags: ['results', 'hero']
+        },
+        {
+          variant_id: 'results_statboard',
+          template_id: 'RES-ST-520',
+          name: 'Results Statboard',
+          placeholder_bindings: {
+            headline: 'static:Stats & Results',
+            wins: 'statistics.wins',
+            draws: 'statistics.draws',
+            losses: 'statistics.losses',
+            goal_difference: 'statistics.goal_difference'
+          },
+          default_text: {
+            call_to_action: 'Keep the momentum going'
+          },
+          style: {
+            layout: 'statboard',
+            tone: 'professional'
+          },
+          tags: ['results', 'stats']
+        }
+      ],
+      QUOTES: [
+        {
+          variant_id: 'quotes_motivation',
+          template_id: 'QTE-MO-011',
+          name: 'Motivation Spotlight',
+          placeholder_bindings: {
+            headline: 'static:Tuesday Motivation',
+            quote_text: 'quote_text',
+            quote_author: 'quote_author'
+          },
+          default_text: {
+            call_to_action: 'Pass the motivation on'
+          },
+          style: {
+            layout: 'centered',
+            tone: 'inspirational'
+          },
+          tags: ['quotes']
+        },
+        {
+          variant_id: 'quotes_textured',
+          template_id: 'QTE-TX-204',
+          name: 'Textured Quote Card',
+          placeholder_bindings: {
+            headline: 'static:Words to Win',
+            quote_text: 'quote_text',
+            quote_author: 'quote_author',
+            theme: 'inspiration_theme'
+          },
+          default_text: {
+            call_to_action: 'Share your favourite quote'
+          },
+          style: {
+            layout: 'textured',
+            tone: 'warm'
+          },
+          tags: ['quotes', 'engagement']
+        }
+      ],
+      STATS: [
+        {
+          variant_id: 'stats_monthly_overview',
+          template_id: 'STA-MO-301',
+          name: 'Monthly Overview Board',
+          placeholder_bindings: {
+            headline: 'content_title',
+            reporting_period: 'reporting_period',
+            summary: 'stats_summary'
+          },
+          default_text: {
+            call_to_action: 'Dive into the numbers'
+          },
+          style: {
+            layout: 'dashboard',
+            tone: 'analytical'
+          },
+          tags: ['stats', 'monthly']
+        },
+        {
+          variant_id: 'stats_opposition_focus',
+          template_id: 'STA-OP-118',
+          name: 'Opposition Focus Sheet',
+          placeholder_bindings: {
+            headline: 'content_title',
+            opponent: 'opponent_name',
+            previous_meetings: 'previous_meetings',
+            key_players: 'key_players'
+          },
+          default_text: {
+            call_to_action: 'Know the opposition'
+          },
+          style: {
+            layout: 'analysis',
+            tone: 'strategic'
+          },
+          tags: ['stats', 'opposition']
+        }
+      ],
+      THROWBACK: [
+        {
+          variant_id: 'throwback_polaroid',
+          template_id: 'THB-PL-090',
+          name: 'Polaroid Throwback',
+          placeholder_bindings: {
+            headline: 'static:Throwback Thursday',
+            year: 'throwback_year',
+            description: 'throwback_description',
+            image_url: 'image_url'
+          },
+          default_text: {
+            call_to_action: 'Share your memories'
+          },
+          style: {
+            layout: 'collage',
+            tone: 'nostalgic'
+          },
+          tags: ['throwback']
+        }
+      ],
+      COUNTDOWN: [
+        {
+          variant_id: 'countdown_bold',
+          template_id: 'CDN-BD-045',
+          name: 'Bold Countdown',
+          placeholder_bindings: {
+            headline: 'content_title',
+            countdown_days: 'countdown_days',
+            opponent: 'match_opponent',
+            match_date: 'match_date',
+            match_time: 'match_time',
+            call_to_action: 'anticipation_message'
+          },
+          default_text: {
+            strapline: 'Are you ready?'
+          },
+          style: {
+            layout: 'poster',
+            tone: 'electric'
+          },
+          tags: ['countdown']
+        },
+        {
+          variant_id: 'countdown_story',
+          template_id: 'CDN-ST-212',
+          name: 'Story Countdown',
+          placeholder_bindings: {
+            headline: 'content_title',
+            countdown_days: 'countdown_days',
+            opponent: 'match_opponent',
+            match_date: 'match_date'
+          },
+          default_text: {
+            call_to_action: 'Share the hype'
+          },
+          style: {
+            layout: 'story',
+            tone: 'high-energy'
+          },
+          tags: ['countdown', 'story']
+        }
+      ],
+      REST_WEEK: [
+        {
+          variant_id: 'rest_week_relax',
+          template_id: 'RST-RL-030',
+          name: 'Rest Week Reminder',
+          placeholder_bindings: {
+            headline: 'content_title',
+            message: 'message',
+            next_fixture_opponent: 'next_fixture.opponent',
+            next_fixture_date: 'next_fixture.date'
+          },
+          default_text: {
+            call_to_action: 'Recharge and get ready'
+          },
+          style: {
+            layout: 'calm',
+            tone: 'relaxed'
+          },
+          tags: ['rest', 'weekly']
+        }
+      ],
+      MONTHLY_FIXTURES: [
+        {
+          variant_id: 'monthly_fixtures_digest',
+          template_id: 'MON-FX-601',
+          name: 'Monthly Fixture Digest',
+          placeholder_bindings: {
+            month_name: 'month_name',
+            fixtures_count: 'fixtures_count',
+            standout_fixture: 'fixtures[0]'
+          },
+          default_text: {
+            call_to_action: 'Plan your month of football'
+          },
+          style: {
+            layout: 'digest',
+            tone: 'club'
+          },
+          tags: ['monthly', 'fixtures']
+        }
+      ],
+      MONTHLY_RESULTS: [
+        {
+          variant_id: 'monthly_results_digest',
+          template_id: 'MON-RS-602',
+          name: 'Monthly Results Recap',
+          placeholder_bindings: {
+            month_name: 'month_name',
+            results_count: 'results_count',
+            top_result: 'results[0]',
+            summary_text: 'statistics_summary'
+          },
+          default_text: {
+            call_to_action: 'Relive the highlights'
+          },
+          style: {
+            layout: 'digest',
+            tone: 'club'
+          },
+          tags: ['monthly', 'results']
+        }
+      ],
+      POSTPONED_ALERT: [
+        {
+          variant_id: 'postponed_notice',
+          template_id: 'PST-PN-401',
+          name: 'Match Postponed Notice',
+          placeholder_bindings: {
+            opponent: 'opponent',
+            original_date: 'original_date',
+            message: 'reason',
+            rescheduled_date: 'new_date'
+          },
+          default_text: {
+            call_to_action: 'Stay tuned for updates'
+          },
+          style: {
+            layout: 'alert',
+            tone: 'warning'
+          },
+          tags: ['alert']
+        }
+      ],
+      MATCHDAY: [
+        {
+          variant_id: 'matchday_motm',
+          template_id: 'MCH-MO-715',
+          name: 'Matchday Spotlight',
+          placeholder_bindings: {
+            headline: 'static:Matchday Live',
+            feature_player: 'motm_player',
+            opponent: 'opponent'
+          },
+          default_text: {
+            call_to_action: 'Follow the updates'
+          },
+          style: {
+            layout: 'spotlight',
+            tone: 'matchday'
+          },
+          tags: ['matchday']
+        }
+      ]
+    }
+  },
+
+  BUYER_INTAKE: {
+    CLUB_DETAILS: {
+      NAME: 'Syston Tigers',
+      CONTACT: 'media@systontigers.co.uk'
+    },
+    BRAND_COLORS: {
+      PRIMARY: '#F05A28',
+      SECONDARY: '#0E1A2B',
+      ACCENT: '#FFD447',
+      NEUTRAL: '#FFFFFF'
+    },
+    CREST_URLS: {
+      PRIMARY: 'https://cdn.systontigers.co.uk/crest-primary.png',
+      SECONDARY: 'https://cdn.systontigers.co.uk/crest-secondary.png'
+    },
+    TYPOGRAPHY: {
+      PRIMARY_FONT: 'Montserrat',
+      SECONDARY_FONT: 'Oswald'
+    },
+    TEXT_OVERRIDES: {
+      fixtures: {
+        headline: 'Upcoming Tigers Fixtures',
+        call_to_action: 'Secure your spot today'
+      },
+      results: {
+        headline: 'Final Whistle Recap',
+        call_to_action: 'Share the victories'
+      },
+      quotes: {
+        headline: 'Fuel for Tuesday',
+        call_to_action: 'Tag a teammate who needs this'
+      },
+      stats: {
+        headline: 'Tigers by the Numbers',
+        call_to_action: 'Study the form guide'
+      },
+      throwback: {
+        headline: 'Throwback to Glory',
+        call_to_action: 'Comment with your memories'
+      },
+      countdown: {
+        headline: 'Countdown to Kick-off',
+        call_to_action: 'Rally the pride'
+      },
+      rest_week: {
+        headline: 'Reset & Refocus',
+        call_to_action: 'Train smart this week'
+      },
+      monthly_fixtures: {
+        headline: 'Month of Matches',
+        call_to_action: 'Add fixtures to your diary'
+      },
+      monthly_results: {
+        headline: 'Monthly Results Recap',
+        call_to_action: 'Celebrate the moments'
+      },
+      postponed_alert: {
+        headline: 'Fixture Postponed',
+        call_to_action: 'Keep notifications on for updates'
+      },
+      matchday: {
+        headline: 'Matchday Hub',
+        call_to_action: 'Follow live for every update'
+      }
     }
   },
 
@@ -1025,15 +1612,282 @@ function validateConfiguration() {
     timestamp: new Date().toISOString()
   };
 }
+
+// ==================== BUYER CONFIGURATION MANAGEMENT ====================
+
+/**
+ * Ensure buyer profile ID exists
+ * @returns {string} Buyer profile ID
+ */
+function ensureBuyerProfileId() {
+  try {
+    if (typeof PropertiesService === 'undefined' || !PropertiesService.getScriptProperties) {
+      return getConfig('CUSTOMER.DEFAULT_PROFILE').buyerId;
+    }
+
+    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+    const scriptProperties = PropertiesService.getScriptProperties();
+
+    // @testHook(buyer_profile_id_read_start)
+    let buyerId = scriptProperties.getProperty(propertyKeys.PROFILE_ID);
+    // @testHook(buyer_profile_id_read_complete)
+
+    if (!buyerId) {
+      buyerId = (typeof Utilities !== 'undefined' && Utilities.getUuid)
+        ? Utilities.getUuid()
+        : StringUtils.generateId('buyer');
+
+      // @testHook(buyer_profile_id_write_start)
+      scriptProperties.setProperty(propertyKeys.PROFILE_ID, buyerId);
+      // @testHook(buyer_profile_id_write_complete)
+    }
+
+    return buyerId;
+  } catch (error) {
+    console.error('Failed to ensure buyer profile ID:', error);
+    return getConfig('CUSTOMER.DEFAULT_PROFILE').buyerId;
+  }
+}
+
+/**
+ * Retrieve stored buyer profile
+ * @param {boolean} useDefaults - Fallback to defaults when missing
+ * @returns {Object|null} Buyer profile
+ */
+function getBuyerProfile(useDefaults = true) {
+  try {
+    const defaults = JSON.parse(JSON.stringify(getConfig('CUSTOMER.DEFAULT_PROFILE')));
+
+    if (typeof PropertiesService === 'undefined' || !PropertiesService.getScriptProperties) {
+      return useDefaults ? defaults : null;
+    }
+
+    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+    const scriptProperties = PropertiesService.getScriptProperties();
+
+    // @testHook(buyer_profile_properties_read_start)
+    const storedProfile = scriptProperties.getProperty(propertyKeys.PROFILE);
+    // @testHook(buyer_profile_properties_read_complete)
+
+    if (!storedProfile) {
+      return useDefaults ? defaults : null;
+    }
+
+    const parsedProfile = JSON.parse(storedProfile);
+
+    // Optionally include badge asset from dedicated storage
+    // @testHook(buyer_badge_properties_read_start)
+    const badgeBase64 = scriptProperties.getProperty(propertyKeys.BADGE_BASE64);
+    // @testHook(buyer_badge_properties_read_complete)
+
+    if (badgeBase64) {
+      parsedProfile.badgeBase64 = badgeBase64;
+    }
+
+    return Object.assign({}, defaults, parsedProfile);
+  } catch (error) {
+    console.error('Failed to load buyer profile:', error);
+    return useDefaults ? JSON.parse(JSON.stringify(getConfig('CUSTOMER.DEFAULT_PROFILE'))) : null;
+  }
+}
+
+/**
+ * Apply buyer profile to runtime configuration
+ * @param {Object} profile - Buyer profile data
+ * @returns {Object} Result of application
+ */
+function applyBuyerProfileToSystem(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return { success: false, reason: 'invalid_profile' };
+  }
+
+  const resolvedProfile = Object.assign({}, getConfig('CUSTOMER.DEFAULT_PROFILE'), profile);
+
+  setConfig('SYSTEM.CLUB_NAME', resolvedProfile.clubName || getConfig('SYSTEM.CLUB_NAME'));
+  setConfig('SYSTEM.CLUB_SHORT_NAME', resolvedProfile.clubShortName || resolvedProfile.clubName || getConfig('SYSTEM.CLUB_SHORT_NAME'));
+  setConfig('SYSTEM.LEAGUE', resolvedProfile.league || getConfig('SYSTEM.LEAGUE'));
+  setConfig('SYSTEM.AGE_GROUP', resolvedProfile.ageGroup || getConfig('SYSTEM.AGE_GROUP'));
+  setConfig('SYSTEM.LAST_UPDATED', new Date().toISOString());
+
+  if (resolvedProfile.primaryColor) {
+    setConfig('BRANDING.PRIMARY_COLOR', resolvedProfile.primaryColor);
+  }
+
+  if (resolvedProfile.secondaryColor) {
+    setConfig('BRANDING.SECONDARY_COLOR', resolvedProfile.secondaryColor);
+  }
+
+  if (resolvedProfile.badgeUrl) {
+    setConfig('BRANDING.BADGE_URL', resolvedProfile.badgeUrl);
+  }
+
+  setConfig('BRANDING.LAST_ASSET_UPDATE', new Date().toISOString());
+  setConfig('CUSTOMER.ACTIVE_PROFILE', resolvedProfile);
+
+  return {
+    success: true,
+    profile: resolvedProfile
+  };
+}
+
+/**
+ * Sync buyer profile to dedicated sheets
+ * @param {Object} profile - Buyer profile data
+ * @returns {Object} Sync result
+ */
+function syncBuyerProfileToSheets(profile) {
+  try {
+    if (typeof SpreadsheetApp === 'undefined') {
+      return { success: false, skipped: true };
+    }
+
+    const profileTabKey = getConfig('CUSTOMER.SHEETS.PROFILE_TAB_KEY');
+    const rosterTabKey = getConfig('CUSTOMER.SHEETS.ROSTER_TAB_KEY');
+    const profileSheetName = getConfig(`SHEETS.TAB_NAMES.${profileTabKey}`) || 'Buyer Profiles';
+    const rosterSheetName = getConfig(`SHEETS.TAB_NAMES.${rosterTabKey}`) || 'Buyer Rosters';
+    const profileColumns = getConfig(`SHEETS.REQUIRED_COLUMNS.${profileTabKey}`, []);
+    const rosterColumns = getConfig(`SHEETS.REQUIRED_COLUMNS.${rosterTabKey}`, []);
+
+    const profileSheet = SheetUtils.getOrCreateSheet(profileSheetName, profileColumns);
+    const rosterSheet = SheetUtils.getOrCreateSheet(rosterSheetName, rosterColumns);
+    const timestamp = new Date().toISOString();
+
+    const profileRow = {
+      'Buyer ID': profile.buyerId,
+      'Club Name': profile.clubName || '',
+      'Club Short Name': profile.clubShortName || profile.clubName || '',
+      'League': profile.league || '',
+      'Age Group': profile.ageGroup || '',
+      'Primary Colour': profile.primaryColor || '',
+      'Secondary Colour': profile.secondaryColor || '',
+      'Badge URL': profile.badgeUrl || '',
+      'Last Updated': timestamp
+    };
+
+    if (profileSheet) {
+      const updated = SheetUtils.updateRowByCriteria(profileSheet, { 'Buyer ID': profile.buyerId }, profileRow);
+      if (!updated) {
+        SheetUtils.addRowFromObject(profileSheet, profileRow);
+      }
+    }
+
+    if (rosterSheet) {
+      const lastRow = rosterSheet.getLastRow();
+      for (let rowIndex = lastRow; rowIndex >= 2; rowIndex -= 1) {
+        const existingBuyerId = rosterSheet.getRange(rowIndex, 1).getValue();
+        if (String(existingBuyerId).trim() === String(profile.buyerId).trim()) {
+          rosterSheet.deleteRow(rowIndex);
+        }
+      }
+
+      if (Array.isArray(profile.rosterEntries)) {
+        profile.rosterEntries.forEach(entry => {
+          const rosterRow = {
+            'Buyer ID': profile.buyerId,
+            'Player Name': entry.playerName || '',
+            'Position': entry.position || '',
+            'Squad Number': entry.squadNumber || '',
+            'Last Updated': timestamp
+          };
+          SheetUtils.addRowFromObject(rosterSheet, rosterRow);
+        });
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to sync buyer profile to sheets:', error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Persist buyer profile to script properties and sync
+ * @param {Object} profile - Buyer profile data
+ * @returns {Object} Save result
+ */
+function saveBuyerProfile(profile) {
+  try {
+    if (!profile || typeof profile !== 'object') {
+      throw new Error('Invalid buyer profile payload');
+    }
+
+    const resolvedProfile = Object.assign({}, getConfig('CUSTOMER.DEFAULT_PROFILE'), profile);
+    resolvedProfile.buyerId = resolvedProfile.buyerId || ensureBuyerProfileId();
+    resolvedProfile.updatedAt = new Date().toISOString();
+
+    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+
+    if (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) {
+      const scriptProperties = PropertiesService.getScriptProperties();
+      const profileToPersist = JSON.parse(JSON.stringify(resolvedProfile));
+      delete profileToPersist.badgeBase64;
+
+      // @testHook(buyer_profile_properties_write_start)
+      scriptProperties.setProperty(propertyKeys.PROFILE, JSON.stringify(profileToPersist));
+      // @testHook(buyer_profile_properties_write_complete)
+
+      if (resolvedProfile.badgeBase64) {
+        // @testHook(buyer_badge_properties_write_start)
+        scriptProperties.setProperty(propertyKeys.BADGE_BASE64, resolvedProfile.badgeBase64);
+        // @testHook(buyer_badge_properties_write_complete)
+      } else {
+        // @testHook(buyer_badge_properties_delete_start)
+        scriptProperties.deleteProperty(propertyKeys.BADGE_BASE64);
+        // @testHook(buyer_badge_properties_delete_complete)
+      }
+    }
+
+    const appliedResult = applyBuyerProfileToSystem(resolvedProfile);
+    const syncResult = syncBuyerProfileToSheets(resolvedProfile);
+
+    return {
+      success: appliedResult.success === true,
+      profile: resolvedProfile,
+      applied: appliedResult,
+      synced: syncResult
+    };
+  } catch (error) {
+    console.error('Failed to save buyer profile:', error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Load buyer overrides and apply to runtime config
+ * @returns {Object} Override result
+ */
+function loadBuyerProfileOverrides() {
+  try {
+    const profile = getBuyerProfile(false);
+    if (!profile) {
+      return { success: true, applied: false };
+    }
+
+    profile.buyerId = profile.buyerId || ensureBuyerProfileId();
+    const applied = applyBuyerProfileToSystem(profile);
+
+    return {
+      success: applied.success === true,
+      applied: applied.success === true,
+      profile: applied.profile
+    };
+  } catch (error) {
+    console.error('Failed to load buyer profile overrides:', error);
+    return { success: false, error: error.toString() };
+  }
+}
 /**
  * Initialize configuration system
  * @returns {Object} Initialization result
  */
 function initializeConfig() {
   try {
+    const overrides = loadBuyerProfileOverrides();
+
     // Validate configuration
     const validation = validateConfiguration();
-    
+
     if (!validation.valid) {
       console.warn('Configuration validation failed:', validation.issues);
     }
@@ -1047,11 +1901,12 @@ function initializeConfig() {
       version: getConfig('SYSTEM.VERSION'),
       validation: validation,
       bible_compliant: getConfig('SYSTEM.BIBLE_COMPLIANT'),
+      buyer_profile: overrides,
       features_enabled: Object.entries(getConfig('FEATURES', {}))
         .filter(([key, value]) => value === true)
         .map(([key]) => key)
     };
-    
+
   } catch (error) {
     console.error('Failed to initialize configuration:', error);
     return {

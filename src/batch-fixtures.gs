@@ -1,6 +1,6 @@
 /**
  * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
- * @version 6.2.1
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Handles batch posting (1–5 fixtures/results), postponed notifications,
  *              and provides idempotent integrations with Make.com. Monthly summaries are delegated.
@@ -29,6 +29,7 @@ class BatchFixturesManager {
   constructor() {
     this.logger = (typeof logger !== 'undefined') ? logger.scope('BatchFixtures') : console;
     this.processedKeys = new Set(); // For idempotency (per-execution memory)
+    this.variantBuilderAvailable = typeof buildTemplateVariantCollection === 'function';
   }
 
   // ==================== PUBLIC ENTRY POINTS ====================
@@ -427,10 +428,95 @@ class BatchFixturesManager {
     return isNaN(parsed.getTime()) ? null : parsed;
   }
 
+  // ==================== TEMPLATE VARIANT SUPPORT ====================
+
+  /**
+   * Build template variant collection for a post type.
+   * @param {string} postType - Post type key.
+   * @param {Object} context - Context data for placeholders.
+   * @returns {Object} Variant collection map.
+   */
+  buildTemplateVariants(postType, context = {}) {
+    if (!this.variantBuilderAvailable) {
+      return {};
+    }
+
+    try {
+      return buildTemplateVariantCollection(postType, context);
+    } catch (error) {
+      this.logger.warn('Template variant build failed', {
+        error: error.toString(),
+        post_type: postType
+      });
+      return {};
+    }
+  }
+
+  /**
+   * Build context for fixture variant bindings.
+   * @param {Array<Object>} fixturesList - Normalized fixture list.
+   * @param {string|null} roundId - Round identifier.
+   * @param {string} weekDescription - Week description text.
+   * @returns {Object} Context map.
+   */
+  buildFixturesVariantContext(fixturesList, roundId, weekDescription) {
+    const primaryFixture = fixturesList.length > 0 ? fixturesList[0] : null;
+
+    return {
+      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      fixture_count: fixturesList.length,
+      fixtures_list: fixturesList,
+      primary_fixture: primaryFixture,
+      next_fixture: primaryFixture,
+      round_id: roundId,
+      week_description: weekDescription,
+      season: getConfig('SYSTEM.SEASON')
+    };
+  }
+
+  /**
+   * Build context for results variant bindings.
+   * @param {Array<Object>} resultsList - Normalized results list.
+   * @param {Object} stats - Aggregated statistics.
+   * @param {string|null} roundId - Round identifier.
+   * @param {string} weekDescription - Week description text.
+   * @returns {Object} Context map.
+   */
+  buildResultsVariantContext(resultsList, stats, roundId, weekDescription) {
+    const primaryResult = resultsList.length > 0 ? resultsList[0] : null;
+
+    return {
+      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      results_list: resultsList,
+      primary_result: primaryResult,
+      summary_text: weekDescription,
+      statistics: stats,
+      round_id: roundId,
+      results_count: resultsList.length,
+      season: getConfig('SYSTEM.SEASON')
+    };
+  }
+
   // ==================== PAYLOAD CREATION ====================
 
   /** Create fixtures batch payload */
   createFixturesBatchPayload(fixtures, eventType, roundId) {
+    const fixturesList = fixtures.map(fixture => ({
+      date: fixture.Date,
+      time: fixture.Time,
+      opponent: fixture.Opposition,
+      venue: fixture.Venue,
+      competition: fixture.Competition,
+      home_away: fixture['Home/Away'],
+      match_id: fixture.MatchID || ''
+    }));
+
+    const weekDescription = this.generateWeekDescription(fixtures);
+    const templateVariants = this.buildTemplateVariants(
+      'fixtures',
+      this.buildFixturesVariantContext(fixturesList, roundId, weekDescription)
+    );
+
     return {
       event_type: eventType,
       system_version: getConfig('SYSTEM.VERSION'),
@@ -438,30 +524,42 @@ class BatchFixturesManager {
 
       // Batch data
       fixture_count: fixtures.length,
-      fixtures_list: fixtures.map(fixture => ({
-        date: fixture.Date,
-        time: fixture.Time,
-        opponent: fixture.Opposition,
-        venue: fixture.Venue,
-        competition: fixture.Competition,
-        home_away: fixture['Home/Away'],
-        match_id: fixture.MatchID || ''
-      })),
+      fixtures_list: fixturesList,
 
       // Metadata
       round_id: roundId,
-      week_description: this.generateWeekDescription(fixtures),
+      week_description: weekDescription,
       season: getConfig('SYSTEM.SEASON'),
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      batch_id: this.generateBatchId(eventType)
+      batch_id: this.generateBatchId(eventType),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
   /** Create results batch payload */
   createResultsBatchPayload(results, eventType, roundId) {
     const stats = this.calculateBatchResultStats(results);
+    const resultsList = results.map(result => ({
+      date: result.Date,
+      opponent: result.Opposition,
+      home_score: result['Home Score'],
+      away_score: result['Away Score'],
+      venue: result.Venue,
+      competition: result.Competition,
+      home_away: result['Home/Away'],
+      outcome: result.Result,
+      match_id: result.MatchID || ''
+    }));
+
+    const weekDescription = this.generateWeekDescription(results);
+    const templateVariants = this.buildTemplateVariants(
+      'results',
+      this.buildResultsVariantContext(resultsList, stats, roundId, weekDescription)
+    );
 
     return {
       event_type: eventType,
@@ -470,17 +568,7 @@ class BatchFixturesManager {
 
       // Batch data
       result_count: results.length,
-      results_list: results.map(result => ({
-        date: result.Date,
-        opponent: result.Opposition,
-        home_score: result['Home Score'],
-        away_score: result['Away Score'],
-        venue: result.Venue,
-        competition: result.Competition,
-        home_away: result['Home/Away'],
-        outcome: result.Result,
-        match_id: result.MatchID || ''
-      })),
+      results_list: resultsList,
 
       // Statistics
       wins: stats.wins,
@@ -491,17 +579,30 @@ class BatchFixturesManager {
 
       // Metadata
       round_id: roundId,
-      week_description: this.generateWeekDescription(results),
+      week_description: weekDescription,
       season: getConfig('SYSTEM.SEASON'),
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      batch_id: this.generateBatchId(eventType)
+      batch_id: this.generateBatchId(eventType),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
   /** Create postponed payload */
   createPostponedPayload(opponent, originalDate, reason, newDate, eventType) {
+    const formattedOriginalDate = DateUtils.formatUK(originalDate);
+    const formattedNewDate = newDate ? DateUtils.formatUK(newDate) : null;
+
+    const templateVariants = this.buildTemplateVariants('postponed_alert', {
+      opponent,
+      original_date: formattedOriginalDate,
+      reason: reason || 'Unspecified',
+      new_date: formattedNewDate
+    });
+
     return {
       event_type: eventType,
       system_version: getConfig('SYSTEM.VERSION'),
@@ -509,13 +610,16 @@ class BatchFixturesManager {
 
       // Data
       opponent,
-      original_date: DateUtils.formatUK(originalDate),
+      original_date: formattedOriginalDate,
       reason: reason || 'Unspecified',
-      new_date: newDate ? DateUtils.formatUK(newDate) : null,
+      new_date: formattedNewDate,
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      postponed_on: DateUtils.formatISO(DateUtils.now())
+      postponed_on: DateUtils.formatISO(DateUtils.now()),
+
+      // Template variants
+      template_variants: templateVariants
     };
   }
 
@@ -566,7 +670,40 @@ class BatchFixturesManager {
   sendBatchToMake(payload) {
     this.logger.enterFunction('sendBatchToMake', { event_type: payload.event_type });
 
+    let consentDecision = null;
+
     try {
+      const consentContext = {
+        module: 'batch_fixtures',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: []
+      };
+
+      // @testHook(consent_gate_check_start)
+      consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(consent_gate_check_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('Consent gate blocked batch payload', {
+          event_type: payload.event_type,
+          reason: consentDecision.reason
+        });
+        this.logger.exitFunction('sendBatchToMake', {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
       // @testHook(batch_webhook_start)
 
       const webhookUrl = getWebhookUrl();
@@ -586,7 +723,7 @@ class BatchFixturesManager {
           lastResponse = UrlFetchApp.fetch(webhookUrl, {
             method: 'POST',
             contentType: 'application/json',
-            payload: JSON.stringify(payload),
+            payload: JSON.stringify(enrichedPayload),
             muteHttpExceptions: true,
             followRedirects: true
           });
@@ -594,7 +731,12 @@ class BatchFixturesManager {
           const ok = code >= 200 && code < 300;
           if (ok) {
             this.logger.exitFunction('sendBatchToMake', { success: true, response_code: code, attempt });
-            return { success: true, response_code: code, response_text: lastResponse.getContentText() };
+            return {
+              success: true,
+              response_code: code,
+              response_text: lastResponse.getContentText(),
+              consent: consentDecision
+            };
           }
           this.logger.warn('Webhook non-2xx response', { code, attempt, text: lastResponse.getContentText() });
         } catch (inner) {
@@ -618,12 +760,13 @@ class BatchFixturesManager {
       return {
         success: false,
         response_code: lastResponse ? lastResponse.getResponseCode() : 0,
-        response_text: lastResponse ? lastResponse.getContentText() : ''
+        response_text: lastResponse ? lastResponse.getContentText() : '',
+        consent: consentDecision
       };
 
     } catch (error) {
       this.logger.error('Failed to send batch to Make.com', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      return { success: false, error: error.toString(), consent: consentDecision };
     }
   }
 
