@@ -46,15 +46,24 @@ class VideoClipsManager {
     try {
       // @testHook(goal_clip_creation_start)
       
-      const goalMinute = parseInt(minute);
+      const goalMinute = parseInt(minute, 10);
       if (!ValidationUtils.isValidMinute(goalMinute)) {
         throw new Error(`Invalid minute: ${minute}`);
       }
-      
+
       if (!player || player.trim() === '') {
         throw new Error('Player name is required');
       }
-      
+
+      const buffers = getConfig('VIDEO.CLIP_BUFFERS.GOAL', { preSeconds: 10, postSeconds: 20 });
+      const preBuffer = Number(buffers.preSeconds) || 0;
+      const postBuffer = Number(buffers.postSeconds) || 0;
+      const defaultDuration = getConfig('VIDEO.DEFAULT_CLIP_DURATION', 30);
+      const startSeconds = Math.max(0, (goalMinute * 60) - preBuffer);
+      const durationSeconds = Math.max(preBuffer + postBuffer, defaultDuration);
+
+      const matchInfo = this.getMatchInfo(matchId, { opponent });
+
       // Generate clip metadata
       const clipId = StringUtils.generateId('clip');
       const clipMetadata = {
@@ -62,25 +71,29 @@ class VideoClipsManager {
         match_id: matchId || StringUtils.generateId('match'),
         event_type: 'goal',
         minute: goalMinute,
-        
+
         // Player information
         player: StringUtils.cleanPlayerName(player),
         assist_by: assist ? StringUtils.cleanPlayerName(assist) : '',
         opponent: opponent,
-        
-        // Clip timing (Bible compliance: goal minute - 3 seconds)
-        start_time_seconds: Math.max(0, (goalMinute * 60) - 3),
-        duration_seconds: getConfig('VIDEO.CLIP_DURATION_SECONDS', 30),
-        
+
+        // Clip timing (Bible compliance: configurable buffers)
+        start_time_seconds: startSeconds,
+        duration_seconds: durationSeconds,
+
         // Clip details
         title: this.generateClipTitle(player, opponent, goalMinute),
         description: this.generateClipDescription(player, assist, opponent, goalMinute),
         tags: this.generateClipTags(player, opponent),
-        
+
+        match_date: matchInfo.date,
+        venue: matchInfo.venue,
+        competition: matchInfo.competition,
+
         // Processing status
         status: 'pending_processing',
         processing_service: getConfig('VIDEO.PROCESSING_METHOD', 'cloudconvert'),
-        
+
         // Timestamps
         created_at: DateUtils.formatISO(DateUtils.now()),
         updated_at: DateUtils.formatISO(DateUtils.now())
@@ -88,16 +101,27 @@ class VideoClipsManager {
       
       // Save to Video Clips sheet
       const saveResult = this.saveClipMetadata(clipMetadata);
-      
+
       if (!saveResult.success) {
         throw new Error(`Failed to save clip metadata: ${saveResult.error}`);
       }
-      
+
       // Create player folder if it doesn't exist
       const folderResult = this.ensurePlayerFolder(player);
-      
+
+      if (folderResult.success) {
+        clipMetadata.player_folder_id = folderResult.folder_id;
+        clipMetadata.player_folder_path = folderResult.folder_path || '';
+      }
+
+      const matchFolderResult = this.ensureMatchFolder(clipMetadata.match_id, matchInfo);
+      if (matchFolderResult.success) {
+        clipMetadata.match_folder_id = matchFolderResult.folder_id;
+        clipMetadata.match_folder_path = matchFolderResult.folder_path || '';
+      }
+
       // @testHook(goal_clip_metadata_created)
-      
+
       // Send to Make.com for video processing
       if (getConfig('VIDEO.PROCESSING_SERVICE') === 'cloudconvert') {
         const processingResult = this.requestCloudConvertProcessing(clipMetadata);
@@ -115,6 +139,7 @@ class VideoClipsManager {
         success: true,
         clip_metadata: clipMetadata,
         folder_result: folderResult,
+        match_folder_result: matchFolderResult,
         clip_id: clipId,
         timestamp: DateUtils.formatISO(DateUtils.now())
       };
@@ -151,32 +176,34 @@ class VideoClipsManager {
     try {
       // @testHook(video_event_marking_start)
       
-      const eventMinute = parseInt(minute);
+      const eventMinute = parseInt(minute, 10);
       if (!ValidationUtils.isValidMinute(eventMinute)) {
         throw new Error(`Invalid minute: ${minute}`);
       }
-      
-      // Valid event types for video editor
-      const validEventTypes = [
-        'big_chance', 'tackle', 'good_play', 'skill_move', 'save',
-        'shot_off_target', 'corner', 'free_kick', 'penalty_appeal'
-      ];
-      
-      if (!validEventTypes.includes(eventType)) {
+
+      const allowedTypes = getConfig('VIDEO.NOTE_TYPES', ['big_chance', 'goal', 'skill', 'good_play', 'card', 'other']);
+      const normalizedEventType = (eventType || '').toLowerCase();
+
+      if (!allowedTypes.includes(normalizedEventType)) {
         throw new Error(`Invalid event type: ${eventType}`);
       }
-      
+
+      let resolvedPlayer = player ? StringUtils.cleanPlayerName(player) : '';
+      if (!resolvedPlayer) {
+        resolvedPlayer = this.autoDetectPlayerFromDescription(description);
+      }
+
       // Create video event record
       const eventData = {
         minute: eventMinute,
-        event_type: eventType,
-        player: player ? StringUtils.cleanPlayerName(player) : '',
+        event_type: normalizedEventType,
+        player: resolvedPlayer,
         description: description,
         marked_for_editor: true,
         marked_at: DateUtils.formatISO(DateUtils.now()),
         status: 'pending_review'
       };
-      
+
       // Save to Video Events sheet
       const saveResult = this.saveVideoEvent(eventData);
       
@@ -430,8 +457,11 @@ class VideoClipsManager {
         'Caption': clipMetadata.description,
         'Status': clipMetadata.status,
         'YouTube URL': '',
-        'Folder Path': '',
-        'Created': clipMetadata.created_at
+        'Folder Path': clipMetadata.match_folder_path || clipMetadata.player_folder_path || '',
+        'Created': clipMetadata.created_at,
+        'Match Date': clipMetadata.match_date || '',
+        'Local Path': clipMetadata.player_folder_path || '',
+        'Notes': clipMetadata.notes || ''
       };
       
       const addResult = SheetUtils.addRowFromObject(videoClipsSheet, rowData);
@@ -446,6 +476,44 @@ class VideoClipsManager {
         success: false,
         error: error.toString()
       };
+    }
+  }
+
+  /**
+   * Save video event note for editor
+   * @param {Object} eventData - Event data
+   * @returns {Object} Save result
+   */
+  saveVideoEvent(eventData) {
+    try {
+      const notesSheet = SheetUtils.getOrCreateSheet(
+        'Video Notes',
+        ['Timestamp', 'Minute', 'Event Type', 'Player', 'Description', 'Status']
+      );
+
+      if (!notesSheet) {
+        return { success: false, error: 'Cannot access Video Notes sheet' };
+      }
+
+      const rowData = {
+        'Timestamp': DateUtils.formatISO(DateUtils.now()),
+        'Minute': eventData.minute,
+        'Event Type': eventData.event_type,
+        'Player': eventData.player || '',
+        'Description': eventData.description || '',
+        'Status': eventData.status || 'pending_review'
+      };
+
+      const addResult = SheetUtils.addRowFromObject(notesSheet, rowData);
+
+      return {
+        success: !!addResult,
+        row: rowData
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to save video event', { error: error.toString(), eventData });
+      return { success: false, error: error.toString() };
     }
   }
 
@@ -528,15 +596,18 @@ class VideoClipsManager {
       if (!mainFolderId) {
         return { success: false, error: 'Main video folder not configured' };
       }
-      
+
+      const mainFolder = DriveApp.getFolderById(mainFolderId);
       const playerFolder = this.getOrCreatePlayerFolder(player);
-      
+
       return {
         success: !!playerFolder,
         folder_id: playerFolder ? playerFolder.getId() : null,
-        player: player
+        player: player,
+        folder_name: playerFolder ? playerFolder.getName() : null,
+        folder_path: playerFolder ? `${mainFolder.getName()}/${playerFolder.getName()}` : ''
       };
-      
+
     } catch (error) {
       return {
         success: false,
@@ -554,27 +625,93 @@ class VideoClipsManager {
     try {
       const mainFolderId = getConfig('VIDEO.DRIVE_FOLDER_ID');
       if (!mainFolderId) return null;
-      
+
       const mainFolder = DriveApp.getFolderById(mainFolderId);
       const safeFolderName = StringUtils.toSafeFilename(player);
-      
+
       // Check if folder exists
       const existingFolders = mainFolder.getFoldersByName(safeFolderName);
-      
+
       if (existingFolders.hasNext()) {
         return existingFolders.next();
       } else {
         // Create new folder
         return mainFolder.createFolder(safeFolderName);
       }
-      
+
     } catch (error) {
-      this.logger.error('Failed to get/create player folder', { 
+      this.logger.error('Failed to get/create player folder', {
         error: error.toString(),
-        player 
+        player
       });
       return null;
     }
+  }
+
+  /**
+   * Ensure match folder exists for highlights
+   * @param {string} matchId - Match identifier
+   * @param {Object} matchInfo - Match information
+   * @returns {Object} Folder result
+   */
+  ensureMatchFolder(matchId, matchInfo = {}) {
+    try {
+      const mainFolderId = getConfig('VIDEO.DRIVE_FOLDER_ID');
+      if (!mainFolderId) {
+        return { success: false, error: 'Main video folder not configured' };
+      }
+
+      const mainFolder = DriveApp.getFolderById(mainFolderId);
+      const prefix = getConfig('VIDEO.MATCH_FOLDER_PREFIX', 'Match Highlights');
+      const matchRoot = this.getOrCreateChildFolder(mainFolder, prefix);
+
+      if (!matchRoot) {
+        return { success: false, error: 'Unable to create match highlights root folder' };
+      }
+
+      const safeDate = (matchInfo.date || DateUtils.formatUK(DateUtils.now()))
+        .replace(/\//g, '-');
+      const safeOpponent = matchInfo.opponent
+        ? StringUtils.toSafeFilename(matchInfo.opponent)
+        : 'opposition';
+      const matchFolderName = `${safeDate}_${safeOpponent}`;
+
+      const matchFolder = this.getOrCreateChildFolder(matchRoot, matchFolderName);
+
+      return {
+        success: !!matchFolder,
+        folder_id: matchFolder ? matchFolder.getId() : null,
+        folder_path: `${prefix}/${matchFolderName}`,
+        match_id: matchId
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to ensure match folder', {
+        error: error.toString(),
+        matchId
+      });
+
+      return { success: false, error: error.toString(), match_id: matchId };
+    }
+  }
+
+  /**
+   * Helper to get or create child folder by name
+   * @param {GoogleAppsScript.Drive.Folder} parentFolder - Parent folder
+   * @param {string} folderName - Folder name
+   * @returns {GoogleAppsScript.Drive.Folder|null} Folder instance
+   */
+  getOrCreateChildFolder(parentFolder, folderName) {
+    if (!parentFolder || !folderName) {
+      return null;
+    }
+
+    const existing = parentFolder.getFoldersByName(folderName);
+    if (existing.hasNext()) {
+      return existing.next();
+    }
+
+    return parentFolder.createFolder(folderName);
   }
 
   /**
@@ -591,13 +728,31 @@ class VideoClipsManager {
         processing_id: StringUtils.generateId('process'),
         message: 'Processing request sent to CloudConvert'
       };
-      
+
     } catch (error) {
       return {
         success: false,
         error: error.toString()
       };
     }
+  }
+
+  /**
+   * Attempt to auto-detect player name from description
+   * @param {string} description - Event description
+   * @returns {string} Player name or empty string
+   */
+  autoDetectPlayerFromDescription(description) {
+    if (!description || typeof description !== 'string') {
+      return '';
+    }
+
+    const match = description.match(/([A-Z][a-z]+\s[A-Z][a-z]+)/);
+    if (match && match[1]) {
+      return StringUtils.cleanPlayerName(match[1]);
+    }
+
+    return '';
   }
 
   /**

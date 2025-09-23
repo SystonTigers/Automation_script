@@ -36,6 +36,14 @@ class MakeIntegration {
       failedCalls: 0,
       retriedCalls: 0
     };
+    this.idempotency = {
+      enabled: getConfig('MAKE.IDEMPOTENCY.ENABLED', true),
+      ttlSeconds: getConfig('MAKE.IDEMPOTENCY.TTL_SECONDS', 86400),
+      cachePrefix: getConfig('MAKE.IDEMPOTENCY.CACHE_PREFIX', 'MAKE_IDEMPOTENCY_'),
+      cache: (typeof CacheService !== 'undefined' && CacheService.getScriptCache)
+        ? CacheService.getScriptCache()
+        : null
+    };
   }
 
   // ==================== ENHANCED WEBHOOK SENDING ====================
@@ -47,23 +55,41 @@ class MakeIntegration {
    * @returns {Object} Send result
    */
   sendToMake(payload, options = {}) {
-    this.logger.enterFunction('sendToMake', { 
+    this.logger.enterFunction('sendToMake', {
       event_type: payload.event_type,
-      options 
+      options
     });
-    
+
     try {
       // @testHook(make_send_start)
-      
+
       // Validate payload
       const validationResult = this.validatePayload(payload);
       if (!validationResult.valid) {
         throw new Error(`Invalid payload: ${validationResult.errors.join(', ')}`);
       }
-      
+
+      const idempotencyKey = this.resolveIdempotencyKey(payload, options);
+
+      if (idempotencyKey && this.isDuplicatePayload(idempotencyKey)) {
+        this.logger.info('Duplicate payload detected, skipping Make.com send', {
+          event_type: payload.event_type,
+          idempotency_key: idempotencyKey
+        });
+
+        return {
+          success: true,
+          skipped: true,
+          reason: 'duplicate_payload',
+          event_type: payload.event_type,
+          idempotency_key: idempotencyKey,
+          timestamp: DateUtils.formatISO(DateUtils.now())
+        };
+      }
+
       // Apply rate limiting
       this.applyRateLimit();
-      
+
       // Prepare webhook call
       const webhookUrl = getWebhookUrl();
       if (!webhookUrl) {
@@ -72,10 +98,18 @@ class MakeIntegration {
       
       // Add system metadata to payload
       const enhancedPayload = this.enhancePayload(payload);
-      
+
       // Execute webhook call with retry logic
       const sendResult = this.executeWebhookCall(webhookUrl, enhancedPayload, options);
-      
+
+      if (sendResult.success && idempotencyKey) {
+        this.markPayloadProcessed(idempotencyKey);
+      }
+
+      if (sendResult.success) {
+        this.metrics.lastPost = DateUtils.formatISO(DateUtils.now());
+      }
+
       // Update metrics
       this.updateMetrics(sendResult.success);
       
@@ -478,8 +512,142 @@ class MakeIntegration {
       club: payload.club?.name,
       version: payload.system?.version
     };
-    
+
     return StringUtils.generateId('sig');
+  }
+
+  /**
+   * Resolve idempotency key for payload
+   * @param {Object} payload - Payload to evaluate
+   * @param {Object} options - Send options
+   * @returns {string|null} Idempotency key
+   */
+  resolveIdempotencyKey(payload, options = {}) {
+    if (options.skipIdempotency) {
+      return null;
+    }
+
+    if (options.idempotencyKey) {
+      return `${this.idempotency.cachePrefix}${options.idempotencyKey}`;
+    }
+
+    if (!this.idempotency.enabled) {
+      return null;
+    }
+
+    return this.generateIdempotencyKey(payload);
+  }
+
+  /**
+   * Generate idempotency key for payload
+   * @param {Object} payload - Payload object
+   * @returns {string} Idempotency key
+   */
+  generateIdempotencyKey(payload) {
+    try {
+      const fingerprint = this.getIdempotencyFingerprint(payload);
+      const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, fingerprint);
+      const hash = this.bytesToHex(digest);
+
+      return `${this.idempotency.cachePrefix}${payload.event_type || 'unknown'}_${hash}`;
+    } catch (error) {
+      this.logger.warn('Failed to generate idempotency key', { error: error.toString() });
+      return `${this.idempotency.cachePrefix}${StringUtils.generateId('make_event')}`;
+    }
+  }
+
+  /**
+   * Create payload fingerprint for idempotency hashing
+   * @param {Object} payload - Payload object
+   * @returns {string} Fingerprint string
+   */
+  getIdempotencyFingerprint(payload) {
+    try {
+      const clone = JSON.parse(JSON.stringify(payload || {}));
+
+      delete clone.timestamp;
+      delete clone.system;
+      delete clone.webhook;
+
+      return JSON.stringify(clone);
+    } catch (error) {
+      this.logger.warn('Failed to normalize payload for idempotency', { error: error.toString() });
+      return JSON.stringify({ event_type: payload?.event_type || 'unknown', fallback: true });
+    }
+  }
+
+  /**
+   * Convert byte array to hex string
+   * @param {Array<number>} bytes - Byte array
+   * @returns {string} Hex string
+   */
+  bytesToHex(bytes) {
+    return bytes
+      .map(byte => (byte & 0xff).toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  /**
+   * Check if payload was already processed
+   * @param {string} idempotencyKey - Idempotency key
+   * @returns {boolean} True if duplicate
+   */
+  isDuplicatePayload(idempotencyKey) {
+    if (!idempotencyKey) {
+      return false;
+    }
+
+    try {
+      if (this.idempotency.cache && this.idempotency.cache.get(idempotencyKey)) {
+        return true;
+      }
+
+      const scriptProperties = PropertiesService.getScriptProperties();
+      const stored = scriptProperties.getProperty(idempotencyKey);
+
+      if (!stored) {
+        return false;
+      }
+
+      const parsed = JSON.parse(stored);
+      if (parsed && parsed.expiresAt && parsed.expiresAt < Date.now()) {
+        scriptProperties.deleteProperty(idempotencyKey);
+        return false;
+      }
+
+      return true;
+
+    } catch (error) {
+      this.logger.warn('Idempotency duplicate check failed', { error: error.toString(), idempotencyKey });
+      return false;
+    }
+  }
+
+  /**
+   * Mark payload as processed for idempotency
+   * @param {string} idempotencyKey - Idempotency key
+   */
+  markPayloadProcessed(idempotencyKey) {
+    if (!idempotencyKey) {
+      return;
+    }
+
+    try {
+      const ttlSeconds = this.idempotency.ttlSeconds || 86400;
+
+      if (this.idempotency.cache) {
+        const cacheTtl = Math.min(ttlSeconds, 21600);
+        this.idempotency.cache.put(idempotencyKey, '1', cacheTtl);
+      }
+
+      const scriptProperties = PropertiesService.getScriptProperties();
+      const expiresAt = Date.now() + (ttlSeconds * 1000);
+
+      scriptProperties.setProperty(idempotencyKey, JSON.stringify({ expiresAt }));
+
+    } catch (error) {
+      this.logger.warn('Failed to persist idempotency key', { error: error.toString(), idempotencyKey });
+    }
   }
 
   /**

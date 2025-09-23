@@ -414,6 +414,11 @@ MONTHLY_SUMMARIES: [
     WEBHOOK_RETRY_ATTEMPTS: 3,
     WEBHOOK_RETRY_DELAY_MS: 2000,
     WEBHOOK_URL_FALLBACK: 'MAKE_WEBHOOK_URL_FALLBACK',
+    IDEMPOTENCY: {
+      ENABLED: true,
+      TTL_SECONDS: 86400,
+      CACHE_PREFIX: 'MAKE_IDEMPOTENCY_'
+    },
     
     // Event type mappings for router
     EVENT_TYPES: {
@@ -488,6 +493,19 @@ MONTHLY_SUMMARIES: [
       gotm_voting_open: 'gotm_voting_start',
       gotm_winner: 'gotm_winner_announcement'
     }
+  },
+
+  // ==================== MONITORING & ALERTS ====================
+  MONITORING: {
+    EMAIL_RECIPIENTS: '',
+    ALERT_EMAIL_ONLY: true,
+    ALERT_CRITICAL_ONLY: true,
+    WEEKLY_SUMMARY: {
+      ENABLED: true,
+      DAY: 'Monday',
+      TIME: '09:00'
+    },
+    SUMMARY_METRICS: ['quota_usage', 'error_count', 'last_post', 'disabled_features']
   },
 
   // ==================== CANVA INTEGRATION ====================
@@ -602,17 +620,21 @@ MONTHLY_SUMMARIES: [
   VIDEO: {
     ENABLED: false, // Enable when ready
     AUTO_CLIP_CREATION: true,
-    CLIP_DURATION_SECONDS: 30,
-    CLIP_BUFFER_SECONDS: 3,
     DEFAULT_CLIP_DURATION: 30,
-    GOAL_CLIP_LEAD_TIME: 10,
-    GOAL_CLIP_FOLLOW_TIME: 20,
+
+    // Clip buffers per event type (Bible compliance defaults)
+    CLIP_BUFFERS: {
+      GOAL: { preSeconds: 10, postSeconds: 20 },
+      CARD: { preSeconds: 5, postSeconds: 10 },
+      BIG_CHANCE: { preSeconds: 10, postSeconds: 15 }
+    },
 
     // Folder structure
     DRIVE_FOLDER_ID: '', // Set when configured
     DRIVE_FOLDER_PROPERTY: 'VIDEO_DRIVE_FOLDER_ID',
     PLAYER_FOLDERS_AUTO_CREATE: true,
     PLAYER_FOLDERS_PROPERTY: 'PLAYER_FOLDERS_MAPPING',
+    MATCH_FOLDER_PREFIX: 'Match Highlights',
 
     // Processing options
     PROCESSING_METHOD: 'cloudconvert', // cloudconvert | ffmpeg_local
@@ -621,7 +643,10 @@ MONTHLY_SUMMARIES: [
     YOUTUBE_CHANNEL_PROPERTY: 'YOUTUBE_CHANNEL_ID',
     YOUTUBE_PLAYLIST_PROPERTY: 'YOUTUBE_PLAYLIST_ID',
     DEFAULT_PRIVACY_STATUS: 'unlisted',
-    CLOUDCONVERT_API_KEY_PROPERTY: 'CLOUDCONVERT_API_KEY'
+    CLOUDCONVERT_API_KEY_PROPERTY: 'CLOUDCONVERT_API_KEY',
+
+    // Video editor notes
+    NOTE_TYPES: ['big_chance', 'goal', 'skill', 'good_play', 'card', 'other']
   },
 
   // ==================== XBOTGO INTEGRATION ====================
@@ -649,6 +674,15 @@ MONTHLY_SUMMARIES: [
   WEEKLY_SCHEDULE: {
     ENABLED: true, // Bible compliance requirement
     TIMEZONE: 'Europe/London',
+    COUNTDOWN: {
+      LOOKAHEAD_DAYS: 10,
+      SUPPRESS_ON_POSTPONED: true,
+      CONTROL_PANEL_FLAG: 'COUNTDOWN_POSTS'
+    },
+    ROTATION: {
+      QUOTES_PROPERTY_KEY: 'WEEKLY_QUOTES_ROTATION',
+      THROWBACK_PROPERTY_KEY: 'WEEKLY_THROWBACK_ROTATION'
+    },
 
     // Schedule definitions (Bible compliance)
     SCHEDULE: {

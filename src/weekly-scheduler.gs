@@ -258,31 +258,38 @@ class WeeklyScheduler {
     try {
       // @testHook(thursday_throwback_start)
       
-      // Check if we have a Sunday match (3 days to go)
-      const sundayMatch = this.getSundayMatch();
-      
+      const countdownState = this.getCountdownState(3);
+
+      if (countdownState.suppressed) {
+        this.logger.info('Countdown suppressed due to postponed fixture', {
+          days_before: 3,
+          fixture: countdownState.fixture
+        });
+      }
+
       let payload;
-      if (sundayMatch) {
-        // 3 days to go countdown
-        payload = this.createCountdownPayload(sundayMatch, 3);
+      if (countdownState.due) {
+        payload = this.createCountdownPayload(countdownState.fixture, 3);
       } else {
-        // Throwback Thursday content
         const throwback = this.getRotatedThrowback();
         payload = this.createThrowbackPayload(throwback);
       }
-      
+
       // @testHook(thursday_throwback_webhook)
       const webhookResult = this.sendToMake(payload);
-      
-      this.logger.exitFunction('postThursdayThrowback', { 
+
+      this.logger.exitFunction('postThursdayThrowback', {
         success: webhookResult.success,
-        has_match: !!sundayMatch
+        has_match: countdownState.due,
+        suppressed: countdownState.suppressed
       });
-      
+
       return {
         success: webhookResult.success,
-        content_type: sundayMatch ? 'weekly_countdown_3' : 'weekly_throwback',
-        has_sunday_match: !!sundayMatch,
+        content_type: countdownState.due ? 'weekly_countdown_3' : 'weekly_throwback',
+        has_sunday_match: countdownState.due,
+        suppressed_due_to_postponement: countdownState.suppressed,
+        countdown_fixture: countdownState.fixture || null,
         webhook_sent: webhookResult.success
       };
       
@@ -304,28 +311,37 @@ class WeeklyScheduler {
     try {
       // @testHook(friday_countdown_start)
       
-      const sundayMatch = this.getSundayMatch();
-      
-      if (!sundayMatch) {
-        return { 
-          success: true, 
-          message: 'No Sunday match - skipping Friday countdown',
+      const countdownState = this.getCountdownState(2);
+
+      if (countdownState.suppressed) {
+        return {
+          success: true,
+          message: 'Fixture postponed - countdown suppressed',
+          skipped: true,
+          suppressed_due_to_postponement: true,
+          countdown_fixture: countdownState.fixture
+        };
+      }
+
+      if (!countdownState.due) {
+        return {
+          success: true,
+          message: 'Countdown not scheduled for today',
           skipped: true
         };
       }
-      
-      // Create 2 days to go payload
-      const payload = this.createCountdownPayload(sundayMatch, 2);
-      
+
+      const payload = this.createCountdownPayload(countdownState.fixture, 2);
+
       // @testHook(friday_countdown_webhook)
       const webhookResult = this.sendToMake(payload);
-      
+
       this.logger.exitFunction('postFridayCountdown', { success: webhookResult.success });
-      
+
       return {
         success: webhookResult.success,
         content_type: 'weekly_countdown_2',
-        match: sundayMatch,
+        countdown_fixture: countdownState.fixture,
         webhook_sent: webhookResult.success
       };
       
@@ -347,19 +363,28 @@ class WeeklyScheduler {
     try {
       // @testHook(saturday_countdown_start)
       
-      const sundayMatch = this.getSundayMatch();
-      
-      if (!sundayMatch) {
-        return { 
-          success: true, 
-          message: 'No Sunday match - skipping Saturday countdown',
+      const countdownState = this.getCountdownState(1);
+
+      if (countdownState.suppressed) {
+        return {
+          success: true,
+          message: 'Fixture postponed - countdown suppressed',
+          skipped: true,
+          suppressed_due_to_postponement: true,
+          countdown_fixture: countdownState.fixture
+        };
+      }
+
+      if (!countdownState.due) {
+        return {
+          success: true,
+          message: 'Countdown not scheduled for today',
           skipped: true
         };
       }
-      
-      // Create 1 day to go payload
-      const payload = this.createCountdownPayload(sundayMatch, 1);
-      
+
+      const payload = this.createCountdownPayload(countdownState.fixture, 1);
+
       // @testHook(saturday_countdown_webhook)
       const webhookResult = this.sendToMake(payload);
       
@@ -368,7 +393,7 @@ class WeeklyScheduler {
       return {
         success: webhookResult.success,
         content_type: 'weekly_countdown_1',
-        match: sundayMatch,
+        countdown_fixture: countdownState.fixture,
         webhook_sent: webhookResult.success
       };
       
@@ -458,19 +483,163 @@ class WeeklyScheduler {
   getSundayMatch() {
     try {
       const thisWeekFixtures = this.getThisWeekFixtures();
-      
-      // Find Sunday fixture (day 0)
+
       const sundayFixture = thisWeekFixtures.find(fixture => {
         const fixtureDate = DateUtils.parseUK(fixture.Date);
-        return fixtureDate && fixtureDate.getDay() === 0; // Sunday
+        if (!fixtureDate || fixtureDate.getDay() !== 0) {
+          return false;
+        }
+
+        return !this.isFixturePostponed(fixture);
       });
-      
+
       return sundayFixture || null;
-      
+
     } catch (error) {
       this.logger.error('Failed to get Sunday match', { error: error.toString() });
       return null;
     }
+  }
+
+  /**
+   * Get upcoming fixtures within lookahead window
+   * @param {number} lookAheadDays - Days to look ahead
+   * @returns {Array} Upcoming fixtures
+   */
+  getUpcomingFixturesWithin(lookAheadDays) {
+    try {
+      const fixturesSheet = SheetUtils.getOrCreateSheet(
+        getConfig('SHEETS.TAB_NAMES.FIXTURES')
+      );
+
+      if (!fixturesSheet) return [];
+
+      const allFixtures = SheetUtils.getAllDataAsObjects(fixturesSheet);
+      const today = this.normalizeDate(this.today);
+      const msPerDay = 24 * 60 * 60 * 1000;
+
+      return allFixtures
+        .filter(fixture => {
+          const fixtureDate = DateUtils.parseUK(fixture.Date);
+          if (!fixtureDate) return false;
+
+          const normalizedFixture = this.normalizeDate(fixtureDate);
+          const diffDays = Math.round((normalizedFixture.getTime() - today.getTime()) / msPerDay);
+
+          return diffDays >= 0 && diffDays <= lookAheadDays;
+        })
+        .sort((a, b) => {
+          const dateA = this.normalizeDate(DateUtils.parseUK(a.Date));
+          const dateB = this.normalizeDate(DateUtils.parseUK(b.Date));
+
+          if (isNaN(dateA)) return 1;
+          if (isNaN(dateB)) return -1;
+
+          return dateA - dateB;
+        });
+
+    } catch (error) {
+      this.logger.error('Failed to get upcoming fixtures', { error: error.toString() });
+      return [];
+    }
+  }
+
+  /**
+   * Determine countdown state for a given days-before window
+   * @param {number} daysBefore - Days before match
+   * @returns {Object} Countdown state
+   */
+  getCountdownState(daysBefore) {
+    try {
+      const countdownConfig = getConfig('WEEKLY_SCHEDULE.COUNTDOWN', {});
+      const lookAhead = countdownConfig.LOOKAHEAD_DAYS || 10;
+      const fixtures = this.getUpcomingFixturesWithin(lookAhead);
+      const today = this.normalizeDate(this.today);
+      const msPerDay = 24 * 60 * 60 * 1000;
+
+      for (let i = 0; i < fixtures.length; i += 1) {
+        const fixture = fixtures[i];
+        const fixtureDate = DateUtils.parseUK(fixture.Date);
+        if (!fixtureDate) continue;
+
+        const normalizedFixture = this.normalizeDate(fixtureDate);
+        const diffDays = Math.round((normalizedFixture.getTime() - today.getTime()) / msPerDay);
+
+        if (diffDays === daysBefore) {
+          if (countdownConfig.SUPPRESS_ON_POSTPONED && this.isFixturePostponed(fixture)) {
+            return {
+              due: false,
+              suppressed: true,
+              fixture
+            };
+          }
+
+          return {
+            due: true,
+            suppressed: false,
+            fixture
+          };
+        }
+      }
+
+      return {
+        due: false,
+        suppressed: false
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to evaluate countdown state', {
+        error: error.toString(),
+        days_before: daysBefore
+      });
+
+      return {
+        due: false,
+        suppressed: false,
+        error: error.toString()
+      };
+    }
+  }
+
+  /**
+   * Normalize date to midnight
+   * @param {Date} date - Date to normalize
+   * @returns {Date} Normalized date
+   */
+  normalizeDate(date) {
+    if (!(date instanceof Date)) {
+      return new Date(NaN);
+    }
+
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  /**
+   * Determine if fixture is postponed
+   * @param {Object} fixture - Fixture row
+   * @returns {boolean} True if postponed
+   */
+  isFixturePostponed(fixture) {
+    if (!fixture || typeof fixture !== 'object') {
+      return false;
+    }
+
+    const statusFields = ['Status', 'Match Status', 'Fixture Status', 'Postponed', 'Postponement'];
+
+    return statusFields.some(field => {
+      const value = fixture[field];
+
+      if (value === undefined || value === null) {
+        return false;
+      }
+
+      if (typeof value === 'boolean') {
+        return value;
+      }
+
+      const text = String(value).toLowerCase();
+      return text === 'yes' || text === 'true' || text.includes('postpon');
+    });
   }
 
   /**
@@ -479,7 +648,6 @@ class WeeklyScheduler {
    */
   getRotatedQuote() {
     try {
-      // Default quotes if no custom sheet exists
       const defaultQuotes = [
         {
           text: "The harder you work for something, the greater you'll feel when you achieve it.",
@@ -507,28 +675,42 @@ class WeeklyScheduler {
           category: "excellence"
         }
       ];
-      
-      // Try to get quotes from sheet
+
+      const quotesPool = [];
+
       try {
         const quotesSheet = SheetUtils.getOrCreateSheet('Quotes', ['Quote', 'Author', 'Category']);
         const customQuotes = SheetUtils.getAllDataAsObjects(quotesSheet);
-        
-        if (customQuotes.length > 0) {
-          // Use custom quotes
-          const randomIndex = Math.floor(Math.random() * customQuotes.length);
-          return {
-            text: customQuotes[randomIndex].Quote,
-            author: customQuotes[randomIndex].Author || 'Unknown',
-            category: customQuotes[randomIndex].Category || 'motivation'
-          };
-        }
+
+        customQuotes.forEach(quote => {
+          if (quote && quote.Quote) {
+            quotesPool.push({
+              text: quote.Quote,
+              author: quote.Author || 'Unknown',
+              category: quote.Category || 'motivation'
+            });
+          }
+        });
       } catch (sheetError) {
         this.logger.warn('Could not access quotes sheet, using defaults', { error: sheetError.toString() });
       }
-      
-      // Use default quotes
-      const randomIndex = Math.floor(Math.random() * defaultQuotes.length);
-      return defaultQuotes[randomIndex];
+
+      if (quotesPool.length === 0) {
+        quotesPool.push(...defaultQuotes);
+      }
+
+      const rotationKey = this.getRotationPropertyKey('quotes');
+      const selectedQuote = this.getRandomUnusedRotationItem(
+        quotesPool,
+        quote => `${quote.text}||${quote.author}`,
+        rotationKey
+      );
+
+      if (selectedQuote) {
+        return selectedQuote;
+      }
+
+      return quotesPool[0];
       
     } catch (error) {
       this.logger.error('Failed to get rotated quote', { error: error.toString() });
@@ -546,7 +728,6 @@ class WeeklyScheduler {
    */
   getRotatedThrowback() {
     try {
-      // Default throwback content
       const defaultThrowbacks = [
         {
           title: "Great Goal from Last Season",
@@ -555,7 +736,7 @@ class WeeklyScheduler {
           category: "goals"
         },
         {
-          title: "Epic Team Performance", 
+          title: "Epic Team Performance",
           description: "Looking back at one of our most dominant displays on the pitch.",
           year: "2023",
           category: "team"
@@ -567,31 +748,48 @@ class WeeklyScheduler {
           category: "victories"
         }
       ];
-      
-      // Try to get throwbacks from sheet
+
+      const throwbacksPool = [];
+
       try {
-        const throwbackSheet = SheetUtils.getOrCreateSheet('Historical Data', 
-          ['Title', 'Description', 'Year', 'Category', 'Image URL']);
+        const throwbackSheet = SheetUtils.getOrCreateSheet(
+          'Historical Data',
+          ['Title', 'Description', 'Year', 'Category', 'Image URL']
+        );
         const customThrowbacks = SheetUtils.getAllDataAsObjects(throwbackSheet);
-        
-        if (customThrowbacks.length > 0) {
-          const randomIndex = Math.floor(Math.random() * customThrowbacks.length);
-          return {
-            title: customThrowbacks[randomIndex].Title,
-            description: customThrowbacks[randomIndex].Description,
-            year: customThrowbacks[randomIndex].Year,
-            category: customThrowbacks[randomIndex].Category || 'general',
-            image_url: customThrowbacks[randomIndex]['Image URL'] || ''
-          };
-        }
+
+        customThrowbacks.forEach(item => {
+          if (item && item.Title) {
+            throwbacksPool.push({
+              title: item.Title,
+              description: item.Description,
+              year: item.Year,
+              category: item.Category || 'general',
+              image_url: item['Image URL'] || ''
+            });
+          }
+        });
       } catch (sheetError) {
         this.logger.warn('Could not access historical data sheet, using defaults', { error: sheetError.toString() });
       }
-      
-      // Use default throwbacks
-      const randomIndex = Math.floor(Math.random() * defaultThrowbacks.length);
-      return defaultThrowbacks[randomIndex];
-      
+
+      if (throwbacksPool.length === 0) {
+        throwbacksPool.push(...defaultThrowbacks);
+      }
+
+      const rotationKey = this.getRotationPropertyKey('throwbacks');
+      const selectedThrowback = this.getRandomUnusedRotationItem(
+        throwbacksPool,
+        item => `${item.title}||${item.year || ''}`,
+        rotationKey
+      );
+
+      if (selectedThrowback) {
+        return selectedThrowback;
+      }
+
+      return throwbacksPool[0];
+
     } catch (error) {
       this.logger.error('Failed to get rotated throwback', { error: error.toString() });
       return {
@@ -600,6 +798,81 @@ class WeeklyScheduler {
         year: new Date().getFullYear().toString(),
         category: "general"
       };
+    }
+  }
+
+  /**
+   * Get rotation property key
+   * @param {string} type - Rotation type (quotes|throwbacks)
+   * @returns {string|null} Property key
+   */
+  getRotationPropertyKey(type) {
+    const rotationConfig = getConfig('WEEKLY_SCHEDULE.ROTATION', {});
+
+    if (type === 'quotes') {
+      return rotationConfig.QUOTES_PROPERTY_KEY || 'WEEKLY_QUOTES_ROTATION';
+    }
+
+    if (type === 'throwbacks') {
+      return rotationConfig.THROWBACK_PROPERTY_KEY || 'WEEKLY_THROWBACK_ROTATION';
+    }
+
+    return null;
+  }
+
+  /**
+   * Select random unused item for rotation
+   * @param {Array} items - Array of items
+   * @param {Function} idSelector - Function returning unique id string
+   * @param {string} propertyKey - Script property key
+   * @returns {Object|null} Selected item
+   */
+  getRandomUnusedRotationItem(items, idSelector, propertyKey) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return null;
+    }
+
+    if (!propertyKey) {
+      const randomIndex = Math.floor(Math.random() * items.length);
+      return items[randomIndex];
+    }
+
+    try {
+      const scriptProperties = PropertiesService.getScriptProperties();
+      const stored = scriptProperties.getProperty(propertyKey);
+      const usedIds = stored ? JSON.parse(stored) : [];
+      const usedSet = new Set(Array.isArray(usedIds) ? usedIds : []);
+
+      let unusedItems = items.filter(item => {
+        try {
+          const itemId = idSelector(item);
+          return itemId && !usedSet.has(itemId);
+        } catch (innerError) {
+          this.logger.warn('Rotation id selector failed', { error: innerError.toString() });
+          return false;
+        }
+      });
+
+      if (unusedItems.length === 0) {
+        unusedItems = items.slice();
+        usedSet.clear();
+      }
+
+      const randomIndex = Math.floor(Math.random() * unusedItems.length);
+      const selectedItem = unusedItems[randomIndex];
+      const selectedId = idSelector(selectedItem);
+
+      if (selectedId) {
+        usedSet.add(selectedId);
+        scriptProperties.setProperty(propertyKey, JSON.stringify(Array.from(usedSet)));
+      }
+
+      return selectedItem;
+
+    } catch (error) {
+      this.logger.warn('Rotation state handling failed', { error: error.toString(), propertyKey });
+      const randomIndex = Math.floor(Math.random() * items.length);
+      return items[randomIndex];
     }
   }
 
