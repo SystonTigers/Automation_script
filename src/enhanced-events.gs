@@ -43,22 +43,31 @@ class EnhancedEventsManager {
    */
   processGoalEvent(minute, player, assist = '', matchId = null) {
     this.logger.enterFunction('processGoalEvent', { minute, player, assist, matchId });
-    
+
     try {
       // @testHook(goal_event_start)
-      
+
       // Bible compliance: Auto-detect opposition goals
       const isOppositionGoal = this.detectOppositionGoal(player);
-      
+      let result;
+
       if (isOppositionGoal) {
-        return this.processOppositionGoal(minute, matchId);
+        result = this.processOppositionGoal(minute, matchId);
+        // @testHook(goal_event_exit_opposition)
       } else {
-        return this.processTeamGoal(minute, player, assist, matchId);
+        result = this.processTeamGoal(minute, player, assist, matchId);
+        // @testHook(goal_event_exit_team)
       }
-      
+
+      const resultContext = Object.assign({ branch: isOppositionGoal ? 'opposition' : 'team' }, result);
+      this.logger.exitFunction('processGoalEvent', resultContext);
+      return result;
+
     } catch (error) {
+      const errorResponse = { success: false, error: error.toString() };
       this.logger.error('Goal event processing failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      this.logger.exitFunction('processGoalEvent', errorResponse);
+      return errorResponse;
     }
   }
 
@@ -198,28 +207,38 @@ class EnhancedEventsManager {
    */
   processCardEvent(minute, player, cardType, matchId = null) {
     this.logger.enterFunction('processCardEvent', { minute, player, cardType, matchId });
-    
+
     try {
       // @testHook(card_event_start)
-      
+
       // Auto-detect opposition cards
       const isOppositionCard = this.detectOppositionCard(player);
+      let result;
+      let branch = 'team';
 
       if (isOppositionCard) {
-        return this.processOppositionCard(minute, cardType, matchId);
+        branch = 'opposition';
+        result = this.processOppositionCard(minute, cardType, matchId);
+        // @testHook(card_event_exit_opposition)
+      } else if (this.isSecondYellow(player, cardType, matchId)) {
+        branch = 'second_yellow';
+        result = this.processSecondYellow(minute, player, matchId);
+        // @testHook(card_event_exit_second_yellow)
+      } else {
+        branch = 'team';
+        result = this.processTeamCard(minute, player, cardType, matchId);
+        // @testHook(card_event_exit_team)
       }
 
-      // Check for 2nd yellow card
-      if (this.isSecondYellow(player, cardType, matchId)) {
-        return this.processSecondYellow(minute, player, matchId);
-      }
-      
-      // Process regular team card
-      return this.processTeamCard(minute, player, cardType, matchId);
-      
+      const resultContext = Object.assign({ branch: branch }, result);
+      this.logger.exitFunction('processCardEvent', resultContext);
+      return result;
+
     } catch (error) {
+      const errorResponse = { success: false, error: error.toString() };
       this.logger.error('Card event processing failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      this.logger.exitFunction('processCardEvent', errorResponse);
+      return errorResponse;
     }
   }
 

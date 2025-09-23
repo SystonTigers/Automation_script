@@ -1459,7 +1459,7 @@ class PrivacyComplianceManager {
       // Log the request processing
       this.logDataProcessing({
         type: 'data_subject_request',
-        subjectId: this.hashSubjectId(subjectId),
+        subjectId: this.normalizeSubjectId(subjectId),
         requestType: requestType,
         processed: new Date(),
         result: result.success
@@ -1470,6 +1470,7 @@ class PrivacyComplianceManager {
 
     } catch (error) {
       this.logger.error('Data subject request processing failed', { subjectId, requestType, error: error.toString() });
+      this.logger.exitFunction('processDataSubjectRequest', { success: false });
       return { success: false, error: error.toString() };
     }
   }
@@ -1481,11 +1482,18 @@ class PrivacyComplianceManager {
    * @returns {Object} Access result
    */
   processAccessRequest(subjectId, requestDetails) {
+    const normalizedSubjectId = this.normalizeSubjectId(subjectId);
+
+    this.logger.enterFunction('processAccessRequest', {
+      subject_hash: normalizedSubjectId,
+      request_detail_keys: Object.keys(requestDetails || {})
+    });
+
     try {
       const personalData = this.collectPersonalData(subjectId);
       const processedData = this.prepareDataForAccess(personalData);
 
-      return {
+      const result = {
         success: true,
         data: processedData,
         dataCategories: this.getDataCategories(personalData),
@@ -1494,8 +1502,21 @@ class PrivacyComplianceManager {
         thirdParties: this.getThirdPartySharing(subjectId)
       };
 
+      this.logger.exitFunction('processAccessRequest', {
+        success: true,
+        data_field_count: processedData ? Object.keys(processedData).length : 0
+      });
+
+      return result;
+
     } catch (error) {
-      return { success: false, error: `Access request failed: ${error.toString()}` };
+      const errorMessage = `Access request failed: ${error.toString()}`;
+      this.logger.error('Access request processing failed', {
+        subject_hash: normalizedSubjectId,
+        error: error.toString()
+      });
+      this.logger.exitFunction('processAccessRequest', { success: false });
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -1506,15 +1527,29 @@ class PrivacyComplianceManager {
    * @returns {Object} Deletion result
    */
   processDeletionRequest(subjectId, requestDetails) {
+    const normalizedSubjectId = this.normalizeSubjectId(subjectId);
+
+    this.logger.enterFunction('processDeletionRequest', {
+      subject_hash: normalizedSubjectId,
+      request_detail_keys: Object.keys(requestDetails || {})
+    });
+
     try {
       // Check if deletion is legally permissible
       const deletionCheck = this.canDeleteData(subjectId, requestDetails);
       if (!deletionCheck.canDelete) {
-        return {
+        const failureResult = {
           success: false,
           error: 'Deletion not permitted',
           reason: deletionCheck.reason
         };
+
+        this.logger.exitFunction('processDeletionRequest', {
+          success: false,
+          reason: deletionCheck.reason || 'unknown'
+        });
+
+        return failureResult;
       }
 
       // Perform deletion
@@ -1525,15 +1560,29 @@ class PrivacyComplianceManager {
         this.anonymizeRemainingData(subjectId);
       }
 
-      return {
+      const successResult = {
         success: true,
         message: 'Personal data deleted successfully',
         deletedRecords: deletionResult.deletedRecords,
         anonymizedRecords: deletionResult.anonymizedRecords
       };
 
+      this.logger.exitFunction('processDeletionRequest', {
+        success: true,
+        deleted_records: deletionResult.deletedRecords || 0,
+        anonymized_records: deletionResult.anonymizedRecords || 0
+      });
+
+      return successResult;
+
     } catch (error) {
-      return { success: false, error: `Deletion failed: ${error.toString()}` };
+      const errorMessage = `Deletion failed: ${error.toString()}`;
+      this.logger.error('Deletion request processing failed', {
+        subject_hash: normalizedSubjectId,
+        error: error.toString()
+      });
+      this.logger.exitFunction('processDeletionRequest', { success: false });
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -1544,6 +1593,13 @@ class PrivacyComplianceManager {
    * @returns {Object} Portability result
    */
   processPortabilityRequest(subjectId, requestDetails) {
+    const normalizedSubjectId = this.normalizeSubjectId(subjectId);
+
+    this.logger.enterFunction('processPortabilityRequest', {
+      subject_hash: normalizedSubjectId,
+      request_detail_keys: Object.keys(requestDetails || {})
+    });
+
     try {
       const personalData = this.collectPersonalData(subjectId);
       const portableData = this.prepareDataForPortability(personalData);
@@ -1552,16 +1608,30 @@ class PrivacyComplianceManager {
       const format = requestDetails.format || 'json';
       const exportData = this.formatDataForExport(portableData, format);
 
-      return {
+      const successResult = {
         success: true,
         data: exportData,
         format: format,
         exportDate: new Date().toISOString(),
-        recordCount: portableData.length
+        recordCount: Array.isArray(portableData) ? portableData.length : 0
       };
 
+      this.logger.exitFunction('processPortabilityRequest', {
+        success: true,
+        record_count: successResult.recordCount,
+        format: format
+      });
+
+      return successResult;
+
     } catch (error) {
-      return { success: false, error: `Portability request failed: ${error.toString()}` };
+      const errorMessage = `Portability request failed: ${error.toString()}`;
+      this.logger.error('Portability request processing failed', {
+        subject_hash: normalizedSubjectId,
+        error: error.toString()
+      });
+      this.logger.exitFunction('processPortabilityRequest', { success: false });
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -1606,6 +1676,7 @@ class PrivacyComplianceManager {
 
     } catch (error) {
       this.logger.error('Retention policy application failed', { error: error.toString() });
+      this.logger.exitFunction('applyRetentionPolicies', { success: false });
       return { success: false, error: error.toString() };
     }
   }
@@ -1686,6 +1757,7 @@ class PrivacyComplianceManager {
 
     } catch (error) {
       this.logger.error('Player data anonymization failed', { error: error.toString() });
+      this.logger.exitFunction('anonymizePlayerData', { success: false });
       return playerData; // Return original if anonymization fails
     }
   }
@@ -1815,9 +1887,10 @@ class PrivacyComplianceManager {
    * @returns {string} Hashed identifier
    */
   hashSubjectId(subjectId) {
+    const value = subjectId === undefined || subjectId === null ? 'UNKNOWN' : String(subjectId);
     let hash = 0;
-    for (let i = 0; i < subjectId.length; i++) {
-      const char = subjectId.charCodeAt(i);
+    for (let i = 0; i < value.length; i++) {
+      const char = value.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
       hash = hash & hash;
     }
@@ -1825,16 +1898,43 @@ class PrivacyComplianceManager {
   }
 
   /**
+   * Normalize subject identifier to hashed representation
+   * @param {string} subjectId - Subject identifier
+   * @returns {string} Normalized subject hash
+   */
+  normalizeSubjectId(subjectId) {
+    if (typeof subjectId === 'string' && subjectId.startsWith('HASH_')) {
+      return subjectId;
+    }
+    if (subjectId === undefined || subjectId === null) {
+      return 'HASH_UNKNOWN';
+    }
+    return this.hashSubjectId(String(subjectId));
+  }
+
+  /**
    * Log data processing activity
    * @param {Object} activity - Processing activity
    */
   logDataProcessing(activity) {
+    const activityType = activity && activity.type ? activity.type : 'unknown';
+    const normalizedSubjectId = this.normalizeSubjectId(activity ? activity.subjectId : null);
+
+    this.logger.enterFunction('logDataProcessing', {
+      activity_type: activityType,
+      subject_hash: normalizedSubjectId
+    });
+
     try {
-      this.dataProcessingLog.push({
-        ...activity,
-        timestamp: new Date().toISOString(),
+      const timestamp = activity && activity.timestamp ? activity.timestamp : new Date().toISOString();
+      const auditEntry = {
+        ...(activity || {}),
+        timestamp,
+        subjectId: normalizedSubjectId,
         source: 'PrivacyComplianceManager'
-      });
+      };
+
+      this.dataProcessingLog.push(auditEntry);
 
       // Keep only last 1000 entries
       if (this.dataProcessingLog.length > 1000) {
@@ -1842,22 +1942,31 @@ class PrivacyComplianceManager {
       }
 
       // Also log to audit sheet
+      // @testHook(privacy_audit_sheet_get_start)
       const auditSheet = SheetUtils.getOrCreateSheet('PrivacyAudit', [
         'Timestamp', 'Activity Type', 'Subject ID', 'Details', 'Result'
       ]);
+      // @testHook(privacy_audit_sheet_get_complete)
 
       if (auditSheet) {
-        auditSheet.appendRow([
-          activity.timestamp || new Date().toISOString(),
-          activity.type,
-          activity.subjectId || 'N/A',
-          JSON.stringify(activity),
-          activity.result || 'N/A'
-        ]);
+        const rowValues = [
+          timestamp,
+          activityType,
+          normalizedSubjectId,
+          JSON.stringify(auditEntry),
+          auditEntry.result || 'N/A'
+        ];
+
+        // @testHook(privacy_audit_append_start)
+        auditSheet.appendRow(rowValues);
+        // @testHook(privacy_audit_append_complete)
       }
+
+      this.logger.exitFunction('logDataProcessing', { success: true });
 
     } catch (error) {
       this.logger.error('Data processing logging failed', { error: error.toString() });
+      this.logger.exitFunction('logDataProcessing', { success: false });
     }
   }
 
@@ -1869,19 +1978,36 @@ class PrivacyComplianceManager {
    * @returns {Object} Validation result
    */
   validateDataSubjectRequest(subjectId, requestType, requestDetails) {
-    // Validate subject ID
-    const subjectValidation = validateInput(subjectId, 'string', { required: true, minLength: 3 });
-    if (!subjectValidation.success) {
-      return { success: false, error: `Invalid subject ID: ${subjectValidation.error}` };
+    this.logger.enterFunction('validateDataSubjectRequest', {
+      request_type: requestType,
+      request_detail_keys: Object.keys(requestDetails || {})
+    });
+
+    let result = { success: true };
+
+    try {
+      // Validate subject ID
+      const subjectValidation = validateInput(subjectId, 'string', { required: true, minLength: 3 });
+      if (!subjectValidation.success) {
+        result = { success: false, error: `Invalid subject ID: ${subjectValidation.error}` };
+      }
+
+      // Validate request type only if subject valid
+      if (result.success) {
+        const validRequestTypes = ['access', 'portability', 'deletion', 'rectification'];
+        if (!validRequestTypes.includes(requestType)) {
+          result = { success: false, error: `Invalid request type. Must be one of: ${validRequestTypes.join(', ')}` };
+        }
+      }
+
+    } finally {
+      this.logger.exitFunction('validateDataSubjectRequest', {
+        success: result.success,
+        error: result.success ? undefined : result.error
+      });
     }
 
-    // Validate request type
-    const validRequestTypes = ['access', 'portability', 'deletion', 'rectification'];
-    if (!validRequestTypes.includes(requestType)) {
-      return { success: false, error: `Invalid request type. Must be one of: ${validRequestTypes.join(', ')}` };
-    }
-
-    return { success: true };
+    return result;
   }
 
   // Placeholder methods for actual data operations (would need to be implemented based on specific data storage)
