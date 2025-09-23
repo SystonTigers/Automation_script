@@ -47,6 +47,7 @@ const SYSTEM_CONFIG = {
     CLUB_SHORT_NAME: 'Syston',
     SEASON: '2024/25',
     LEAGUE: 'Leicester & District Football League',
+    AGE_GROUP: 'Senior Men's',
     LAST_UPDATED: '2025-09-20',
     
     // Bible compliance settings
@@ -54,6 +55,42 @@ const SYSTEM_CONFIG = {
     WEEKLY_SCHEDULE_ENABLED: true,
     OPPOSITION_AUTO_DETECTION: true,
     PLAYER_MINUTES_AUTO_CALC: true
+  },
+
+  // ==================== BRANDING & CUSTOMER EXPERIENCE ====================
+  BRANDING: {
+    PRIMARY_COLOR: '#ff6600',
+    SECONDARY_COLOR: '#000000',
+    BADGE_URL: '',
+    BADGE_STORAGE_PROPERTY: 'BUYER_BADGE_BASE64',
+    LAST_ASSET_UPDATE: ''
+  },
+
+  CUSTOMER: {
+    DEFAULT_PROFILE: {
+      buyerId: 'default_buyer',
+      clubName: 'Syston Tigers',
+      clubShortName: 'Syston',
+      league: 'Leicester & District Football League',
+      ageGroup: 'Senior Men's',
+      primaryColor: '#ff6600',
+      secondaryColor: '#000000',
+      badgeUrl: '',
+      rosterEntries: []
+    },
+
+    PROPERTY_KEYS: {
+      PROFILE: 'BUYER_PROFILE',
+      PROFILE_ID: 'BUYER_PROFILE_ID',
+      BADGE_BASE64: 'BUYER_BADGE_BASE64'
+    },
+
+    SHEETS: {
+      PROFILE_TAB_KEY: 'BUYER_PROFILES',
+      ROSTER_TAB_KEY: 'BUYER_ROSTERS'
+    },
+
+    ACTIVE_PROFILE: null
   },
 
   // ==================== FEATURE FLAGS ====================
@@ -316,6 +353,8 @@ const SYSTEM_CONFIG = {
       NOTES: 'Notes',
       QUOTES: 'Quotes',
       HISTORICAL_DATA: 'Historical Data',
+      BUYER_PROFILES: 'Buyer Profiles',
+      BUYER_ROSTERS: 'Buyer Rosters',
       
       // Future sheets
       SEASON_STATS: 'Season Stats',
@@ -357,6 +396,13 @@ const SYSTEM_CONFIG = {
       PLAYER_EVENTS: [
         'Match ID', 'Date', 'Player', 'Event Type', 'Minute',
         'Details', 'Competition', 'Opposition', 'Timestamp'
+      ],
+      BUYER_PROFILES: [
+        'Buyer ID', 'Club Name', 'Club Short Name', 'League', 'Age Group',
+        'Primary Colour', 'Secondary Colour', 'Badge URL', 'Last Updated'
+      ],
+      BUYER_ROSTERS: [
+        'Buyer ID', 'Player Name', 'Position', 'Squad Number', 'Last Updated'
       ],
       SUBS_LOG: mergeUniqueArrays(
         [
@@ -1025,15 +1071,282 @@ function validateConfiguration() {
     timestamp: new Date().toISOString()
   };
 }
+
+// ==================== BUYER CONFIGURATION MANAGEMENT ====================
+
+/**
+ * Ensure buyer profile ID exists
+ * @returns {string} Buyer profile ID
+ */
+function ensureBuyerProfileId() {
+  try {
+    if (typeof PropertiesService === 'undefined' || !PropertiesService.getScriptProperties) {
+      return getConfig('CUSTOMER.DEFAULT_PROFILE').buyerId;
+    }
+
+    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+    const scriptProperties = PropertiesService.getScriptProperties();
+
+    // @testHook(buyer_profile_id_read_start)
+    let buyerId = scriptProperties.getProperty(propertyKeys.PROFILE_ID);
+    // @testHook(buyer_profile_id_read_complete)
+
+    if (!buyerId) {
+      buyerId = (typeof Utilities !== 'undefined' && Utilities.getUuid)
+        ? Utilities.getUuid()
+        : StringUtils.generateId('buyer');
+
+      // @testHook(buyer_profile_id_write_start)
+      scriptProperties.setProperty(propertyKeys.PROFILE_ID, buyerId);
+      // @testHook(buyer_profile_id_write_complete)
+    }
+
+    return buyerId;
+  } catch (error) {
+    console.error('Failed to ensure buyer profile ID:', error);
+    return getConfig('CUSTOMER.DEFAULT_PROFILE').buyerId;
+  }
+}
+
+/**
+ * Retrieve stored buyer profile
+ * @param {boolean} useDefaults - Fallback to defaults when missing
+ * @returns {Object|null} Buyer profile
+ */
+function getBuyerProfile(useDefaults = true) {
+  try {
+    const defaults = JSON.parse(JSON.stringify(getConfig('CUSTOMER.DEFAULT_PROFILE')));
+
+    if (typeof PropertiesService === 'undefined' || !PropertiesService.getScriptProperties) {
+      return useDefaults ? defaults : null;
+    }
+
+    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+    const scriptProperties = PropertiesService.getScriptProperties();
+
+    // @testHook(buyer_profile_properties_read_start)
+    const storedProfile = scriptProperties.getProperty(propertyKeys.PROFILE);
+    // @testHook(buyer_profile_properties_read_complete)
+
+    if (!storedProfile) {
+      return useDefaults ? defaults : null;
+    }
+
+    const parsedProfile = JSON.parse(storedProfile);
+
+    // Optionally include badge asset from dedicated storage
+    // @testHook(buyer_badge_properties_read_start)
+    const badgeBase64 = scriptProperties.getProperty(propertyKeys.BADGE_BASE64);
+    // @testHook(buyer_badge_properties_read_complete)
+
+    if (badgeBase64) {
+      parsedProfile.badgeBase64 = badgeBase64;
+    }
+
+    return Object.assign({}, defaults, parsedProfile);
+  } catch (error) {
+    console.error('Failed to load buyer profile:', error);
+    return useDefaults ? JSON.parse(JSON.stringify(getConfig('CUSTOMER.DEFAULT_PROFILE'))) : null;
+  }
+}
+
+/**
+ * Apply buyer profile to runtime configuration
+ * @param {Object} profile - Buyer profile data
+ * @returns {Object} Result of application
+ */
+function applyBuyerProfileToSystem(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return { success: false, reason: 'invalid_profile' };
+  }
+
+  const resolvedProfile = Object.assign({}, getConfig('CUSTOMER.DEFAULT_PROFILE'), profile);
+
+  setConfig('SYSTEM.CLUB_NAME', resolvedProfile.clubName || getConfig('SYSTEM.CLUB_NAME'));
+  setConfig('SYSTEM.CLUB_SHORT_NAME', resolvedProfile.clubShortName || resolvedProfile.clubName || getConfig('SYSTEM.CLUB_SHORT_NAME'));
+  setConfig('SYSTEM.LEAGUE', resolvedProfile.league || getConfig('SYSTEM.LEAGUE'));
+  setConfig('SYSTEM.AGE_GROUP', resolvedProfile.ageGroup || getConfig('SYSTEM.AGE_GROUP'));
+  setConfig('SYSTEM.LAST_UPDATED', new Date().toISOString());
+
+  if (resolvedProfile.primaryColor) {
+    setConfig('BRANDING.PRIMARY_COLOR', resolvedProfile.primaryColor);
+  }
+
+  if (resolvedProfile.secondaryColor) {
+    setConfig('BRANDING.SECONDARY_COLOR', resolvedProfile.secondaryColor);
+  }
+
+  if (resolvedProfile.badgeUrl) {
+    setConfig('BRANDING.BADGE_URL', resolvedProfile.badgeUrl);
+  }
+
+  setConfig('BRANDING.LAST_ASSET_UPDATE', new Date().toISOString());
+  setConfig('CUSTOMER.ACTIVE_PROFILE', resolvedProfile);
+
+  return {
+    success: true,
+    profile: resolvedProfile
+  };
+}
+
+/**
+ * Sync buyer profile to dedicated sheets
+ * @param {Object} profile - Buyer profile data
+ * @returns {Object} Sync result
+ */
+function syncBuyerProfileToSheets(profile) {
+  try {
+    if (typeof SpreadsheetApp === 'undefined') {
+      return { success: false, skipped: true };
+    }
+
+    const profileTabKey = getConfig('CUSTOMER.SHEETS.PROFILE_TAB_KEY');
+    const rosterTabKey = getConfig('CUSTOMER.SHEETS.ROSTER_TAB_KEY');
+    const profileSheetName = getConfig(`SHEETS.TAB_NAMES.${profileTabKey}`) || 'Buyer Profiles';
+    const rosterSheetName = getConfig(`SHEETS.TAB_NAMES.${rosterTabKey}`) || 'Buyer Rosters';
+    const profileColumns = getConfig(`SHEETS.REQUIRED_COLUMNS.${profileTabKey}`, []);
+    const rosterColumns = getConfig(`SHEETS.REQUIRED_COLUMNS.${rosterTabKey}`, []);
+
+    const profileSheet = SheetUtils.getOrCreateSheet(profileSheetName, profileColumns);
+    const rosterSheet = SheetUtils.getOrCreateSheet(rosterSheetName, rosterColumns);
+    const timestamp = new Date().toISOString();
+
+    const profileRow = {
+      'Buyer ID': profile.buyerId,
+      'Club Name': profile.clubName || '',
+      'Club Short Name': profile.clubShortName || profile.clubName || '',
+      'League': profile.league || '',
+      'Age Group': profile.ageGroup || '',
+      'Primary Colour': profile.primaryColor || '',
+      'Secondary Colour': profile.secondaryColor || '',
+      'Badge URL': profile.badgeUrl || '',
+      'Last Updated': timestamp
+    };
+
+    if (profileSheet) {
+      const updated = SheetUtils.updateRowByCriteria(profileSheet, { 'Buyer ID': profile.buyerId }, profileRow);
+      if (!updated) {
+        SheetUtils.addRowFromObject(profileSheet, profileRow);
+      }
+    }
+
+    if (rosterSheet) {
+      const lastRow = rosterSheet.getLastRow();
+      for (let rowIndex = lastRow; rowIndex >= 2; rowIndex -= 1) {
+        const existingBuyerId = rosterSheet.getRange(rowIndex, 1).getValue();
+        if (String(existingBuyerId).trim() === String(profile.buyerId).trim()) {
+          rosterSheet.deleteRow(rowIndex);
+        }
+      }
+
+      if (Array.isArray(profile.rosterEntries)) {
+        profile.rosterEntries.forEach(entry => {
+          const rosterRow = {
+            'Buyer ID': profile.buyerId,
+            'Player Name': entry.playerName || '',
+            'Position': entry.position || '',
+            'Squad Number': entry.squadNumber || '',
+            'Last Updated': timestamp
+          };
+          SheetUtils.addRowFromObject(rosterSheet, rosterRow);
+        });
+      }
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to sync buyer profile to sheets:', error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Persist buyer profile to script properties and sync
+ * @param {Object} profile - Buyer profile data
+ * @returns {Object} Save result
+ */
+function saveBuyerProfile(profile) {
+  try {
+    if (!profile || typeof profile !== 'object') {
+      throw new Error('Invalid buyer profile payload');
+    }
+
+    const resolvedProfile = Object.assign({}, getConfig('CUSTOMER.DEFAULT_PROFILE'), profile);
+    resolvedProfile.buyerId = resolvedProfile.buyerId || ensureBuyerProfileId();
+    resolvedProfile.updatedAt = new Date().toISOString();
+
+    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+
+    if (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) {
+      const scriptProperties = PropertiesService.getScriptProperties();
+      const profileToPersist = JSON.parse(JSON.stringify(resolvedProfile));
+      delete profileToPersist.badgeBase64;
+
+      // @testHook(buyer_profile_properties_write_start)
+      scriptProperties.setProperty(propertyKeys.PROFILE, JSON.stringify(profileToPersist));
+      // @testHook(buyer_profile_properties_write_complete)
+
+      if (resolvedProfile.badgeBase64) {
+        // @testHook(buyer_badge_properties_write_start)
+        scriptProperties.setProperty(propertyKeys.BADGE_BASE64, resolvedProfile.badgeBase64);
+        // @testHook(buyer_badge_properties_write_complete)
+      } else {
+        // @testHook(buyer_badge_properties_delete_start)
+        scriptProperties.deleteProperty(propertyKeys.BADGE_BASE64);
+        // @testHook(buyer_badge_properties_delete_complete)
+      }
+    }
+
+    const appliedResult = applyBuyerProfileToSystem(resolvedProfile);
+    const syncResult = syncBuyerProfileToSheets(resolvedProfile);
+
+    return {
+      success: appliedResult.success === true,
+      profile: resolvedProfile,
+      applied: appliedResult,
+      synced: syncResult
+    };
+  } catch (error) {
+    console.error('Failed to save buyer profile:', error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Load buyer overrides and apply to runtime config
+ * @returns {Object} Override result
+ */
+function loadBuyerProfileOverrides() {
+  try {
+    const profile = getBuyerProfile(false);
+    if (!profile) {
+      return { success: true, applied: false };
+    }
+
+    profile.buyerId = profile.buyerId || ensureBuyerProfileId();
+    const applied = applyBuyerProfileToSystem(profile);
+
+    return {
+      success: applied.success === true,
+      applied: applied.success === true,
+      profile: applied.profile
+    };
+  } catch (error) {
+    console.error('Failed to load buyer profile overrides:', error);
+    return { success: false, error: error.toString() };
+  }
+}
 /**
  * Initialize configuration system
  * @returns {Object} Initialization result
  */
 function initializeConfig() {
   try {
+    const overrides = loadBuyerProfileOverrides();
+
     // Validate configuration
     const validation = validateConfiguration();
-    
+
     if (!validation.valid) {
       console.warn('Configuration validation failed:', validation.issues);
     }
@@ -1047,11 +1360,12 @@ function initializeConfig() {
       version: getConfig('SYSTEM.VERSION'),
       validation: validation,
       bible_compliant: getConfig('SYSTEM.BIBLE_COMPLIANT'),
+      buyer_profile: overrides,
       features_enabled: Object.entries(getConfig('FEATURES', {}))
         .filter(([key, value]) => value === true)
         .map(([key]) => key)
     };
-    
+
   } catch (error) {
     console.error('Failed to initialize configuration:', error);
     return {
