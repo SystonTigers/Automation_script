@@ -1,6 +1,6 @@
 /**
  * @fileoverview Enhanced batch posting for fixtures and results with delegated monthly summaries
- * @version 6.2.1
+ * @version 6.2.0
  * @author Senior Software Architect
  * @description Handles batch posting (1–5 fixtures/results), postponed notifications,
  *              and provides idempotent integrations with Make.com. Monthly summaries are delegated.
