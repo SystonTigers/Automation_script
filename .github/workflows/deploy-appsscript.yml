@@ -65,20 +65,23 @@ jobs:
 
         print("✅ All required environment variables present")
 
-        # Create the authentication structure matching the exact format clasp expects
+        # Create the authentication structure using the exact clasp format
+        # Based on clasp documentation and working local format
         auth_data = {
-            "tokens": {
-                "default": {
-                    "client_id": os.environ.get('CLIENT_ID', ''),
-                    "client_secret": os.environ.get('CLIENT_SECRET', ''),
-                    "type": "authorized_user",
-                    "refresh_token": os.environ.get('REFRESH_TOKEN', ''),
-                    "access_token": os.environ.get('ACCESS_TOKEN', ''),
-                    "token_type": "Bearer",
-                    "expiry_date": expiry_date,
-                    "id_token": os.environ.get('ID_TOKEN', '')
-                }
-            }
+            "token": {
+                "access_token": os.environ.get('ACCESS_TOKEN', ''),
+                "refresh_token": os.environ.get('REFRESH_TOKEN', ''),
+                "scope": "https://www.googleapis.com/auth/script.projects",
+                "token_type": "Bearer",
+                "id_token": os.environ.get('ID_TOKEN', ''),
+                "expiry_date": expiry_date
+            },
+            "oauth2ClientSettings": {
+                "clientId": os.environ.get('CLIENT_ID', ''),
+                "clientSecret": os.environ.get('CLIENT_SECRET', ''),
+                "redirectUri": "http://localhost"
+            },
+            "isLocalCreds": False
         }
 
         # Write to the authentication file
@@ -91,7 +94,9 @@ jobs:
         # Verify file was created and is readable
         with open(auth_file_path, 'r') as f:
             test_data = json.load(f)
-            print(f"✅ File verification: tokens.default has {len(test_data['tokens']['default'])} fields")
+            token_fields = len(test_data.get('token', {}))
+            oauth_fields = len(test_data.get('oauth2ClientSettings', {}))
+            print(f"✅ File verification: token has {token_fields} fields, oauth has {oauth_fields} fields")
         EOF
 
     - name: Alternative - Copy your working local .clasprc.json format exactly
@@ -130,16 +135,20 @@ jobs:
             with open('/home/runner/.clasprc.json', 'r') as f:
                 data = json.load(f)
 
-            # Check for required fields
-            if 'tokens' in data and 'default' in data['tokens']:
-                default = data['tokens']['default']
-                print(f"✅ Has client_id: {'client_id' in default}")
-                print(f"✅ Has client_secret: {'client_secret' in default}")
-                print(f"✅ Has access_token: {'access_token' in default}")
-                print(f"✅ Has refresh_token: {'refresh_token' in default}")
-                print(f"✅ Has expiry_date: {'expiry_date' in default}")
-                print(f"   Expiry date value: {default.get('expiry_date', 'MISSING')}")
-                print(f"✅ Access token length: {len(default.get('access_token', ''))}")
+            # Check for required fields in the correct structure
+            token_data = data.get('token', {})
+            oauth_settings = data.get('oauth2ClientSettings', {})
+
+            if token_data and oauth_settings:
+                print(f"✅ Has access_token: {'access_token' in token_data}")
+                print(f"✅ Has refresh_token: {'refresh_token' in token_data}")
+                print(f"✅ Has expiry_date: {'expiry_date' in token_data}")
+                print(f"   Expiry date value: {token_data.get('expiry_date', 'MISSING')}")
+                print(f"✅ Access token length: {len(token_data.get('access_token', ''))}")
+                print(f"✅ Has clientId: {'clientId' in oauth_settings}")
+                print(f"✅ Has clientSecret: {'clientSecret' in oauth_settings}")
+            else:
+                print("❌ Missing token or oauth2ClientSettings structure")
         except Exception as e:
             print(f"❌ Error reading file: {e}")
         EOF
@@ -239,8 +248,8 @@ jobs:
             auth_data = json.load(f)
 
         # Update with fresh token and new expiry
-        auth_data['tokens']['default']['access_token'] = '$NEW_ACCESS_TOKEN'
-        auth_data['tokens']['default']['expiry_date'] = $(($(date +%s) * 1000 + 3600000))
+        auth_data['token']['access_token'] = '$NEW_ACCESS_TOKEN'
+        auth_data['token']['expiry_date'] = $(($(date +%s) * 1000 + 3600000))
 
         with open(auth_file, 'w') as f:
             json.dump(auth_data, f, indent=2)
@@ -257,13 +266,16 @@ jobs:
               echo "🔍 Final debug - auth file structure:"
               python3 << 'EOF'
         import json
+        import os
         try:
             with open(os.path.expanduser('~/.clasprc.json'), 'r') as f:
                 data = json.load(f)
-            default = data['tokens']['default']
-            print(f"Token length: {len(default.get('access_token', ''))}")
-            print(f"Expiry: {default.get('expiry_date')}")
-            print(f"Client ID present: {'client_id' in default}")
+            token_data = data.get('token', {})
+            oauth_settings = data.get('oauth2ClientSettings', {})
+            print(f"Token length: {len(token_data.get('access_token', ''))}")
+            print(f"Expiry: {token_data.get('expiry_date')}")
+            print(f"Client ID present: {'clientId' in oauth_settings}")
+            print(f"Structure: token={bool(token_data)}, oauth={bool(oauth_settings)}")
         except Exception as e:
             print(f"Error: {e}")
         EOF
