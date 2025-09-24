@@ -35,8 +35,8 @@ jobs:
 
     - name: Create .clasprc.json for authentication
       run: |
-        mkdir -p ~/.config/@google/clasp
-        cat > ~/.config/@google/clasp/clasprc.json << EOF
+        echo "🔑 Creating authentication file..."
+        cat > ~/.clasprc.json << EOF
         {
           "tokens": {
             "default": {
@@ -49,9 +49,18 @@ jobs:
           }
         }
         EOF
+        echo "✅ Authentication file created"
+
+    - name: Verify authentication file
+      run: |
+        echo "📋 Checking authentication setup..."
+        ls -la ~/.clasprc.json
+        echo "📄 File contents (without secrets):"
+        cat ~/.clasprc.json | jq 'del(.tokens.default.client_secret, .tokens.default.access_token, .tokens.default.refresh_token)'
 
     - name: Create .clasp.json with Script ID
       run: |
+        echo "📝 Creating project configuration..."
         cat > .clasp.json << EOF
         {
           "scriptId": "${{ secrets.SCRIPT_ID }}",
@@ -59,17 +68,26 @@ jobs:
           "fileExtension": "gs"
         }
         EOF
+        echo "✅ Project configuration created"
+        cat .clasp.json
+
+    - name: Test clasp login status
+      run: |
+        echo "🔍 Testing clasp authentication..."
+        clasp login --status || echo "Login status check failed - continuing with push"
 
     - name: Push to Google Apps Script
       run: |
         echo "🚀 Deploying to Apps Script..."
         clasp push --force
+        echo "✅ Push completed successfully"
 
     - name: Create deployment (main branch only)
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
         echo "📦 Creating deployment..."
         clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "✅ Deployment created successfully"
 
     - name: Deployment success notification
       if: success()
@@ -86,3 +104,5 @@ jobs:
         echo "❌ Deployment failed!"
         echo "🔍 Check the logs above for details"
         echo "📖 Refer to TROUBLESHOOTING.md for common solutions"
+        echo "🏠 Authentication file location: ~/.clasprc.json"
+        echo "📁 Project file location: .clasp.json"
