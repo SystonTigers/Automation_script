@@ -33,7 +33,7 @@ jobs:
           echo "✅ All required secrets are configured"
         fi
 
-    - name: Create .clasprc.json for authentication using jq
+    - name: Create .clasprc.json for authentication
       run: |
         echo "🔑 Creating authentication file with proper JSON escaping..."
         jq -n \
@@ -64,13 +64,7 @@ jobs:
     - name: Create .clasp.json with Script ID
       run: |
         echo "📝 Creating project configuration..."
-        jq -n \
-          --arg script_id "${{ secrets.SCRIPT_ID }}" \
-          '{
-            "scriptId": $script_id,
-            "rootDir": "./src",
-            "fileExtension": "gs"
-          }' > .clasp.json
+        jq -n --arg script_id "${{ secrets.SCRIPT_ID }}" '{"scriptId": $script_id, "rootDir": "./src", "fileExtension": "gs"}' > .clasp.json
         echo "✅ Project configuration created"
         cat .clasp.json
 
