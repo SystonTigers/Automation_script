@@ -2,7 +2,7 @@ name: Deploy to Google Apps Script
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
     paths:
       - 'src/**'
   workflow_dispatch:
@@ -25,7 +25,18 @@ jobs:
 
       - name: Verify required secrets
         run: |
+
+          if \
+            [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || \
+            [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || \
+            [[ -z "${{ secrets.CLIENT_ID }}" ]] || \
+            [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || \
+            [[ -z "${{ secrets.SCRIPT_ID }}" ]] || \
+            [[ -z "${{ secrets.ID_TOKEN }}" ]]
+          then
+
           if [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || [[ -z "${{ secrets.CLIENT_ID }}" ]] || [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || [[ -z "${{ secrets.SCRIPT_ID }}" ]] || [[ -z "${{ secrets.ID_TOKEN }}" ]]; then
+
             echo "❌ Missing required secrets. Please check README-OAUTH-SETUP.md for setup instructions."
             echo "Required secrets: ACCESS_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID, ID_TOKEN"
             exit 1
@@ -44,6 +55,61 @@ jobs:
           ACCESS_TOKEN_EXPIRY: ${{ secrets.ACCESS_TOKEN_EXPIRY }}
         run: |
           echo "🔑 Creating authentication file with sanitized credentials..."
+
+
+          sanitize_token() {
+            printf '%s' "${1:-}" | tr -d $' \t\r\n'
+          }
+
+          sanitize_field() {
+            printf '%s' "${1:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          }
+
+          parse_expiry() {
+            local value
+            value="$(sanitize_field "$1")"
+            if [[ -z "$value" ]]; then
+              echo 0
+            elif [[ "$value" =~ ^[0-9]+$ ]]; then
+              echo "$value"
+            else
+              echo 0
+            fi
+          }
+
+          scope="$(sanitize_field "$OAUTH_SCOPE")"
+          if [[ -z "$scope" ]]; then
+            scope="https://www.googleapis.com/auth/script.projects"
+          fi
+
+          expiry_date="$(parse_expiry "$ACCESS_TOKEN_EXPIRY")"
+
+          jq -n \
+            --arg access_token "$(sanitize_token "$ACCESS_TOKEN")" \
+            --arg refresh_token "$(sanitize_token "$REFRESH_TOKEN")" \
+            --arg scope "$scope" \
+            --arg id_token "$(sanitize_token "$ID_TOKEN")" \
+            --arg client_id "$(sanitize_field "$CLIENT_ID")" \
+            --arg client_secret "$(sanitize_field "$CLIENT_SECRET")" \
+            --argjson expiry "$expiry_date" \
+            '{
+              token: {
+                access_token: $access_token,
+                refresh_token: $refresh_token,
+                scope: $scope,
+                token_type: "Bearer",
+                id_token: $id_token,
+                expiry_date: $expiry
+              },
+              oauth2ClientSettings: {
+                clientId: $client_id,
+                clientSecret: $client_secret,
+                redirectUri: "http://localhost"
+              },
+              isLocalCreds: false
+            }' > ~/.clasprc.json
+
+
           python3 <<'PY'
 
     - name: Checkout repository
@@ -135,6 +201,7 @@ Path(os.path.expanduser("~/.clasprc.json")).write_text(
     encoding="utf-8",
 )
 PY
+
           echo "✅ Authentication file created with sanitized values"
 
       - name: Verify authentication file
@@ -142,13 +209,26 @@ PY
           echo "📋 Checking authentication setup..."
           ls -la ~/.clasprc.json
           echo "📄 File structure verification:"
+
+          jq \
+            'del(.token.access_token, .token.refresh_token, .token.id_token, .oauth2ClientSettings.clientSecret)' \
+            ~/.clasprc.json
+
           jq 'del(.token.access_token, .token.refresh_token, .token.id_token, .oauth2ClientSettings.clientSecret)' ~/.clasprc.json
+
 
       - name: Create .clasp.json with Script ID
         env:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: |
           echo "📝 Creating project configuration..."
+
+          script_id="$(printf '%s' "${SCRIPT_ID}" | tr -d '[:space:]')"
+          jq -n \
+            --arg scriptId "$script_id" \
+            '{ scriptId: $scriptId, rootDir: "./src", fileExtension: "gs" }' \
+            > .clasp.json
+
           python3 <<'PY'
 
         echo "✅ Authentication file created with sanitized values"
@@ -181,6 +261,7 @@ config = {
 with open(".clasp.json", "w", encoding="utf-8") as fh:
     json.dump(config, fh, indent=2)
 PY
+
           echo "✅ Project configuration created"
           cat .clasp.json
 
@@ -221,6 +302,7 @@ PY
           echo "📁 Project file location: .clasp.json"
           echo "🔧 Try running 'clasp login' locally to regenerate tokens if needed"
 
+
         echo "✅ Project configuration created"
         cat .clasp.json
 
@@ -260,3 +342,4 @@ PY
         echo "🏠 Authentication file location: ~/.clasprc.json"
         echo "📁 Project file location: .clasp.json"
         echo "🔧 Try running 'clasp login' locally to regenerate tokens if needed"
+
