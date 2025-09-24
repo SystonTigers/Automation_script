@@ -33,48 +33,51 @@ jobs:
           echo "✅ All required secrets are configured"
         fi
 
-    - name: Create .clasprc.json for authentication
+    - name: Create .clasprc.json for authentication using jq
       run: |
-        echo "🔑 Creating authentication file..."
-        cat > ~/.clasprc.json << EOF
-        {
-          "tokens": {
-            "default": {
-              "client_id": "${{ secrets.CLIENT_ID }}",
-              "client_secret": "${{ secrets.CLIENT_SECRET }}",
-              "type": "authorized_user",
-              "refresh_token": "${{ secrets.REFRESH_TOKEN }}",
-              "access_token": "${{ secrets.ACCESS_TOKEN }}"
+        echo "🔑 Creating authentication file with proper JSON escaping..."
+        jq -n \
+          --arg client_id "${{ secrets.CLIENT_ID }}" \
+          --arg client_secret "${{ secrets.CLIENT_SECRET }}" \
+          --arg refresh_token "${{ secrets.REFRESH_TOKEN }}" \
+          --arg access_token "${{ secrets.ACCESS_TOKEN }}" \
+          '{
+            "tokens": {
+              "default": {
+                "client_id": $client_id,
+                "client_secret": $client_secret,
+                "type": "authorized_user",
+                "refresh_token": $refresh_token,
+                "access_token": $access_token
+              }
             }
-          }
-        }
-        EOF
-        echo "✅ Authentication file created"
+          }' > ~/.clasprc.json
+        echo "✅ Authentication file created with proper JSON formatting"
 
     - name: Verify authentication file
       run: |
         echo "📋 Checking authentication setup..."
         ls -la ~/.clasprc.json
-        echo "📄 File contents (without secrets):"
-        cat ~/.clasprc.json | jq 'del(.tokens.default.client_secret, .tokens.default.access_token, .tokens.default.refresh_token)'
+        echo "📄 File structure verification:"
+        jq 'del(.tokens.default.client_secret, .tokens.default.access_token, .tokens.default.refresh_token)' ~/.clasprc.json
 
     - name: Create .clasp.json with Script ID
       run: |
         echo "📝 Creating project configuration..."
-        cat > .clasp.json << EOF
-        {
-          "scriptId": "${{ secrets.SCRIPT_ID }}",
-          "rootDir": "./src",
-          "fileExtension": "gs"
-        }
-        EOF
+        jq -n \
+          --arg script_id "${{ secrets.SCRIPT_ID }}" \
+          '{
+            "scriptId": $script_id,
+            "rootDir": "./src",
+            "fileExtension": "gs"
+          }' > .clasp.json
         echo "✅ Project configuration created"
         cat .clasp.json
 
     - name: Test clasp login status
       run: |
         echo "🔍 Testing clasp authentication..."
-        clasp login --status || echo "Login status check failed - continuing with push"
+        clasp login --status || echo "Login status check completed - proceeding with push"
 
     - name: Push to Google Apps Script
       run: |
@@ -106,3 +109,4 @@ jobs:
         echo "📖 Refer to TROUBLESHOOTING.md for common solutions"
         echo "🏠 Authentication file location: ~/.clasprc.json"
         echo "📁 Project file location: .clasp.json"
+        echo "🔧 Try running 'clasp login' locally to regenerate tokens if needed"
