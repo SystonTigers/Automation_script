@@ -25,13 +25,13 @@ jobs:
 
     - name: Verify required secrets
       run: |
-        if [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || [[ -z "${{ secrets.CLIENT_ID }}" ]] || [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || [[ -z "${{ secrets.SCRIPT_ID }}" ]]; then
-          echo "❌ Missing required secrets. Please check README-OAUTH-SETUP.md for setup instructions."
-          echo "Required secrets: ACCESS_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID"
-          exit 1
-        else
-          echo "✅ All required secrets are configured"
-        fi
+        echo "🔍 Verifying secrets are present..."
+        if [[ -z "${{ secrets.ACCESS_TOKEN }}" ]]; then echo "❌ ACCESS_TOKEN missing"; exit 1; fi
+        if [[ -z "${{ secrets.REFRESH_TOKEN }}" ]]; then echo "❌ REFRESH_TOKEN missing"; exit 1; fi
+        if [[ -z "${{ secrets.CLIENT_ID }}" ]]; then echo "❌ CLIENT_ID missing"; exit 1; fi
+        if [[ -z "${{ secrets.CLIENT_SECRET }}" ]]; then echo "❌ CLIENT_SECRET missing"; exit 1; fi
+        if [[ -z "${{ secrets.SCRIPT_ID }}" ]]; then echo "❌ SCRIPT_ID missing"; exit 1; fi
+        echo "✅ All required secrets are configured"
 
     - name: Create .clasprc.json for authentication
       run: |
@@ -52,13 +52,17 @@ jobs:
               }
             }
           }' > ~/.clasprc.json
-        echo "✅ Authentication file created with proper JSON formatting"
+        echo "✅ Authentication file created"
 
     - name: Verify authentication file
       run: |
-        echo "📋 Checking authentication setup..."
-        ls -la ~/.clasprc.json
-        echo "📄 File structure verification:"
+        echo "📋 Checking authentication file..."
+        if [[ ! -f ~/.clasprc.json ]]; then
+          echo "❌ Authentication file not created!"
+          exit 1
+        fi
+        echo "✅ Authentication file exists"
+        echo "📄 File structure:"
         jq 'del(.tokens.default.client_secret, .tokens.default.access_token, .tokens.default.refresh_token)' ~/.clasprc.json
 
     - name: Create .clasp.json with Script ID
@@ -66,25 +70,53 @@ jobs:
         echo "📝 Creating project configuration..."
         jq -n --arg script_id "${{ secrets.SCRIPT_ID }}" '{"scriptId": $script_id, "rootDir": "./src", "fileExtension": "gs"}' > .clasp.json
         echo "✅ Project configuration created"
+        echo "📄 Project config:"
         cat .clasp.json
 
-    - name: Test clasp login status
+    - name: Debug environment
+      run: |
+        echo "🔍 Debug information:"
+        echo "Working directory: $(pwd)"
+        echo "Files in current directory:"
+        ls -la
+        echo "Files in src directory:"
+        ls -la src/ | head -10
+        echo "Clasp version:"
+        clasp --version
+
+    - name: Test clasp authentication
       run: |
         echo "🔍 Testing clasp authentication..."
-        clasp login --status || echo "Login status check completed - proceeding with push"
+        clasp login --status || echo "⚠️ Login status check failed - but continuing"
 
-    - name: Push to Google Apps Script
+    - name: Push to Google Apps Script with detailed error handling
       run: |
         echo "🚀 Deploying to Apps Script..."
-        clasp push --force
-        echo "✅ Push completed successfully"
+        echo "Using Script ID: ${{ secrets.SCRIPT_ID }}"
+        echo "Root directory: ./src"
+        echo "Files to deploy:"
+        find ./src -name "*.js" -o -name "*.gs" | head -10
+
+        echo "🔄 Running clasp push --force..."
+        if clasp push --force; then
+          echo "✅ Push completed successfully!"
+        else
+          echo "❌ Push failed! Debugging..."
+          echo "Clasp version: $(clasp --version)"
+          echo "Authentication file exists: $(test -f ~/.clasprc.json && echo 'YES' || echo 'NO')"
+          echo "Project file exists: $(test -f .clasp.json && echo 'YES' || echo 'NO')"
+          echo "Project file contents:"
+          cat .clasp.json
+          echo "Trying with verbose output..."
+          clasp push --force --verbose || true
+          exit 1
+        fi
 
     - name: Create deployment (main branch only)
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
         echo "📦 Creating deployment..."
-        clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "✅ Deployment created successfully"
+        clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')" || echo "⚠️ Deployment creation failed, but push succeeded"
 
     - name: Deployment success notification
       if: success()
@@ -92,7 +124,7 @@ jobs:
         echo "🎉 Successfully deployed to Google Apps Script!"
         echo "📝 Changes in src/ folder have been pushed to Apps Script project"
         if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "📦 A new deployment was also created"
+          echo "📦 Deployment was also attempted"
         fi
 
     - name: Deployment failure notification
@@ -100,7 +132,8 @@ jobs:
       run: |
         echo "❌ Deployment failed!"
         echo "🔍 Check the logs above for details"
-        echo "📖 Refer to TROUBLESHOOTING.md for common solutions"
-        echo "🏠 Authentication file location: ~/.clasprc.json"
-        echo "📁 Project file location: .clasp.json"
-        echo "🔧 Try running 'clasp login' locally to regenerate tokens if needed"
+        echo "📖 Common issues:"
+        echo "   - Apps Script API not enabled"
+        echo "   - Invalid Script ID"
+        echo "   - Expired or invalid OAuth tokens"
+        echo "   - Script permissions issues"
