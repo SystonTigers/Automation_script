@@ -5,6 +5,8 @@
   "fileExtension": "gs",
   "filePushOrder": [
     "config.js",
+    "buyerIntake.html",
+    "controlPanel.html",
     "logger.gs",
     "utils.gs",
     "helper-utility-functions.gs",
