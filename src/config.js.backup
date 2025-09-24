@@ -6,7 +6,6 @@
  * 
  * CRITICAL: This is the single source of truth for all configuration.
  * No hard-coded values anywhere else in the system.
- * Test: GitHub Actions deployment configured
  */
 
 // ==================== SYSTEM CONFIGURATION ====================
