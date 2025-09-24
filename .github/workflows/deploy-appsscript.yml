@@ -208,24 +208,73 @@ jobs:
         echo "🚀 Deploying to Apps Script..."
         echo "Script ID: ${{ secrets.SCRIPT_ID }}"
 
+        # Try push with existing token first
         if clasp push --force; then
-          echo "✅ SUCCESS! Push completed!"
+          echo "✅ SUCCESS! Push completed with existing token!"
         else
-          echo "❌ Push failed. Trying token refresh approach..."
+          echo "❌ Initial push failed. Refreshing token and retrying..."
 
-          # Try using the refresh token to get a new access token
-          echo "Attempting to refresh tokens..."
-
-          # Manual token refresh attempt
-          curl -X POST https://oauth2.googleapis.com/token \
+          # Get fresh access token using refresh token
+          echo "🔄 Getting fresh access token..."
+          REFRESH_RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
             -H "Content-Type: application/x-www-form-urlencoded" \
             -d "client_id=${{ secrets.CLIENT_ID }}" \
             -d "client_secret=${{ secrets.CLIENT_SECRET }}" \
             -d "refresh_token=${{ secrets.REFRESH_TOKEN }}" \
-            -d "grant_type=refresh_token" \
-            | jq '.' || echo "Manual refresh failed"
+            -d "grant_type=refresh_token")
 
-          exit 1
+          # Extract the new access token
+          NEW_ACCESS_TOKEN=$(echo "$REFRESH_RESPONSE" | jq -r '.access_token // empty')
+
+          if [[ -n "$NEW_ACCESS_TOKEN" && "$NEW_ACCESS_TOKEN" != "null" ]]; then
+            echo "✅ Got fresh access token, updating .clasprc.json..."
+
+            # Update .clasprc.json with the fresh token
+            python3 << EOF
+        import json
+        import os
+
+        auth_file = os.path.expanduser('~/.clasprc.json')
+        with open(auth_file, 'r') as f:
+            auth_data = json.load(f)
+
+        # Update with fresh token and new expiry
+        auth_data['tokens']['default']['access_token'] = '$NEW_ACCESS_TOKEN'
+        auth_data['tokens']['default']['expiry_date'] = $(($(date +%s) * 1000 + 3600000))
+
+        with open(auth_file, 'w') as f:
+            json.dump(auth_data, f, indent=2)
+
+        print("✅ Updated .clasprc.json with fresh access token")
+        EOF
+
+            # Retry the push with fresh token
+            echo "🔄 Retrying push with fresh token..."
+            if clasp push --force; then
+              echo "✅ SUCCESS! Push completed with fresh token!"
+            else
+              echo "❌ Push failed even with fresh token"
+              echo "🔍 Final debug - auth file structure:"
+              python3 << 'EOF'
+        import json
+        try:
+            with open(os.path.expanduser('~/.clasprc.json'), 'r') as f:
+                data = json.load(f)
+            default = data['tokens']['default']
+            print(f"Token length: {len(default.get('access_token', ''))}")
+            print(f"Expiry: {default.get('expiry_date')}")
+            print(f"Client ID present: {'client_id' in default}")
+        except Exception as e:
+            print(f"Error: {e}")
+        EOF
+              exit 1
+            fi
+          else
+            echo "❌ Could not get fresh access token"
+            echo "Token refresh response:"
+            echo "$REFRESH_RESPONSE" | jq '.' || echo "$REFRESH_RESPONSE"
+            exit 1
+          fi
         fi
 
     - name: Create deployment (main branch only)
