@@ -196,9 +196,9 @@ jobs:
             auth_data = json.load(f)
 
         # Update with fresh token
-        auth_data['tokens']['default']['access_token'] = '$NEW_ACCESS_TOKEN'
+        auth_data['token']['access_token'] = '$NEW_ACCESS_TOKEN'
         # Update expiry (new tokens typically last 1 hour)
-        auth_data['tokens']['default']['expiry_date'] = $(($(date +%s) * 1000 + 3600000))
+        auth_data['token']['expiry_date'] = $(($(date +%s) * 1000 + 3600000))
 
         with open(auth_file, 'w') as f:
             json.dump(auth_data, f, indent=2)
