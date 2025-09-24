@@ -53,6 +53,7 @@ jobs:
           ACCESS_TOKEN_EXPIRY: ${{ secrets.ACCESS_TOKEN_EXPIRY }}
         run: |
           python3 <<'PY'
+
           import json
           import os
           from pathlib import Path
@@ -62,6 +63,17 @@ jobs:
               if value is None:
                   return ""
               return "".join(value.split())
+
+import json
+import os
+from pathlib import Path
+
+
+def sanitize_token(value: str) -> str:
+    if value is None:
+        return ""
+    return "".join(value.split())
+
 
 
           def sanitize_field(value: str) -> str:
@@ -107,6 +119,7 @@ jobs:
           )
           PY
 
+
       - name: Display sanitized authentication file
         run: |
           jq 'del(.token.access_token, .token.refresh_token, .token.id_token, .oauth2ClientSettings.clientSecret)' ~/.clasprc.json
@@ -116,6 +129,7 @@ jobs:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
         run: |
           python3 <<'PY'
+
           import json
           import os
 
@@ -130,6 +144,22 @@ jobs:
           with open(".clasp.json", "w", encoding="utf-8") as fh:
               json.dump(config, fh, indent=2)
           PY
+
+import json
+import os
+
+script_id = "".join(os.environ.get("SCRIPT_ID", "").split())
+
+config = {
+    "scriptId": script_id,
+    "rootDir": "./src",
+    "fileExtension": "gs",
+}
+
+with open(".clasp.json", "w", encoding="utf-8") as fh:
+    json.dump(config, fh, indent=2)
+PY
+
           cat .clasp.json
 
       - name: Test clasp login status
