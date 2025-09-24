@@ -1,5 +1,6 @@
+
 /**
- * @fileoverview Advanced Features Manager - System Health, Scheduling, Multi-tenant
+* @fileoverview Advanced Features Manager - System Health, Scheduling, Multi-tenant
  * @version 6.2.0
  * @author Senior Software Architect
  * @description Advanced system features including health monitoring, scheduling, and future multi-tenant support
