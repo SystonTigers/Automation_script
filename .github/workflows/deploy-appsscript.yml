@@ -2,7 +2,7 @@ name: Deploy to Google Apps Script
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
     paths:
       - 'src/**'
   workflow_dispatch:
@@ -12,113 +12,155 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-    - name: Install clasp
-      run: npm install -g @google/clasp
+      - name: Install clasp
+        run: npm install -g @google/clasp
 
-    - name: Verify required secrets
-      run: |
-        if [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || [[ -z "${{ secrets.CLIENT_ID }}" ]] || [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || [[ -z "${{ secrets.SCRIPT_ID }}" ]] || [[ -z "${{ secrets.ID_TOKEN }}" ]]; then
-          echo "❌ Missing required secrets. Please check README-OAUTH-SETUP.md for setup instructions."
-          echo "Required secrets: ACCESS_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID, ID_TOKEN"
-          exit 1
-        else
-          echo "✅ All required secrets are configured"
-        fi
+      - name: Verify required secrets
+        run: |
+          if \
+            [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || \
+            [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || \
+            [[ -z "${{ secrets.CLIENT_ID }}" ]] || \
+            [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || \
+            [[ -z "${{ secrets.SCRIPT_ID }}" ]] || \
+            [[ -z "${{ secrets.ID_TOKEN }}" ]]
+          then
+            echo "❌ Missing required secrets. Please check README-OAUTH-SETUP.md for setup instructions."
+            echo "Required secrets: ACCESS_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID, ID_TOKEN"
+            exit 1
+          else
+            echo "✅ All required secrets are configured"
+          fi
 
-    - name: Create .clasprc.json for authentication using jq
-      run: |
-        echo "🔑 Creating authentication file with proper JSON escaping..."
-        EXPIRY_RAW="${{ secrets.ACCESS_TOKEN_EXPIRY }}"
-        if [[ -z "$EXPIRY_RAW" ]]; then
-          EXPIRY_RAW="0"
-        fi
-        jq -n \
-          --arg access_token "${{ secrets.ACCESS_TOKEN }}" \
-          --arg refresh_token "${{ secrets.REFRESH_TOKEN }}" \
-          --arg id_token "${{ secrets.ID_TOKEN }}" \
-          --arg client_id "${{ secrets.CLIENT_ID }}" \
-          --arg client_secret "${{ secrets.CLIENT_SECRET }}" \
-          --arg scope "${{ secrets.OAUTH_SCOPE }}" \
-          --arg expiry "$EXPIRY_RAW" \
-          '{
-            "token": {
-              "access_token": $access_token,
-              "refresh_token": $refresh_token,
-              "scope": ($scope | select(length > 0) // "https://www.googleapis.com/auth/script.projects"),
-              "token_type": "Bearer",
-              "id_token": $id_token,
-              "expiry_date": (($expiry | tonumber?) // 0)
-            },
-            "oauth2ClientSettings": {
-              "clientId": $client_id,
-              "clientSecret": $client_secret,
-              "redirectUri": "http://localhost"
-            },
-            "isLocalCreds": false
-          }' > ~/.clasprc.json
-        echo "✅ Authentication file created with proper JSON formatting"
+      - name: Create .clasprc.json for authentication
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          ID_TOKEN: ${{ secrets.ID_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          OAUTH_SCOPE: ${{ secrets.OAUTH_SCOPE }}
+          ACCESS_TOKEN_EXPIRY: ${{ secrets.ACCESS_TOKEN_EXPIRY }}
+        run: |
+          echo "🔑 Creating authentication file with sanitized credentials..."
 
-    - name: Verify authentication file
-      run: |
-        echo "📋 Checking authentication setup..."
-        ls -la ~/.clasprc.json
-        echo "📄 File structure verification:"
-        jq 'del(.token.access_token, .token.refresh_token, .token.id_token, .oauth2ClientSettings.clientSecret)' ~/.clasprc.json
+          sanitize_token() {
+            printf '%s' "${1:-}" | tr -d $' \t\r\n'
+          }
 
-    - name: Create .clasp.json with Script ID
-      run: |
-        echo "📝 Creating project configuration..."
-        jq -n \
-          --arg script_id "${{ secrets.SCRIPT_ID }}" \
-          '{
-            "scriptId": $script_id,
-            "rootDir": "./src",
-            "fileExtension": "gs"
-          }' > .clasp.json
-        echo "✅ Project configuration created"
-        cat .clasp.json
+          sanitize_field() {
+            printf '%s' "${1:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+          }
 
-    - name: Test clasp login status
-      run: |
-        echo "🔍 Testing clasp authentication..."
-        clasp login --status || echo "Login status check completed - proceeding with push"
+          parse_expiry() {
+            local value
+            value="$(sanitize_field "$1")"
+            if [[ -z "$value" ]]; then
+              echo 0
+            elif [[ "$value" =~ ^[0-9]+$ ]]; then
+              echo "$value"
+            else
+              echo 0
+            fi
+          }
 
-    - name: Push to Google Apps Script
-      run: |
-        echo "🚀 Deploying to Apps Script..."
-        clasp push --force
-        echo "✅ Push completed successfully"
+          scope="$(sanitize_field "$OAUTH_SCOPE")"
+          if [[ -z "$scope" ]]; then
+            scope="https://www.googleapis.com/auth/script.projects"
+          fi
 
-    - name: Create deployment (main branch only)
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: |
-        echo "📦 Creating deployment..."
-        clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')"
-        echo "✅ Deployment created successfully"
+          expiry_date="$(parse_expiry "$ACCESS_TOKEN_EXPIRY")"
 
-    - name: Deployment success notification
-      if: success()
-      run: |
-        echo "🎉 Successfully deployed to Google Apps Script!"
-        echo "📝 Changes in src/ folder have been pushed to Apps Script project"
-        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "📦 A new deployment was also created"
-        fi
+          jq -n \
+            --arg access_token "$(sanitize_token "$ACCESS_TOKEN")" \
+            --arg refresh_token "$(sanitize_token "$REFRESH_TOKEN")" \
+            --arg scope "$scope" \
+            --arg id_token "$(sanitize_token "$ID_TOKEN")" \
+            --arg client_id "$(sanitize_field "$CLIENT_ID")" \
+            --arg client_secret "$(sanitize_field "$CLIENT_SECRET")" \
+            --argjson expiry "$expiry_date" \
+            '{
+              token: {
+                access_token: $access_token,
+                refresh_token: $refresh_token,
+                scope: $scope,
+                token_type: "Bearer",
+                id_token: $id_token,
+                expiry_date: $expiry
+              },
+              oauth2ClientSettings: {
+                clientId: $client_id,
+                clientSecret: $client_secret,
+                redirectUri: "http://localhost"
+              },
+              isLocalCreds: false
+            }' > ~/.clasprc.json
 
-    - name: Deployment failure notification
-      if: failure()
-      run: |
-        echo "❌ Deployment failed!"
-        echo "🔍 Check the logs above for details"
-        echo "📖 Refer to TROUBLESHOOTING.md for common solutions"
-        echo "🏠 Authentication file location: ~/.clasprc.json"
-        echo "📁 Project file location: .clasp.json"
-        echo "🔧 Try running 'clasp login' locally to regenerate tokens if needed"
+          echo "✅ Authentication file created with sanitized values"
+
+      - name: Verify authentication file
+        run: |
+          echo "📋 Checking authentication setup..."
+          ls -la ~/.clasprc.json
+          echo "📄 File structure verification:"
+          jq \
+            'del(.token.access_token, .token.refresh_token, .token.id_token, .oauth2ClientSettings.clientSecret)' \
+            ~/.clasprc.json
+
+      - name: Create .clasp.json with Script ID
+        env:
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          echo "📝 Creating project configuration..."
+          script_id="$(printf '%s' "${SCRIPT_ID}" | tr -d '[:space:]')"
+          jq -n \
+            --arg scriptId "$script_id" \
+            '{ scriptId: $scriptId, rootDir: "./src", fileExtension: "gs" }' \
+            > .clasp.json
+          echo "✅ Project configuration created"
+          cat .clasp.json
+
+      - name: Test clasp login status
+        run: |
+          echo "🔍 Testing clasp authentication..."
+          clasp login --status || echo "Login status check completed - proceeding with push"
+
+      - name: Push to Google Apps Script
+        run: |
+          echo "🚀 Deploying to Apps Script..."
+          clasp push --force
+          echo "✅ Push completed successfully"
+
+      - name: Create deployment (main branch only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "📦 Creating deployment..."
+          clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "✅ Deployment created successfully"
+
+      - name: Deployment success notification
+        if: success()
+        run: |
+          echo "🎉 Successfully deployed to Google Apps Script!"
+          echo "📝 Changes in src/ folder have been pushed to Apps Script project"
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "📦 A new deployment was also created"
+          fi
+
+      - name: Deployment failure notification
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "🔍 Check the logs above for details"
+          echo "📖 Refer to TROUBLESHOOTING.md for common solutions"
+          echo "🏠 Authentication file location: ~/.clasprc.json"
+          echo "📁 Project file location: .clasp.json"
+          echo "🔧 Try running 'clasp login' locally to regenerate tokens if needed"
