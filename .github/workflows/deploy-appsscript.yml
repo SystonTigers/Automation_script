@@ -33,41 +33,52 @@ jobs:
         if [[ -z "${{ secrets.SCRIPT_ID }}" ]]; then echo "❌ SCRIPT_ID missing"; exit 1; fi
         echo "✅ All required secrets are configured"
 
-    - name: Create .clasprc.json with exact local format
+    - name: Create .clasprc.json with EXACT working format
       run: |
-        echo "🔑 Creating authentication file with exact local format..."
+        echo "🔑 Creating authentication file..."
 
-        # Calculate expiry date (current time + 1 hour in milliseconds)
-        expiry_date=$(($(date +%s) * 1000 + 3600000))
-
-        jq -n \
-          --arg client_id "${{ secrets.CLIENT_ID }}" \
-          --arg client_secret "${{ secrets.CLIENT_SECRET }}" \
-          --arg refresh_token "${{ secrets.REFRESH_TOKEN }}" \
-          --arg access_token "${{ secrets.ACCESS_TOKEN }}" \
-          --arg id_token "${{ secrets.ID_TOKEN }}" \
-          --argjson expiry_date "$expiry_date" \
-          '{
-            "tokens": {
-              "default": {
-                "client_id": $client_id,
-                "client_secret": $client_secret,
-                "type": "authorized_user",
-                "refresh_token": $refresh_token,
-                "access_token": $access_token,
-                "token_type": "Bearer",
-                "expiry_date": $expiry_date,
-                "id_token": $id_token
-              }
+        # Create the file with the exact format that works locally
+        cat > ~/.clasprc.json << 'EOF'
+        {
+          "tokens": {
+            "default": {
+              "client_id": "CLIENT_ID_PLACEHOLDER",
+              "client_secret": "CLIENT_SECRET_PLACEHOLDER",
+              "type": "authorized_user",
+              "refresh_token": "REFRESH_TOKEN_PLACEHOLDER",
+              "access_token": "ACCESS_TOKEN_PLACEHOLDER",
+              "token_type": "Bearer",
+              "expiry_date": EXPIRY_DATE_PLACEHOLDER,
+              "id_token": "ID_TOKEN_PLACEHOLDER"
             }
-          }' > ~/.clasprc.json
-        echo "✅ Authentication file created with exact format match"
+          }
+        }
+        EOF
 
-    - name: Verify authentication file format
+        # Replace placeholders with actual values
+        sed -i "s/CLIENT_ID_PLACEHOLDER/${{ secrets.CLIENT_ID }}/g" ~/.clasprc.json
+        sed -i "s/CLIENT_SECRET_PLACEHOLDER/${{ secrets.CLIENT_SECRET }}/g" ~/.clasprc.json
+        sed -i "s/REFRESH_TOKEN_PLACEHOLDER/${{ secrets.REFRESH_TOKEN }}/g" ~/.clasprc.json
+        sed -i "s/ACCESS_TOKEN_PLACEHOLDER/${{ secrets.ACCESS_TOKEN }}/g" ~/.clasprc.json
+        sed -i "s/ID_TOKEN_PLACEHOLDER/${{ secrets.ID_TOKEN }}/g" ~/.clasprc.json
+
+        # Set expiry date to 1 hour from now
+        expiry_date=$(($(date +%s) * 1000 + 3600000))
+        sed -i "s/EXPIRY_DATE_PLACEHOLDER/$expiry_date/g" ~/.clasprc.json
+
+        echo "✅ Authentication file created"
+
+    - name: DEBUG - Show authentication file structure
       run: |
-        echo "📋 Verifying authentication file format..."
-        echo "📄 File structure (without secrets):"
-        jq 'del(.tokens.default.client_secret, .tokens.default.access_token, .tokens.default.refresh_token, .tokens.default.id_token)' ~/.clasprc.json
+        echo "🔍 DEBUG: Authentication file contents:"
+        echo "File exists: $(test -f ~/.clasprc.json && echo 'YES' || echo 'NO')"
+        echo "File size: $(wc -c < ~/.clasprc.json) bytes"
+        echo "First few lines:"
+        head -10 ~/.clasprc.json
+        echo "Structure with jq (masking secrets):"
+        jq 'del(.tokens.default.client_secret, .tokens.default.access_token, .tokens.default.refresh_token, .tokens.default.id_token)' ~/.clasprc.json || echo "jq parsing failed"
+        echo "Raw file validation:"
+        python3 -m json.tool ~/.clasprc.json > /dev/null && echo "✅ Valid JSON" || echo "❌ Invalid JSON"
 
     - name: Create .clasp.json with Script ID
       run: |
@@ -76,22 +87,36 @@ jobs:
         echo "✅ Project configuration created"
         cat .clasp.json
 
-    - name: Test clasp authentication
+    - name: Test clasp with debug output
       run: |
-        echo "🔍 Testing clasp authentication..."
-        clasp login --status || echo "⚠️ Login status check failed - continuing with push"
+        echo "🔍 Testing clasp with debug..."
+        echo "Clasp version:"
+        clasp --version
+        echo "Current directory:"
+        pwd
+        echo "Files in home directory:"
+        ls -la ~/
+        echo "Attempting to test authentication..."
+
+        # Try login status first
+        echo "Login status check:"
+        clasp login --status || echo "Login status failed"
+
+        # Try listing projects
+        echo "Trying to list projects:"
+        clasp list || echo "List projects failed"
 
     - name: Push to Google Apps Script
       run: |
-        echo "🚀 Deploying to Apps Script..."
-        echo "Using Script ID: ${{ secrets.SCRIPT_ID }}"
+        echo "🚀 Attempting deployment..."
 
         if clasp push --force; then
           echo "✅ Push completed successfully!"
         else
-          echo "❌ Push failed! Let's try to refresh the token..."
-          # Try to list projects first to test auth
-          clasp list || echo "❌ Could not list projects - auth issue confirmed"
+          echo "❌ Push failed!"
+          echo "🔍 Final debug attempt:"
+          echo "Authentication file structure:"
+          cat ~/.clasprc.json | jq '.' || cat ~/.clasprc.json
           exit 1
         fi
 
@@ -105,14 +130,12 @@ jobs:
       if: success()
       run: |
         echo "🎉 Successfully deployed to Google Apps Script!"
-        echo "📝 Changes in src/ folder have been pushed to Apps Script project"
 
     - name: Deployment failure notification
       if: failure()
       run: |
-        echo "❌ Deployment failed!"
-        echo "🔍 The issue is likely expired OAuth tokens."
-        echo "📖 To fix:"
-        echo "   1. Run 'clasp login' locally"
-        echo "   2. Extract new tokens from ~/.clasprc.json"
-        echo "   3. Update all GitHub repository secrets with fresh tokens"
+        echo "❌ Deployment failed - authentication issues persist"
+        echo "🔍 Next steps:"
+        echo "   1. Verify all GitHub secrets are exactly correct"
+        echo "   2. Check if tokens have expired"
+        echo "   3. Try re-running 'clasp login' locally and updating secrets"
