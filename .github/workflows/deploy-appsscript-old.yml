@@ -1,0 +1,77 @@
+name: Deploy to Google Apps Script
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Verify required secrets
+      run: |
+        if [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || [[ -z "${{ secrets.CLIENT_ID }}" ]] || [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || [[ -z "${{ secrets.SCRIPT_ID }}" ]]; then
+          echo "❌ Missing required secrets. Please check README-OAUTH-SETUP.md for setup instructions."
+          echo "Required secrets: ACCESS_TOKEN, ID_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID"
+          exit 1
+        else
+          echo "✅ All required secrets are configured"
+        fi
+
+    - name: Deploy to Google Apps Script
+      uses: daikikatsuragawa/clasp-action@v1.2.0
+      with:
+        accessToken: ${{ secrets.ACCESS_TOKEN }}
+        idToken: ${{ secrets.ID_TOKEN }}
+        refreshToken: ${{ secrets.REFRESH_TOKEN }}
+        clientId: ${{ secrets.CLIENT_ID }}
+        clientSecret: ${{ secrets.CLIENT_SECRET }}
+        scriptId: ${{ secrets.SCRIPT_ID }}
+        command: 'push'
+
+    # Optional: Deploy to a specific deployment if on main branch
+    - name: Create deployment (main branch only)
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: daikikatsuragawa/clasp-action@v1.2.0
+      with:
+        accessToken: ${{ secrets.ACCESS_TOKEN }}
+        idToken: ${{ secrets.ID_TOKEN }}
+        refreshToken: ${{ secrets.REFRESH_TOKEN }}
+        clientId: ${{ secrets.CLIENT_ID }}
+        clientSecret: ${{ secrets.CLIENT_SECRET }}
+        scriptId: ${{ secrets.SCRIPT_ID }}
+        command: 'deploy'
+        description: 'Automated deployment from GitHub Actions'
+
+    - name: Deployment success notification
+      if: success()
+      run: |
+        echo "🚀 Successfully deployed to Google Apps Script!"
+        echo "📝 Changes in src/ folder have been pushed to Apps Script project"
+        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "📦 A new deployment was also created"
+        fi
+
+    - name: Deployment failure notification
+      if: failure()
+      run: |
+        echo "❌ Deployment failed!"
+        echo "🔍 Check the logs above for details"
+        echo "📖 Refer to TROUBLESHOOTING.md for common solutions"

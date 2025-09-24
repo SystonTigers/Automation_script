@@ -33,7 +33,7 @@ jobs:
         if [[ -z "${{ secrets.SCRIPT_ID }}" ]]; then echo "❌ SCRIPT_ID missing"; exit 1; fi
         echo "✅ All required secrets are configured"
 
-    - name: Create .clasprc.json using environment variables
+    - name: Create .clasprc.json with proper expiry date
       env:
         CLIENT_ID: ${{ secrets.CLIENT_ID }}
         CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
@@ -41,17 +41,31 @@ jobs:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         ID_TOKEN: ${{ secrets.ID_TOKEN }}
       run: |
-        echo "🔑 Creating authentication file using environment variables..."
+        echo "🔑 Creating authentication file..."
 
         # Calculate expiry date (current time + 1 hour in milliseconds)
         EXPIRY_DATE=$(($(date +%s) * 1000 + 3600000))
+        echo "Calculated expiry date: $EXPIRY_DATE"
 
-        # Use Python to create the JSON file safely
-        python3 << EOF
+        # Use Python to create the JSON file safely with proper environment variable access
+        EXPIRY_DATE=$EXPIRY_DATE python3 << 'EOF'
         import json
         import os
 
-        # Create the authentication structure
+        # Get expiry date from environment
+        expiry_date = int(os.environ.get('EXPIRY_DATE', '0'))
+        print(f"Using expiry date: {expiry_date}")
+
+        # Verify all required environment variables are present
+        required_vars = ['CLIENT_ID', 'CLIENT_SECRET', 'REFRESH_TOKEN', 'ACCESS_TOKEN']
+        for var in required_vars:
+            if not os.environ.get(var):
+                print(f"❌ Missing required environment variable: {var}")
+                exit(1)
+
+        print("✅ All required environment variables present")
+
+        # Create the authentication structure matching the exact format clasp expects
         auth_data = {
             "tokens": {
                 "default": {
@@ -61,111 +75,174 @@ jobs:
                     "refresh_token": os.environ.get('REFRESH_TOKEN', ''),
                     "access_token": os.environ.get('ACCESS_TOKEN', ''),
                     "token_type": "Bearer",
-                    "expiry_date": int(os.environ.get('EXPIRY_DATE', '0')),
+                    "expiry_date": expiry_date,
                     "id_token": os.environ.get('ID_TOKEN', '')
                 }
             }
         }
 
         # Write to the authentication file
-        with open(os.path.expanduser('~/.clasprc.json'), 'w') as f:
+        auth_file_path = os.path.expanduser('~/.clasprc.json')
+        with open(auth_file_path, 'w') as f:
             json.dump(auth_data, f, indent=2)
 
-        print("✅ Authentication file created successfully")
+        print(f"✅ Authentication file created at: {auth_file_path}")
+
+        # Verify file was created and is readable
+        with open(auth_file_path, 'r') as f:
+            test_data = json.load(f)
+            print(f"✅ File verification: tokens.default has {len(test_data['tokens']['default'])} fields")
         EOF
 
-        # Set the expiry date for Python
-        export EXPIRY_DATE=$EXPIRY_DATE
-
-    - name: Verify authentication file
+    - name: Alternative - Copy your working local .clasprc.json format exactly
+      if: failure()
       run: |
-        echo "📋 Verifying authentication file..."
-        if [[ ! -f ~/.clasprc.json ]]; then
-          echo "❌ Authentication file not created!"
-          exit 1
-        fi
+        echo "🔄 Trying alternative approach - creating exact copy of working format..."
 
-        echo "✅ Authentication file exists"
-        echo "📄 File size: $(wc -c < ~/.clasprc.json) bytes"
+        # Create file with exact same structure as your working local file
+        cat > ~/.clasprc.json << EOF
+        {
+          "tokens": {
+            "default": {
+              "client_id": "${{ secrets.CLIENT_ID }}",
+              "client_secret": "${{ secrets.CLIENT_SECRET }}",
+              "type": "authorized_user",
+              "refresh_token": "${{ secrets.REFRESH_TOKEN }}",
+              "access_token": "${{ secrets.ACCESS_TOKEN }}",
+              "token_type": "Bearer",
+              "expiry_date": 1758678121909,
+              "id_token": "${{ secrets.ID_TOKEN }}"
+            }
+          }
+        }
+        EOF
 
-        # Validate JSON structure
-        if python3 -m json.tool ~/.clasprc.json > /dev/null 2>&1; then
-          echo "✅ Valid JSON structure"
-        else
-          echo "❌ Invalid JSON structure"
-          exit 1
-        fi
+    - name: Debug authentication file
+      run: |
+        echo "🔍 Authentication file verification:"
+        echo "File exists: $(test -f ~/.clasprc.json && echo 'YES' || echo 'NO')"
+        echo "File size: $(wc -c < ~/.clasprc.json) bytes"
 
-        # Show structure without secrets
-        echo "📄 File structure (secrets masked):"
+        # Show the structure (masking secrets)
         python3 << 'EOF'
         import json
-        with open('/home/runner/.clasprc.json', 'r') as f:
-            data = json.load(f)
+        try:
+            with open('/home/runner/.clasprc.json', 'r') as f:
+                data = json.load(f)
 
-        # Mask sensitive data
-        if 'tokens' in data and 'default' in data['tokens']:
-            masked = data.copy()
-            masked['tokens']['default']['client_secret'] = '***MASKED***'
-            masked['tokens']['default']['access_token'] = '***MASKED***'
-            masked['tokens']['default']['refresh_token'] = '***MASKED***'
-            masked['tokens']['default']['id_token'] = '***MASKED***'
-            print(json.dumps(masked, indent=2))
+            # Check for required fields
+            if 'tokens' in data and 'default' in data['tokens']:
+                default = data['tokens']['default']
+                print(f"✅ Has client_id: {'client_id' in default}")
+                print(f"✅ Has client_secret: {'client_secret' in default}")
+                print(f"✅ Has access_token: {'access_token' in default}")
+                print(f"✅ Has refresh_token: {'refresh_token' in default}")
+                print(f"✅ Has expiry_date: {'expiry_date' in default}")
+                print(f"   Expiry date value: {default.get('expiry_date', 'MISSING')}")
+                print(f"✅ Access token length: {len(default.get('access_token', ''))}")
+        except Exception as e:
+            print(f"❌ Error reading file: {e}")
         EOF
 
     - name: Create .clasp.json with Script ID
       run: |
         echo "📝 Creating project configuration..."
-        jq -n --arg script_id "${{ secrets.SCRIPT_ID }}" '{"scriptId": $script_id, "rootDir": "./src", "fileExtension": "gs"}' > .clasp.json
+        echo "{\"scriptId\": \"${{ secrets.SCRIPT_ID }}\", \"rootDir\": \"./src\", \"fileExtension\": \"gs\"}" > .clasp.json
         echo "✅ Project configuration created"
         cat .clasp.json
 
-    - name: Test clasp authentication
+    - name: Try token refresh and clasp setup
       run: |
-        echo "🔍 Testing clasp authentication..."
-        echo "Clasp version: $(clasp --version)"
+        echo "🔄 Attempting to refresh authentication..."
 
-        echo "Testing login status..."
-        clasp login --status || echo "⚠️ Login status check failed - continuing"
+        # Check clasp installation and version
+        clasp --version
 
-        echo "Testing project list..."
-        clasp list || echo "⚠️ Project list failed - continuing"
+        # Try to refresh the access token using the refresh token
+        echo "Attempting to get fresh access token..."
+
+        # Use curl to refresh the token manually first
+        REFRESH_RESPONSE=$(curl -s -X POST https://oauth2.googleapis.com/token \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          -d "client_id=${{ secrets.CLIENT_ID }}" \
+          -d "client_secret=${{ secrets.CLIENT_SECRET }}" \
+          -d "refresh_token=${{ secrets.REFRESH_TOKEN }}" \
+          -d "grant_type=refresh_token")
+
+        echo "Token refresh response received"
+
+        # Extract new access token if successful
+        NEW_ACCESS_TOKEN=$(echo "$REFRESH_RESPONSE" | jq -r '.access_token // empty')
+
+        if [[ -n "$NEW_ACCESS_TOKEN" && "$NEW_ACCESS_TOKEN" != "null" ]]; then
+          echo "✅ Successfully refreshed access token"
+
+          # Update the .clasprc.json with the new token
+          python3 << EOF
+        import json
+        import os
+
+        auth_file = os.path.expanduser('~/.clasprc.json')
+        with open(auth_file, 'r') as f:
+            auth_data = json.load(f)
+
+        # Update with fresh token
+        auth_data['tokens']['default']['access_token'] = '$NEW_ACCESS_TOKEN'
+        # Update expiry (new tokens typically last 1 hour)
+        auth_data['tokens']['default']['expiry_date'] = $(($(date +%s) * 1000 + 3600000))
+
+        with open(auth_file, 'w') as f:
+            json.dump(auth_data, f, indent=2)
+
+        print("✅ Updated .clasprc.json with fresh access token")
+        EOF
+        else
+          echo "⚠️ Could not refresh access token, using original token"
+        fi
+
+        # Check clasp login status
+        clasp login --status || echo "Login status check failed"
 
     - name: Push to Google Apps Script
       run: |
         echo "🚀 Deploying to Apps Script..."
         echo "Script ID: ${{ secrets.SCRIPT_ID }}"
-        echo "Root directory: ./src"
 
         if clasp push --force; then
-          echo "✅ Push completed successfully!"
+          echo "✅ SUCCESS! Push completed!"
         else
-          echo "❌ Push failed!"
-          echo "🔍 Debug information:"
-          echo "Authentication file exists: $(test -f ~/.clasprc.json && echo 'YES' || echo 'NO')"
-          echo "Project file exists: $(test -f .clasp.json && echo 'YES' || echo 'NO')"
-          echo "Final attempt - showing auth file structure:"
-          cat ~/.clasprc.json | python3 -m json.tool || cat ~/.clasprc.json
+          echo "❌ Push failed. Trying token refresh approach..."
+
+          # Try using the refresh token to get a new access token
+          echo "Attempting to refresh tokens..."
+
+          # Manual token refresh attempt
+          curl -X POST https://oauth2.googleapis.com/token \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "client_id=${{ secrets.CLIENT_ID }}" \
+            -d "client_secret=${{ secrets.CLIENT_SECRET }}" \
+            -d "refresh_token=${{ secrets.REFRESH_TOKEN }}" \
+            -d "grant_type=refresh_token" \
+            | jq '.' || echo "Manual refresh failed"
+
           exit 1
         fi
 
     - name: Create deployment (main branch only)
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push' && success()
       run: |
         echo "📦 Creating deployment..."
-        clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')" || echo "⚠️ Deployment creation failed, but push succeeded"
+        clasp deploy --description "Automated deployment - $(date '+%Y-%m-%d %H:%M:%S')" || echo "⚠️ Deployment failed but push succeeded"
 
-    - name: Deployment success notification
+    - name: Success notification
       if: success()
       run: |
-        echo "🎉 Successfully deployed to Google Apps Script!"
-        echo "📝 Files have been pushed to your Apps Script project"
+        echo "🎉 DEPLOYMENT SUCCESSFUL!"
+        echo "📝 Your Apps Script project has been updated"
 
-    - name: Deployment failure notification
+    - name: Failure analysis
       if: failure()
       run: |
-        echo "❌ Deployment failed!"
-        echo "🔍 Common solutions:"
-        echo "   1. Verify GitHub secrets are up-to-date"
-        echo "   2. Check that Apps Script API is enabled"
-        echo "   3. Confirm Script ID is correct"
+        echo "❌ Deployment failed"
+        echo "🔍 Most likely cause: Expired OAuth tokens"
+        echo "📖 Solution: Run 'clasp logout && clasp login' locally, then update GitHub secrets"
