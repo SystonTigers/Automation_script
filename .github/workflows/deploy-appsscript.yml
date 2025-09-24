@@ -5,10 +5,6 @@ on:
     branches: [ main, master ]
     paths:
       - 'src/**'
-  pull_request:
-    branches: [ main, master ]
-    paths:
-      - 'src/**'
   workflow_dispatch:
 
 jobs:
@@ -23,47 +19,62 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-        cache: 'npm'
+
+    - name: Install clasp
+      run: npm install -g @google/clasp
 
     - name: Verify required secrets
       run: |
         if [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || [[ -z "${{ secrets.CLIENT_ID }}" ]] || [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || [[ -z "${{ secrets.SCRIPT_ID }}" ]]; then
           echo "❌ Missing required secrets. Please check README-OAUTH-SETUP.md for setup instructions."
-          echo "Required secrets: ACCESS_TOKEN, ID_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID"
+          echo "Required secrets: ACCESS_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID"
           exit 1
         else
           echo "✅ All required secrets are configured"
         fi
 
-    - name: Deploy to Google Apps Script
-      uses: daikikatsuragawa/clasp-action@v1.2.0
-      with:
-        accessToken: ${{ secrets.ACCESS_TOKEN }}
-        idToken: ${{ secrets.ID_TOKEN }}
-        refreshToken: ${{ secrets.REFRESH_TOKEN }}
-        clientId: ${{ secrets.CLIENT_ID }}
-        clientSecret: ${{ secrets.CLIENT_SECRET }}
-        scriptId: ${{ secrets.SCRIPT_ID }}
-        command: 'push'
+    - name: Create .clasprc.json for authentication
+      run: |
+        mkdir -p ~/.config/@google/clasp
+        cat > ~/.config/@google/clasp/clasprc.json << EOF
+        {
+          "tokens": {
+            "default": {
+              "client_id": "${{ secrets.CLIENT_ID }}",
+              "client_secret": "${{ secrets.CLIENT_SECRET }}",
+              "type": "authorized_user",
+              "refresh_token": "${{ secrets.REFRESH_TOKEN }}",
+              "access_token": "${{ secrets.ACCESS_TOKEN }}"
+            }
+          }
+        }
+        EOF
 
-    # Optional: Deploy to a specific deployment if on main branch
+    - name: Create .clasp.json with Script ID
+      run: |
+        cat > .clasp.json << EOF
+        {
+          "scriptId": "${{ secrets.SCRIPT_ID }}",
+          "rootDir": "./src",
+          "fileExtension": "gs"
+        }
+        EOF
+
+    - name: Push to Google Apps Script
+      run: |
+        echo "🚀 Deploying to Apps Script..."
+        clasp push --force
+
     - name: Create deployment (main branch only)
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      uses: daikikatsuragawa/clasp-action@v1.2.0
-      with:
-        accessToken: ${{ secrets.ACCESS_TOKEN }}
-        idToken: ${{ secrets.ID_TOKEN }}
-        refreshToken: ${{ secrets.REFRESH_TOKEN }}
-        clientId: ${{ secrets.CLIENT_ID }}
-        clientSecret: ${{ secrets.CLIENT_SECRET }}
-        scriptId: ${{ secrets.SCRIPT_ID }}
-        command: 'deploy'
-        description: 'Automated deployment from GitHub Actions'
+      run: |
+        echo "📦 Creating deployment..."
+        clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')"
 
     - name: Deployment success notification
       if: success()
       run: |
-        echo "🚀 Successfully deployed to Google Apps Script!"
+        echo "🎉 Successfully deployed to Google Apps Script!"
         echo "📝 Changes in src/ folder have been pushed to Apps Script project"
         if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
           echo "📦 A new deployment was also created"
