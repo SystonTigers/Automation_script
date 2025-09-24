@@ -12,6 +12,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Verify required secrets
+        run: |
+          if [[ -z "${{ secrets.ACCESS_TOKEN }}" ]] || [[ -z "${{ secrets.REFRESH_TOKEN }}" ]] || [[ -z "${{ secrets.CLIENT_ID }}" ]] || [[ -z "${{ secrets.CLIENT_SECRET }}" ]] || [[ -z "${{ secrets.SCRIPT_ID }}" ]] || [[ -z "${{ secrets.ID_TOKEN }}" ]]; then
+            echo "❌ Missing required secrets. Please check README-OAUTH-SETUP.md for setup instructions."
+            echo "Required secrets: ACCESS_TOKEN, REFRESH_TOKEN, CLIENT_ID, CLIENT_SECRET, SCRIPT_ID, ID_TOKEN"
+            exit 1
+          else
+            echo "✅ All required secrets are configured"
+          fi
+
+      - name: Create .clasprc.json for authentication
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          ID_TOKEN: ${{ secrets.ID_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          OAUTH_SCOPE: ${{ secrets.OAUTH_SCOPE }}
+          ACCESS_TOKEN_EXPIRY: ${{ secrets.ACCESS_TOKEN_EXPIRY }}
+        run: |
+          echo "🔑 Creating authentication file with sanitized credentials..."
+          python3 <<'PY'
+
     - name: Checkout repository
       uses: actions/checkout@v4
 
@@ -45,6 +79,7 @@ jobs:
       run: |
         echo "🔑 Creating authentication file with sanitized credentials..."
         python3 <<'PY'
+
 import json
 import os
 from pathlib import Path
@@ -100,6 +135,22 @@ Path(os.path.expanduser("~/.clasprc.json")).write_text(
     encoding="utf-8",
 )
 PY
+          echo "✅ Authentication file created with sanitized values"
+
+      - name: Verify authentication file
+        run: |
+          echo "📋 Checking authentication setup..."
+          ls -la ~/.clasprc.json
+          echo "📄 File structure verification:"
+          jq 'del(.token.access_token, .token.refresh_token, .token.id_token, .oauth2ClientSettings.clientSecret)' ~/.clasprc.json
+
+      - name: Create .clasp.json with Script ID
+        env:
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          echo "📝 Creating project configuration..."
+          python3 <<'PY'
+
         echo "✅ Authentication file created with sanitized values"
 
     - name: Verify authentication file
@@ -115,6 +166,7 @@ PY
       run: |
         echo "📝 Creating project configuration..."
         python3 <<'PY'
+
 import json
 import os
 
@@ -129,6 +181,46 @@ config = {
 with open(".clasp.json", "w", encoding="utf-8") as fh:
     json.dump(config, fh, indent=2)
 PY
+          echo "✅ Project configuration created"
+          cat .clasp.json
+
+      - name: Test clasp login status
+        run: |
+          echo "🔍 Testing clasp authentication..."
+          clasp login --status || echo "Login status check completed - proceeding with push"
+
+      - name: Push to Google Apps Script
+        run: |
+          echo "🚀 Deploying to Apps Script..."
+          clasp push --force
+          echo "✅ Push completed successfully"
+
+      - name: Create deployment (main branch only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "📦 Creating deployment..."
+          clasp deploy --description "Automated deployment from GitHub Actions - $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "✅ Deployment created successfully"
+
+      - name: Deployment success notification
+        if: success()
+        run: |
+          echo "🎉 Successfully deployed to Google Apps Script!"
+          echo "📝 Changes in src/ folder have been pushed to Apps Script project"
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "📦 A new deployment was also created"
+          fi
+
+      - name: Deployment failure notification
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "🔍 Check the logs above for details"
+          echo "📖 Refer to TROUBLESHOOTING.md for common solutions"
+          echo "🏠 Authentication file location: ~/.clasprc.json"
+          echo "📁 Project file location: .clasp.json"
+          echo "🔧 Try running 'clasp login' locally to regenerate tokens if needed"
+
         echo "✅ Project configuration created"
         cat .clasp.json
 
