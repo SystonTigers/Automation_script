@@ -19,7 +19,7 @@
 /**
  * Control Panel Manager - Handles all control panel operations
  */
-class ControlPanelManager {
+class SystemControlPanel {
     
   constructor() {
     this.logger = logger.scope('ControlPanel');
@@ -1345,7 +1345,7 @@ class ControlPanelManager {
 /**
  * Global control panel manager instance
  */
-const ControlPanel = new ControlPanelManager();
+const ControlPanel = new SystemControlPanel();
 
 /**
  * Show control panel - Global function (called from menu)

@@ -622,9 +622,41 @@ class Logger {
 // ==================== GLOBAL LOGGER INSTANCE ====================
 
 /**
- * Global logger instance
+ * Global logger instance (lazy initialized)
  */
-const logger = new Logger();
+let _loggerInstance = null;
+
+/**
+ * Get or create the global logger instance
+ * @returns {Logger} Logger instance
+ */
+function getLogger() {
+  if (!_loggerInstance) {
+    _loggerInstance = new Logger();
+  }
+  return _loggerInstance;
+}
+
+/**
+ * Global logger instance (property getter)
+ */
+const logger = {
+  get scope() { return getLogger().scope.bind(getLogger()); },
+  get info() { return getLogger().info.bind(getLogger()); },
+  get warn() { return getLogger().warn.bind(getLogger()); },
+  get error() { return getLogger().error.bind(getLogger()); },
+  get debug() { return getLogger().debug.bind(getLogger()); },
+  get enterFunction() { return getLogger().enterFunction.bind(getLogger()); },
+  get exitFunction() { return getLogger().exitFunction.bind(getLogger()); },
+  get performance() { return getLogger().performance.bind(getLogger()); },
+  get audit() { return getLogger().audit.bind(getLogger()); },
+  get security() { return getLogger().security.bind(getLogger()); },
+  get getStats() { return getLogger().getStats.bind(getLogger()); },
+  get sessionId() { return getLogger().sessionId; },
+  get config() { return getLogger().config; },
+  get _formatDuration() { return getLogger()._formatDuration.bind(getLogger()); },
+  get _cleanOldLogs() { return getLogger()._cleanOldLogs.bind(getLogger()); }
+};
 
 // ==================== UTILITY FUNCTIONS ====================
 

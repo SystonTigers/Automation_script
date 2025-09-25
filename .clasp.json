@@ -1,12 +1,10 @@
 {
-  "scriptId": "1smg6o0onO2iqEoBZefqXcHNVPoCSOwlDtmcctGaGTr3WMTvbpsfqyDjx",
+  "scriptId": "1OnoYkfZE1aSKdJCfz-DaMdg2aRUCRG7zGypExFCjIOHyS1ItpNKBn3oE",
   "rootDir": "./src",
   "projectId": "",
   "fileExtension": "gs",
   "filePushOrder": [
-    "config.js",
-    "buyerIntake.html",
-    "controlPanel.html",
+    "config.gs",
     "logger.gs",
     "utils.gs",
     "helper-utility-functions.gs",
@@ -33,6 +31,14 @@
     "testing-framework.gs",
     "test-suites.gs",
     "weekly-scheduler.gs",
-    "xbotgo-integration.gs"
+    "xbotgo-integration.gs",
+    "Code.gs",
+    "buyerIntake.html",
+    "controlPanel.html",
+    "index.html",
+    "match.html",
+    "scripts.html",
+    "setup.html",
+    "styles.html"
   ]
 }

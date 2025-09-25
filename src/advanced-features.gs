@@ -870,312 +870,6 @@ class AdvancedFeaturesManager {
   }
 }
 
-// ==================== CONTROL PANEL MANAGER ====================
-
-/**
- * Control Panel Manager Class
- * Handles the control panel functionality for feature management
- */
-class ControlPanelManager {
-  
-  constructor() {
-    this.logger = logger.scope('ControlPanel');
-  }
-
-  /**
-   * Toggle feature on/off
-   * @param {string} featureName - Feature name
-   * @param {boolean} enabled - Enable status
-   * @param {string} modifiedBy - Who made the change
-   * @returns {Object} Toggle result
-   */
-  toggleFeature(featureName, enabled, modifiedBy = 'System') {
-    this.logger.enterFunction('toggleFeature', { featureName, enabled, modifiedBy });
-    
-    try {
-      // @testHook(feature_toggle_start)
-      
-      // Update in configuration
-      setConfig(`FEATURES.${featureName}`, enabled);
-      
-      // Update in Control Panel sheet
-      const controlSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.CONTROL_PANEL'),
-        ['Feature', 'Enabled', 'Last Modified', 'Modified By', 'Notes']
-      );
-      
-      if (controlSheet) {
-        const existingRow = SheetUtils.findRowByCriteria(controlSheet, { 'Feature': featureName });
-        
-        const updateData = {
-          'Enabled': enabled ? 'TRUE' : 'FALSE',
-          'Last Modified': DateUtils.formatISO(DateUtils.now()),
-          'Modified By': modifiedBy,
-          'Notes': `Feature ${enabled ? 'enabled' : 'disabled'}`
-        };
-        
-        if (existingRow === -1) {
-          // Add new feature row
-          const newData = {
-            'Feature': featureName,
-            ...updateData
-          };
-          SheetUtils.addRowFromObject(controlSheet, newData);
-        } else {
-          // Update existing row
-          SheetUtils.updateRowByCriteria(controlSheet, { 'Feature': featureName }, updateData);
-        }
-      }
-      
-      // @testHook(feature_toggle_complete)
-      
-      auditTrail('FEATURE_TOGGLE', featureName, { enabled, previous_state: !enabled }, modifiedBy);
-      
-      this.logger.exitFunction('toggleFeature', { success: true });
-      
-      return {
-        success: true,
-        feature: featureName,
-        enabled: enabled,
-        modified_by: modifiedBy,
-        timestamp: DateUtils.formatISO(DateUtils.now())
-      };
-      
-    } catch (error) {
-      this.logger.error('Feature toggle failed', { 
-        error: error.toString(),
-        featureName, enabled 
-      });
-      
-      return {
-        success: false,
-        error: error.toString(),
-        feature: featureName,
-        timestamp: DateUtils.formatISO(DateUtils.now())
-      };
-    }
-  }
-
-  /**
-   * Input historical player statistics
-   * @param {Array} playerDataArray - Array of player data objects
-   * @returns {Object} Input result
-   */
-  inputHistoricalPlayerStats(playerDataArray) {
-    this.logger.enterFunction('inputHistoricalPlayerStats', { 
-      player_count: playerDataArray.length 
-    });
-    
-    try {
-      // @testHook(historical_stats_input_start)
-      
-      if (!Array.isArray(playerDataArray) || playerDataArray.length === 0) {
-        throw new Error('Invalid player data array provided');
-      }
-      
-      const playerManager = new PlayerManagementSystem();
-      const results = {
-        successful: 0,
-        failed: 0,
-        errors: []
-      };
-      
-      playerDataArray.forEach((playerData, index) => {
-        try {
-          if (!playerData.name) {
-            throw new Error(`Missing player name at index ${index}`);
-          }
-          
-          const statsToUpdate = {
-            appearances: playerData.apps || 0,
-            goals: playerData.goals || 0,
-            assists: playerData.assists || 0,
-            minutes: playerData.minutes || 0,
-            yellow_cards: playerData.cards || 0,
-            motm: playerData.motm || 0
-          };
-          
-          const updateResult = playerManager.updatePlayerStats(playerData.name, statsToUpdate);
-          
-          if (updateResult.success) {
-            results.successful++;
-          } else {
-            results.failed++;
-            results.errors.push(`${playerData.name}: ${updateResult.error}`);
-          }
-          
-        } catch (error) {
-          results.failed++;
-          results.errors.push(`Index ${index}: ${error.toString()}`);
-        }
-      });
-      
-      // @testHook(historical_stats_input_complete)
-      
-      auditTrail('HISTORICAL_STATS_INPUT', 'player_statistics', {
-        total_players: playerDataArray.length,
-        successful: results.successful,
-        failed: results.failed
-      }, 'manual_input');
-      
-      this.logger.exitFunction('inputHistoricalPlayerStats', { 
-        success: results.failed === 0,
-        successful: results.successful,
-        failed: results.failed
-      });
-      
-      return {
-        success: results.failed === 0,
-        total_players: playerDataArray.length,
-        successful_updates: results.successful,
-        failed_updates: results.failed,
-        errors: results.errors,
-        timestamp: DateUtils.formatISO(DateUtils.now())
-      };
-      
-    } catch (error) {
-      this.logger.error('Historical player stats input failed', { error: error.toString() });
-      
-      return {
-        success: false,
-        error: error.toString(),
-        timestamp: DateUtils.formatISO(DateUtils.now())
-      };
-    }
-  }
-
-  /**
-   * Get system health status
-   * @returns {Object} System health status
-   */
-  getSystemHealthStatus() {
-    try {
-      const advancedFeatures = new AdvancedFeaturesManager();
-      const healthResult = advancedFeatures.performSystemHealthMonitoring();
-      
-      if (!healthResult.success) {
-        return {
-          success: false,
-          error: healthResult.error
-        };
-      }
-      
-      return {
-        success: true,
-        health_status: healthResult.health_report.overall_status,
-        component_count: Object.keys(healthResult.health_report.components).length,
-        warnings: healthResult.health_report.warnings.length,
-        errors: healthResult.health_report.errors.length,
-        uptime_hours: (healthResult.health_report.uptime_ms / (1000 * 60 * 60)).toFixed(1),
-        last_checked: healthResult.health_report.timestamp
-      };
-      
-    } catch (error) {
-      return {
-        success: false,
-        error: error.toString()
-      };
-    }
-  }
-
-  /**
-   * Reset Control Panel to defaults
-   * @returns {Object} Reset result
-   */
-  resetToDefaults() {
-    try {
-      // Reset all features to default configuration
-      const defaultFeatures = {
-        WEEKLY_CONTENT_AUTOMATION: true,
-        OPPOSITION_AUTO_DETECTION: true,
-        PLAYER_MINUTES_TRACKING: true,
-        BATCH_POSTING: true,
-        MONTHLY_SUMMARIES: true,
-        VIDEO_INTEGRATION: false,
-        XBOTGO_INTEGRATION: false,
-        YOUTUBE_AUTOMATION: false,
-        ADVANCED_ANALYTICS: false,
-        MULTI_TENANT: false
-      };
-      
-      Object.entries(defaultFeatures).forEach(([feature, enabled]) => {
-        this.toggleFeature(feature, enabled, 'system_reset');
-      });
-      
-      auditTrail('CONTROL_PANEL_RESET', 'all_features', defaultFeatures, 'system_reset');
-      
-      return {
-        success: true,
-        message: 'Control Panel reset to defaults',
-        features_reset: Object.keys(defaultFeatures).length,
-        timestamp: DateUtils.formatISO(DateUtils.now())
-      };
-      
-    } catch (error) {
-      return {
-        success: false,
-        error: error.toString()
-      };
-    }
-  }
-
-  /**
-   * Export Control Panel settings
-   * @returns {Object} Export result
-   */
-  exportSettings() {
-    try {
-      const currentFeatures = getConfig('FEATURES', {});
-      
-      return {
-        success: true,
-        settings: currentFeatures,
-        export_date: DateUtils.formatISO(DateUtils.now()),
-        system_version: getConfig('SYSTEM.VERSION')
-      };
-      
-    } catch (error) {
-      return {
-        success: false,
-        error: error.toString()
-      };
-    }
-  }
-
-  /**
-   * Import Control Panel settings
-   * @param {Object} settingsData - Settings to import
-   * @returns {Object} Import result
-   */
-  importSettings(settingsData) {
-    try {
-      if (!settingsData || !settingsData.settings) {
-        throw new Error('Invalid settings data provided');
-      }
-      
-      const importedCount = Object.keys(settingsData.settings).length;
-      
-      Object.entries(settingsData.settings).forEach(([feature, enabled]) => {
-        this.toggleFeature(feature, enabled, 'settings_import');
-      });
-      
-      auditTrail('CONTROL_PANEL_IMPORT', 'all_features', settingsData.settings, 'settings_import');
-      
-      return {
-        success: true,
-        message: 'Control Panel settings imported',
-        features_imported: importedCount,
-        timestamp: DateUtils.formatISO(DateUtils.now())
-      };
-      
-    } catch (error) {
-      return {
-        success: false,
-        error: error.toString()
-      };
-    }
-  }
-}
 
 // ==================== PUBLIC API FUNCTIONS ====================
 
@@ -1252,7 +946,7 @@ function prepareMultiTenantSystem() {
  * @returns {Object} Toggle result
  */
 function toggleSystemFeature(featureName, enabled, modifiedBy = 'Manual') {
-  const controlPanel = new ControlPanelManager();
+  const controlPanel = new SystemControlPanel();
   return controlPanel.toggleFeature(featureName, enabled, modifiedBy);
 }
 
@@ -1262,7 +956,7 @@ function toggleSystemFeature(featureName, enabled, modifiedBy = 'Manual') {
  * @returns {Object} Input result
  */
 function inputHistoricalPlayerStatistics(playerDataArray) {
-  const controlPanel = new ControlPanelManager();
+  const controlPanel = new SystemControlPanel();
   return controlPanel.inputHistoricalPlayerStats(playerDataArray);
 }
 
@@ -1271,7 +965,7 @@ function inputHistoricalPlayerStatistics(playerDataArray) {
  * @returns {Object} Health status
  */
 function getSystemHealthStatus() {
-  const controlPanel = new ControlPanelManager();
+  const controlPanel = new SystemControlPanel();
   return controlPanel.getSystemHealthStatus();
 }
 
@@ -1280,7 +974,7 @@ function getSystemHealthStatus() {
  * @returns {Object} Reset result
  */
 function resetControlPanelToDefaults() {
-  const controlPanel = new ControlPanelManager();
+  const controlPanel = new SystemControlPanel();
   return controlPanel.resetToDefaults();
 }
 
@@ -1289,7 +983,7 @@ function resetControlPanelToDefaults() {
  * @returns {Object} Export result
  */
 function exportControlPanelSettings() {
-  const controlPanel = new ControlPanelManager();
+  const controlPanel = new SystemControlPanel();
   return controlPanel.exportSettings();
 }
 
@@ -1299,7 +993,7 @@ function exportControlPanelSettings() {
  * @returns {Object} Import result
  */
 function importControlPanelSettings(settingsData) {
-  const controlPanel = new ControlPanelManager();
+  const controlPanel = new SystemControlPanel();
   return controlPanel.importSettings(settingsData);
 }
 
@@ -1335,7 +1029,7 @@ function testAdvancedFeatures() {
     
     // Test control panel
     try {
-      const controlPanel = new ControlPanelManager();
+      const controlPanel = new SystemControlPanel();
       const healthStatus = controlPanel.getSystemHealthStatus();
       results.control_panel = healthStatus.success;
     } catch (error) {
