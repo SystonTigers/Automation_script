@@ -18,10 +18,370 @@ function doGet(e) {
     switch (path) {
       case '':
       case 'index':
-        // Main web interface
-        return HtmlService.createTemplateFromFile('index')
-          .evaluate()
-          .setTitle('Club Console - ' + (getConfig('SYSTEM.CLUB_NAME') || 'Football Club'))
+        // DIRECT MATCH INTERFACE - No complex templates
+        return HtmlService.createHtmlOutput(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>⚽ Live Match Updates - ${getConfig('SYSTEM.CLUB_NAME') || 'Football Club'}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                max-width: 800px; margin: 0 auto; padding: 20px;
+                background: #f5f5f5; color: #333;
+              }
+              .header { text-align: center; margin-bottom: 30px; }
+              .score {
+                text-align: center; font-size: 48px; font-weight: bold;
+                margin: 30px 0; padding: 20px; background: white;
+                border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+              }
+              .btn {
+                padding: 15px 20px; margin: 8px; font-size: 16px; font-weight: bold;
+                border: none; border-radius: 8px; cursor: pointer;
+                transition: all 0.2s; min-width: 140px;
+              }
+              .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+              .btn-success { background: #28a745; color: white; }
+              .btn-warning { background: #ffc107; color: #333; }
+              .btn-danger { background: #dc3545; color: white; }
+              .btn-primary { background: #007bff; color: white; }
+
+              .controls {
+                display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 15px; margin: 20px 0;
+              }
+              .section {
+                background: white; padding: 20px; margin: 20px 0;
+                border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+              }
+              .section h2 { margin-bottom: 15px; color: #333; }
+              .status {
+                text-align: center; font-size: 18px; margin: 15px 0;
+                padding: 10px; background: #e9ecef; border-radius: 8px;
+              }
+              .events {
+                max-height: 200px; overflow-y: auto;
+                font-family: monospace; line-height: 1.6;
+              }
+              .time-display { text-align: center; font-size: 24px; margin: 10px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>⚽ Live Match Updates</h1>
+              <div class="time-display" id="current-time"></div>
+            </div>
+
+            <div class="status" id="match-status">🔴 Ready to start match</div>
+            <div class="score" id="score">0 - 0</div>
+
+            <div class="section">
+              <h2>🎮 Match Controls</h2>
+              <div class="controls">
+                <button class="btn btn-success" onclick="startMatch()">⏱️ Kick Off</button>
+                <button class="btn btn-warning" onclick="halfTime()">⏸️ Half Time</button>
+                <button class="btn btn-primary" onclick="secondHalf()">▶️ 2nd Half</button>
+                <button class="btn btn-warning" onclick="fullTime()">⏹️ Full Time</button>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>⚽ Scoring</h2>
+              <div class="controls">
+                <button class="btn btn-success" onclick="homeGoal()">⚽ HOME GOAL</button>
+                <button class="btn btn-success" onclick="awayGoal()">⚽ AWAY GOAL</button>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>📋 Discipline & Subs</h2>
+              <div class="controls">
+                <button class="btn btn-warning" onclick="yellowCard()">🟨 Yellow Card</button>
+                <button class="btn btn-danger" onclick="redCard()">🟥 Red Card</button>
+                <button class="btn btn-primary" onclick="substitution()">🔄 Substitution</button>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>📝 Recent Events</h2>
+              <div id="events" class="events">No events yet - click buttons above to start!</div>
+            </div>
+
+            <script>
+              let homeScore = 0;
+              let awayScore = 0;
+              let events = [];
+              let matchMinute = 0;
+
+              // Update time display
+              setInterval(() => {
+                document.getElementById('current-time').textContent = new Date().toLocaleTimeString();
+              }, 1000);
+
+              function updateScore() {
+                document.getElementById('score').textContent = homeScore + ' - ' + awayScore;
+              }
+
+              function addEvent(event, isImportant = false) {
+                const timestamp = new Date().toLocaleTimeString();
+                const eventText = timestamp + ' - ' + (isImportant ? '🔥 ' : '') + event;
+                events.unshift(eventText);
+                document.getElementById('events').innerHTML = events.slice(0, 15).join('<br>') || 'No events yet';
+              }
+
+              function updateStatus(status, color = '#e9ecef') {
+                const statusEl = document.getElementById('match-status');
+                statusEl.textContent = status;
+                statusEl.style.background = color;
+              }
+
+              // Match state functions
+              function startMatch() {
+                matchMinute = 0;
+                updateStatus('🟢 1st Half - Match in progress', '#d4edda');
+                addEvent('⏱️ KICK OFF - Match started!', true);
+                callAPI('processState', { stateType: 'kickoff', period: '1H' });
+              }
+
+              function halfTime() {
+                updateStatus('🟡 Half Time', '#fff3cd');
+                addEvent('⏸️ HALF TIME', true);
+                callAPI('processState', { stateType: 'halftime' });
+              }
+
+              function secondHalf() {
+                updateStatus('🟢 2nd Half - Match in progress', '#d4edda');
+                addEvent('▶️ SECOND HALF STARTED', true);
+                callAPI('processState', { stateType: 'kickoff', period: '2H' });
+              }
+
+              function fullTime() {
+                updateStatus('🔴 Full Time - Match ended', '#f8d7da');
+                addEvent('⏹️ FULL TIME - Final score: ' + homeScore + '-' + awayScore, true);
+                callAPI('processState', { stateType: 'fulltime' });
+              }
+
+              // Scoring functions
+              function homeGoal() {
+                homeScore++;
+                updateScore();
+                addEvent('⚽ HOME GOAL! ' + homeScore + '-' + awayScore, true);
+                callAPI('processGoal', {
+                  minute: matchMinute || new Date().getMinutes(),
+                  player: 'Player',
+                  team: 'home',
+                  assist: ''
+                });
+              }
+
+              function awayGoal() {
+                awayScore++;
+                updateScore();
+                addEvent('⚽ AWAY GOAL! ' + homeScore + '-' + awayScore, true);
+                callAPI('processGoal', {
+                  minute: matchMinute || new Date().getMinutes(),
+                  player: 'Opposition',
+                  team: 'away'
+                });
+              }
+
+              // Discipline functions
+              function yellowCard() {
+                addEvent('🟨 Yellow card shown');
+                callAPI('processCard', {
+                  minute: matchMinute || new Date().getMinutes(),
+                  player: 'Player',
+                  cardType: 'Y'
+                });
+              }
+
+              function redCard() {
+                addEvent('🟥 Red card shown', true);
+                callAPI('processCard', {
+                  minute: matchMinute || new Date().getMinutes(),
+                  player: 'Player',
+                  cardType: 'R'
+                });
+              }
+
+              function substitution() {
+                addEvent('🔄 Substitution made');
+                callAPI('processSub', {
+                  minute: matchMinute || new Date().getMinutes(),
+                  playerOut: 'Player Out',
+                  playerIn: 'Player In'
+                });
+              }
+
+              // API communication
+              function callAPI(action, data) {
+                addEvent('📡 Sending to system: ' + action);
+
+                fetch(window.location.origin + window.location.pathname, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: action, data: data })
+                })
+                .then(response => response.json())
+                .then(result => {
+                  if (result.success) {
+                    addEvent('✅ System updated successfully');
+                    console.log('API Success:', result);
+                  } else {
+                    addEvent('❌ System error: ' + result.error);
+                    console.error('API Error:', result);
+                  }
+                })
+                .catch(error => {
+                  addEvent('⚠️ Connection error - check network');
+                  console.error('Network error:', error);
+                });
+              }
+
+              // Initialize
+              document.addEventListener('DOMContentLoaded', function() {
+                addEvent('🚀 Live Match Updates ready!');
+                updateScore();
+              });
+            </script>
+          </body>
+          </html>
+        `)
+          .setTitle('Live Match Updates - ' + (getConfig('SYSTEM.CLUB_NAME') || 'Football Club'))
+          .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
+          .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+
+      case 'match':
+        // Direct match interface
+        return HtmlService.createHtmlOutput(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Live Match Updates</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+              .btn { padding: 15px 25px; margin: 10px; font-size: 18px; border: none; border-radius: 8px; cursor: pointer; }
+              .btn-success { background: #28a745; color: white; }
+              .btn-warning { background: #ffc107; color: black; }
+              .btn-danger { background: #dc3545; color: white; }
+              .score { text-align: center; font-size: 32px; font-weight: bold; margin: 20px 0; }
+              .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0; }
+              .events { margin: 20px 0; }
+              h1, h2 { text-align: center; }
+              .status { text-align: center; font-size: 18px; margin: 10px 0; }
+            </style>
+          </head>
+          <body>
+            <h1>⚽ Live Match Updates</h1>
+            <div class="status" id="match-status">Ready to start match</div>
+
+            <div class="score" id="score">0 - 0</div>
+
+            <h2>Match Controls</h2>
+            <div class="controls">
+              <button class="btn btn-success" onclick="startMatch()">⏱️ Kick Off</button>
+              <button class="btn btn-warning" onclick="halfTime()">⏸️ Half Time</button>
+              <button class="btn btn-warning" onclick="fullTime()">⏹️ Full Time</button>
+              <button class="btn btn-success" onclick="homeGoal()">⚽ Home Goal</button>
+              <button class="btn btn-success" onclick="awayGoal()">⚽ Away Goal</button>
+              <button class="btn btn-warning" onclick="yellowCard()">🟨 Yellow Card</button>
+              <button class="btn btn-danger" onclick="redCard()">🟥 Red Card</button>
+              <button class="btn btn-warning" onclick="substitution()">🔄 Substitution</button>
+            </div>
+
+            <h2>Recent Events</h2>
+            <div id="events" class="events">No events yet</div>
+
+            <script>
+              let homeScore = 0;
+              let awayScore = 0;
+              let events = [];
+
+              function updateScore() {
+                document.getElementById('score').textContent = homeScore + ' - ' + awayScore;
+              }
+
+              function addEvent(event) {
+                events.unshift(event + ' - ' + new Date().toLocaleTimeString());
+                document.getElementById('events').innerHTML = events.slice(0, 10).join('<br>');
+              }
+
+              function startMatch() {
+                document.getElementById('match-status').textContent = 'Match in progress';
+                addEvent('⏱️ Match started');
+                callAPI('processState', { stateType: 'kickoff' });
+              }
+
+              function halfTime() {
+                document.getElementById('match-status').textContent = 'Half time';
+                addEvent('⏸️ Half time');
+                callAPI('processState', { stateType: 'halftime' });
+              }
+
+              function fullTime() {
+                document.getElementById('match-status').textContent = 'Full time';
+                addEvent('⏹️ Full time');
+                callAPI('processState', { stateType: 'fulltime' });
+              }
+
+              function homeGoal() {
+                homeScore++;
+                updateScore();
+                addEvent('⚽ HOME GOAL!');
+                callAPI('processGoal', { minute: new Date().getMinutes(), player: 'Player', team: 'home' });
+              }
+
+              function awayGoal() {
+                awayScore++;
+                updateScore();
+                addEvent('⚽ AWAY GOAL!');
+                callAPI('processGoal', { minute: new Date().getMinutes(), player: 'Opposition', team: 'away' });
+              }
+
+              function yellowCard() {
+                addEvent('🟨 Yellow card');
+                callAPI('processCard', { minute: new Date().getMinutes(), player: 'Player', cardType: 'Y' });
+              }
+
+              function redCard() {
+                addEvent('🟥 Red card');
+                callAPI('processCard', { minute: new Date().getMinutes(), player: 'Player', cardType: 'R' });
+              }
+
+              function substitution() {
+                addEvent('🔄 Substitution');
+                callAPI('processSub', { minute: new Date().getMinutes(), playerOut: 'Player Out', playerIn: 'Player In' });
+              }
+
+              function callAPI(action, data) {
+                fetch(window.location.origin + window.location.pathname, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: action, data: data })
+                })
+                .then(response => response.json())
+                .then(result => {
+                  if (result.success) {
+                    console.log('Success:', result);
+                  } else {
+                    console.error('Error:', result);
+                    alert('Error: ' + result.error);
+                  }
+                })
+                .catch(error => {
+                  console.error('Network error:', error);
+                  alert('Network error - check connection');
+                });
+              }
+            </script>
+          </body>
+          </html>
+        `)
+          .setTitle('Live Match Updates')
           .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
           .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 

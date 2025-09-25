@@ -13,7 +13,8 @@
 class MonthlySummariesManager {
 
   constructor() {
-    this.logger = logger.scope('MonthlySummaries');
+    this.loggerName = 'MonthlySummaries';
+    this._logger = null;
     this.makeIntegration = new MakeIntegration();
     this.summaryConfig = getConfig('MONTHLY_SUMMARIES', {});
     this.monthlyContentSheetName = getConfig('SHEETS.TAB_NAMES.MONTHLY_CONTENT');
@@ -27,6 +28,25 @@ class MonthlySummariesManager {
     this.cacheTtlSeconds = this.summaryConfig.CACHE_TTL_SECONDS || 21600;
     this.monthlySheet = null;
     this.variantBuilderAvailable = typeof buildTemplateVariantCollection === 'function';
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== PUBLIC SUMMARIES ====================

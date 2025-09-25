@@ -14,12 +14,30 @@
  * System Coordinator - Central management hub
  */
 class SystemCoordinator {
-  
+
   constructor() {
-    this.logger = logger.scope('SystemCoordinator');
+    this.loggerName = 'SystemCoordinator';
+    this._logger = null;
     this.initialized = false;
     this.components = new Map();
     this.healthStatus = 'unknown';
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== SYSTEM INITIALIZATION ====================
@@ -785,7 +803,25 @@ function getSystemStatus() {
 class BuyerIntakeController {
 
   constructor() {
-    this.logger = logger.scope('BuyerIntakeController');
+    this.loggerName = 'BuyerIntakeController';
+    this._logger = null;
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   /**

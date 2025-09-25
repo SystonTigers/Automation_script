@@ -20,11 +20,29 @@
  * Player Management Manager - Handles all player-related operations
  */
 class PlayerManagementManager {
-  
+
   constructor() {
-    this.logger = logger.scope('PlayerManagement');
+    this.loggerName = 'PlayerManagement';
+    this._logger = null;
     this.currentMatch = null;
     this.playerMinutesCache = new Map();
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== PLAYER STATISTICS UPDATES ====================

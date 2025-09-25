@@ -20,10 +20,29 @@
  * Control Panel Manager - Handles all control panel operations
  */
 class SystemControlPanel {
-    
+
   constructor() {
-    this.logger = logger.scope('ControlPanel');
+    this.loggerName = 'ControlPanel';
     this.panelOpen = false;
+    this._logger = null;
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        // Fallback logger
+        this._logger = {
+          enterFunction: function(fn, data) { console.log(`[${this.loggerName}] → ${fn}`, data || ''); },
+          exitFunction: function(fn, data) { console.log(`[${this.loggerName}] ← ${fn}`, data || ''); },
+          info: function(msg, data) { console.log(`[${this.loggerName}] ${msg}`, data || ''); },
+          warn: function(msg, data) { console.warn(`[${this.loggerName}] ${msg}`, data || ''); },
+          error: function(msg, data) { console.error(`[${this.loggerName}] ${msg}`, data || ''); }
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== CONTROL PANEL UI ====================
@@ -1353,7 +1372,7 @@ const ControlPanel = new SystemControlPanel();
  */
 function showControlPanel() {
   var html = HtmlService
-    .createHtmlOutputFromFile('ControlPanel')
+    .createHtmlOutputFromFile('controlPanel')
     .setTitle('⚙️ Syston Tigers – Control Panel')
     .setWidth(400);
   SpreadsheetApp.getUi().showSidebar(html);
@@ -1415,7 +1434,7 @@ function controlPanelTriggerAction(actionType) {
 /** Serve the web UI (ControlPanel.html) as a Web App */
 function doGet() {
   return HtmlService
-    .createHtmlOutputFromFile('ControlPanel')
+    .createHtmlOutputFromFile('controlPanel')
     .setTitle('Syston Tigers – Control Panel');
 }
 

@@ -25,7 +25,8 @@
 class PrivacyComplianceManager {
 
   constructor() {
-    this.logger = logger.scope('Privacy');
+    this.loggerName = 'Privacy';
+    this._logger = null;
     this.piiFields = [
       'email', 'phone', 'address', 'postcode', 'dob', 'passport', 'licence',
       'medical', 'financial', 'ip_address', 'device_id', 'social_security'
@@ -51,6 +52,25 @@ class PrivacyComplianceManager {
     this.playerLookupIndex = new Map();
     this.consentRecordIndex = new Map();
     this.lastConsentHydration = 0;
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== PII DETECTION AND CLASSIFICATION ====================

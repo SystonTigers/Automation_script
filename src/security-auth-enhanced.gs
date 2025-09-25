@@ -10,13 +10,49 @@
 /**
  * Enhanced Security Manager with Critical Fixes
  */
-class EnhancedSecurityManager extends SecurityManager {
+class EnhancedSecurityManager {
 
   constructor() {
-    super();
+    this.loggerName = 'EnhancedSecurity';
+    this._logger = null;
+    this._securityManager = null;
     this.minPasswordLength = 12;
     this.requirePasswordComplexity = true;
     this.sessionEncryptionKey = this.generateEncryptionKey();
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
+  }
+
+  get securityManager() {
+    if (!this._securityManager) {
+      try {
+        this._securityManager = new SecurityManager();
+      } catch (error) {
+        this.logger.warn('SecurityManager not available, using enhanced-only mode');
+        this._securityManager = {
+          authenticateAdmin: () => ({ success: false, error: 'Security manager unavailable' }),
+          validateCredentials: () => ({ success: false, error: 'Security manager unavailable' })
+        };
+      }
+    }
+    return this._securityManager;
   }
 
   /**

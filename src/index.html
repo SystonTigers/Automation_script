@@ -42,11 +42,11 @@
 
             <!-- Tab Navigation -->
             <nav class="tab-nav">
-                <button class="tab-button active" data-tab="setup">
+                <button class="tab-button" data-tab="setup">
                     <span class="tab-icon">⚙️</span>
                     <span class="tab-label">Setup</span>
                 </button>
-                <button class="tab-button" data-tab="match">
+                <button class="tab-button active" data-tab="match">
                     <span class="tab-icon">⚽</span>
                     <span class="tab-label">Match</span>
                 </button>
@@ -55,12 +55,12 @@
             <!-- Tab Content -->
             <main class="tab-content">
                 <!-- Setup Tab -->
-                <div id="setup-tab" class="tab-pane active">
+                <div id="setup-tab" class="tab-pane">
                     <?!= include('setup'); ?>
                 </div>
 
                 <!-- Match Tab -->
-                <div id="match-tab" class="tab-pane">
+                <div id="match-tab" class="tab-pane active">
                     <?!= include('match'); ?>
                 </div>
             </main>

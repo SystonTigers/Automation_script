@@ -12,13 +12,33 @@
 class XbotGoIntegration {
   
   constructor() {
-    this.logger = logger.scope('XbotGo');
+    this.loggerName = 'XbotGo';
+    this._logger = null;
     this.apiBaseUrl = getSecureProperty(getConfig('XBOTGO.API_BASE_URL_PROPERTY', ''));
     this.apiKey = getSecureProperty(getConfig('XBOTGO.API_KEY_PROPERTY', ''));
     this.deviceId = getSecureProperty(getConfig('XBOTGO.DEVICE_ID_PROPERTY', ''));
     this.enabled = getConfig('XBOTGO.ENABLED', false);
     this.maxRetries = getConfig('XBOTGO.MAX_RETRIES', 3);
     this.retryDelay = getConfig('XBOTGO.RETRY_DELAY_MS', 1000);
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   /**

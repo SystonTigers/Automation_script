@@ -22,10 +22,30 @@
 class SecurityManager {
 
   constructor() {
-    this.logger = logger.scope('Security');
+    this.loggerName = 'Security';
+    this._logger = null;
     this.sessionTimeout = 30 * 60 * 1000; // 30 minutes
     this.maxLoginAttempts = 3;
     this.lockoutDuration = 15 * 60 * 1000; // 15 minutes
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== AUTHENTICATION ====================

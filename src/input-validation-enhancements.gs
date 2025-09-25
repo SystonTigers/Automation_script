@@ -22,8 +22,45 @@
 class EnhancedPlayerManagement {
 
   constructor() {
-    this.logger = logger.scope('EnhancedPlayerManagement');
-    this.originalManager = new PlayerManagementManager();
+    this.loggerName = 'EnhancedPlayerManagement';
+    this._logger = null;
+    this._originalManager = null;
+  }
+
+  get originalManager() {
+    if (!this._originalManager) {
+      try {
+        this._originalManager = new PlayerManagementManager();
+      } catch (error) {
+        console.error(`[${this.loggerName}] Failed to initialize PlayerManagementManager:`, error);
+        // Create a fallback manager
+        this._originalManager = {
+          updatePlayerGoalStats: () => ({ success: false, error: 'Manager not available' }),
+          updatePlayerAssistStats: () => ({ success: false, error: 'Manager not available' }),
+          updatePlayerCardStats: () => ({ success: false, error: 'Manager not available' }),
+          updatePlayerMinutes: () => ({ success: false, error: 'Manager not available' }),
+          processSubstitution: () => ({ success: false, error: 'Manager not available' })
+        };
+      }
+    }
+    return this._originalManager;
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   /**
@@ -168,7 +205,25 @@ class EnhancedPlayerManagement {
 class EnhancedEventProcessing {
 
   constructor() {
-    this.logger = logger.scope('EnhancedEventProcessing');
+    this.loggerName = 'EnhancedEventProcessing';
+    this._logger = null;
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   /**
@@ -385,7 +440,25 @@ class EnhancedEventProcessing {
 class EnhancedMakeIntegration {
 
   constructor() {
-    this.logger = logger.scope('EnhancedMakeIntegration');
+    this.loggerName = 'EnhancedMakeIntegration';
+    this._logger = null;
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   /**

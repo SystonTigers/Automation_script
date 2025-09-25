@@ -632,7 +632,30 @@ let _loggerInstance = null;
  */
 function getLogger() {
   if (!_loggerInstance) {
-    _loggerInstance = new Logger();
+    try {
+      _loggerInstance = new Logger();
+    } catch (error) {
+      // Fallback logger if initialization fails
+      console.warn('Logger initialization failed, using fallback:', error);
+      _loggerInstance = {
+        scope: function(name) {
+          return {
+            info: function(msg, data) { console.log(`[${name}] ${msg}`, data || ''); },
+            warn: function(msg, data) { console.warn(`[${name}] ${msg}`, data || ''); },
+            error: function(msg, data) { console.error(`[${name}] ${msg}`, data || ''); },
+            debug: function(msg, data) { console.log(`[DEBUG ${name}] ${msg}`, data || ''); },
+            enterFunction: function(fn, data) { console.log(`[${name}] → ${fn}`, data || ''); },
+            exitFunction: function(fn, data) { console.log(`[${name}] ← ${fn}`, data || ''); }
+          };
+        },
+        info: function(msg, data) { console.log(msg, data || ''); },
+        warn: function(msg, data) { console.warn(msg, data || ''); },
+        error: function(msg, data) { console.error(msg, data || ''); },
+        debug: function(msg, data) { console.log(`[DEBUG] ${msg}`, data || ''); },
+        enterFunction: function(fn, data) { console.log(`→ ${fn}`, data || ''); },
+        exitFunction: function(fn, data) { console.log(`← ${fn}`, data || ''); }
+      };
+    }
   }
   return _loggerInstance;
 }

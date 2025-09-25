@@ -490,15 +490,26 @@ function runAllTests() {
  * @returns {Object} Security test results
  */
 function runSecurityTests() {
-  // Reset framework
-  TestFramework.testSuites = [];
+  try {
+    // Reset framework using safe access
+    try {
+      if (typeof TestFramework !== 'undefined' && TestFramework.testSuites !== undefined) {
+        TestFramework.testSuites = [];
+      }
+    } catch (frameworkError) {
+      logger.warn('Could not reset test framework', { error: frameworkError.toString() });
+    }
 
-  // Define security-only suites
-  suite('Security and Authentication');
-  suite('Input Validation');
-  suite('PII Protection');
+    // Define security-only suites
+    suite('Security and Authentication');
+    suite('Input Validation');
+    suite('PII Protection');
 
-  return runTests();
+    return runTests();
+  } catch (error) {
+    logger.error('Security tests failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
 }
 
 /**
@@ -506,13 +517,24 @@ function runSecurityTests() {
  * @returns {Object} Performance test results
  */
 function runPerformanceTests() {
-  // Reset framework
-  TestFramework.testSuites = [];
+  try {
+    // Reset framework using safe access
+    try {
+      if (typeof TestFramework !== 'undefined' && TestFramework.testSuites !== undefined) {
+        TestFramework.testSuites = [];
+      }
+    } catch (frameworkError) {
+      logger.warn('Could not reset test framework', { error: frameworkError.toString() });
+    }
 
-  // Define performance-only suite
-  suite('Performance Testing');
+    // Define performance-only suite
+    suite('Performance Testing');
 
-  return runTests();
+    return runTests();
+  } catch (error) {
+    logger.error('Performance tests failed', { error: error.toString() });
+    return { success: false, error: error.toString() };
+  }
 }
 
 /**

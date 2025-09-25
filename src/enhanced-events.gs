@@ -20,15 +20,32 @@
  * Enhanced Events Manager - Handles all live match event processing
  */
 class EnhancedEventsManager {
-  
+
   constructor() {
-    this.logger = logger.scope('EnhancedEvents');
+    this.loggerName = 'EnhancedEvents';
+    this._logger = null;
     this.playerManager = new PlayerManagementManager();
     this.currentMatch = null;
     this.playerMinutes = new Map(); // Track player time on pitch
     this.matchStartTime = null;
     this.halftimeMinute = 45;
-    this.fullTimeMinute = 90;
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== GOAL EVENT PROCESSING ====================

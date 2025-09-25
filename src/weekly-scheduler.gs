@@ -24,11 +24,31 @@
 class WeeklyScheduler {
   
   constructor() {
-    this.logger = logger.scope('WeeklyScheduler');
+    this.loggerName = 'WeeklyScheduler';
+    this._logger = null;
     this.makeIntegration = new MakeIntegration();
     this.today = DateUtils.now();
     this.dayOfWeek = DateUtils.getDayOfWeek(this.today); // 0=Sunday, 1=Monday, etc.
     this.variantBuilderAvailable = typeof buildTemplateVariantCollection === 'function';
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== MAIN SCHEDULE RUNNER ====================

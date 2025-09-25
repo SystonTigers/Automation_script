@@ -23,10 +23,30 @@
 class TemplateVariantBuilder {
 
   constructor() {
-    this.logger = logger.scope('TemplateVariantBuilder');
+    this.loggerName = 'TemplateVariantBuilder';
+    this._logger = null;
     this.templateConfig = getConfig('CANVA.TEMPLATE_VARIANTS', {});
     this.variantSettings = getConfig('CANVA.VARIANT_SETTINGS', {});
     this.buyerProfile = getConfig('BUYER_INTAKE', {});
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   /**
@@ -360,7 +380,8 @@ function buildTemplateVariantsForEvent(eventType, context = {}) {
 class MakeIntegration {
   
   constructor() {
-    this.logger = logger.scope('MakeIntegration');
+    this.loggerName = 'MakeIntegration';
+    this._logger = null;
     this.webhookQueue = [];
     this.retryQueue = [];
     this.rateLimiter = {
@@ -381,6 +402,25 @@ class MakeIntegration {
         ? CacheService.getScriptCache()
         : null
     };
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || ''),
+          audit: (msg, data) => console.log(`[${this.loggerName}] AUDIT: ${msg}`, data || ''),
+          security: (msg, data) => console.log(`[${this.loggerName}] SECURITY: ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
   }
 
   // ==================== ENHANCED WEBHOOK SENDING ====================
