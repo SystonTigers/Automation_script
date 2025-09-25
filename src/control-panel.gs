@@ -1353,7 +1353,7 @@ const ControlPanel = new ControlPanelManager();
  */
 function showControlPanel() {
   var html = HtmlService
-    .createHtmlOutputFromFile('ControlPanel')
+    .createHtmlOutputFromFile('ControlPanelConsole')
     .setTitle('⚙️ Syston Tigers – Control Panel')
     .setWidth(400);
   SpreadsheetApp.getUi().showSidebar(html);
@@ -1412,14 +1412,14 @@ function controlPanelTriggerAction(actionType) {
     logger.exitFunction('controlPanelTriggerAction', { success: true });
     return result;
   }
-/** Serve the web UI (ControlPanel.html) as a Web App */
+/** Serve the web UI (ControlPanelConsole.html) as a Web App */
 function doGet() {
   return HtmlService
-    .createHtmlOutputFromFile('ControlPanel')
+    .createHtmlOutputFromFile('ControlPanelConsole')
     .setTitle('Syston Tigers – Control Panel');
 }
 
-/** State for ControlPanel.html on load */
+/** State for ControlPanelConsole.html on load */
 function getControlPanelState() {
   var features = getConfig('FEATURES', {});
   var info = {
@@ -1444,7 +1444,7 @@ function getControlPanelState() {
   };
 }
 
-/** Save feature toggles from ControlPanel.html */
+/** Save feature toggles from ControlPanelConsole.html */
 function updateFeatureFlags(flags) {
   try {
     return updateControlPanelSettings({ features: flags });
