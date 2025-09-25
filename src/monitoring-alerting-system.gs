@@ -225,9 +225,9 @@ class MonitoringAlertingSystem {
 
     try {
       // Test sheet access
-      const testSheet = SpreadsheetApp.getActiveSpreadsheet();
+      const testSheet = getSheet();
       if (!testSheet) {
-        throw new Error('Cannot access active spreadsheet');
+        throw new Error('Cannot access configured spreadsheet');
       }
 
       // Test sheet operations

@@ -1185,7 +1185,10 @@ function testSheetOperations() {
     
     // Clean up test sheet
     try {
-      SpreadsheetApp.getActiveSpreadsheet().deleteSheet(sheet);
+      const parentSpreadsheet = sheet && typeof sheet.getParent === 'function' ? sheet.getParent() : null;
+      if (parentSpreadsheet) {
+        parentSpreadsheet.deleteSheet(sheet);
+      }
     } catch (cleanupError) {
       // Ignore cleanup errors
     }

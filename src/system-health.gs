@@ -31,11 +31,23 @@ function runSystemHealthCheck() {
  */
 function checkSheets() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSheet();
     if (!ss) throw new Error("Spreadsheet not found.");
     Logger.log("✅ Spreadsheet accessible: " + ss.getName());
   } catch (e) {
     Logger.log("❌ Spreadsheet access error: " + e.message);
+  }
+}
+
+/**
+ * Validates the centralized getSheet helper.
+ */
+function testGetSheet() {
+  try {
+    const ss = getSheet();
+    Logger.log("✅ Sheet title: " + ss.getName());
+  } catch (e) {
+    Logger.log("❌ getSheet failed: " + e.message);
   }
 }
 
@@ -53,7 +65,7 @@ function checkSheetTabs() {
     "League Canva Map"
   ];
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSheet();
   requiredTabs.forEach(tabName => {
     const sheet = ss.getSheetByName(tabName);
     if (sheet) {
@@ -147,7 +159,7 @@ function testRefreshToday() {
  */
 function simulateLiveMatchUpdate() {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Live Match Updates");
+    const sheet = getSheet().getSheetByName("Live Match Updates");
     if (!sheet) throw new Error("Live Match Updates tab missing.");
 
     const lastRow = sheet.getLastRow() + 1;
