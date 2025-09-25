@@ -1523,6 +1523,509 @@ function updateControlPanelSettings(settings) {
   }
 }
 
+// ==================== LIVE MATCH CONSOLE WEB METHODS ====================
+
+/**
+ * Retrieve state for the live match console UI
+ * @returns {Object} Live console state payload
+ */
+function getLiveMatchConsoleState() {
+  const consoleLogger = logger.scope('LiveMatchConsole');
+  consoleLogger.enterFunction('getLiveMatchConsoleState');
+
+  try {
+    const statusOptions = getConfig('LIVE_MATCH_CONSOLE.STATUS_OPTIONS', []);
+    const cardTypes = getConfig('LIVE_MATCH_CONSOLE.CARD_TYPES', []);
+    const noteMarkers = getConfig('LIVE_MATCH_CONSOLE.NOTE_MARKERS', []);
+    const recentLimit = getConfig('LIVE_MATCH_CONSOLE.RECENT_EVENT_LIMIT', 8);
+    const defaultMatchIdProperty = getConfig('LIVE_MATCH_CONSOLE.DEFAULT_MATCH_ID_PROPERTY', '');
+
+    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers');
+    const clubShortName = getConfig('SYSTEM.CLUB_SHORT_NAME', clubName);
+
+    let defaultMatchId = '';
+    if (defaultMatchIdProperty) {
+      // @testHook(live_console_state_property_read_start)
+      defaultMatchId = PropertiesService.getScriptProperties().getProperty(defaultMatchIdProperty) || '';
+      // @testHook(live_console_state_property_read_complete)
+    }
+
+    // Player list from Player Stats sheet
+    const playerSheet = SheetUtils.getOrCreateSheet(
+      getConfig('SHEETS.TAB_NAMES.PLAYER_STATS'),
+      getConfig('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
+    );
+
+    let players = [];
+    if (playerSheet) {
+      // @testHook(live_console_player_sheet_read)
+      const playerRows = SheetUtils.getAllDataAsObjects(playerSheet);
+      players = playerRows.map(row => (row && (row.Player || row['Player Name'])) || '').filter(Boolean);
+    }
+
+    const uniquePlayers = Array.from(new Set(players.map(value => String(value).trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b));
+
+    // Live match sheet for scoreboard + recent events
+    const liveMatchSheet = SheetUtils.getOrCreateSheet(
+      getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES'),
+      getConfig('SHEETS.REQUIRED_COLUMNS.LIVE_MATCH_UPDATES')
+    );
+
+    const toScore = value => {
+      const parsed = parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    let opponent = '';
+    let competition = '';
+    let matchId = defaultMatchId;
+    let scoreboard = { home: 0, away: 0 };
+    let recentEvents = [];
+
+    if (liveMatchSheet) {
+      // @testHook(live_console_state_sheet_read_start)
+      const liveRows = SheetUtils.getAllDataAsObjects(liveMatchSheet);
+      // @testHook(live_console_state_sheet_read_complete)
+
+      if (liveRows.length) {
+        const sortedRows = liveRows.slice().sort((a, b) => {
+          const aTime = new Date(a.Timestamp || a['Timestamp'] || 0).getTime();
+          const bTime = new Date(b.Timestamp || b['Timestamp'] || 0).getTime();
+          return aTime - bTime;
+        });
+
+        const latest = sortedRows[sortedRows.length - 1];
+        opponent = latest.Opponent || opponent;
+        competition = latest.Competition || latest.Event || latest.Status || competition;
+        matchId = (latest['Match ID'] || latest.MatchId || matchId || defaultMatchId || '').toString();
+        scoreboard = {
+          home: toScore(latest['Home Score']),
+          away: toScore(latest['Away Score'])
+        };
+
+        const startIndex = Math.max(sortedRows.length - recentLimit, 0);
+        recentEvents = sortedRows.slice(startIndex).reverse().map(row => ({
+          minute: row.Minute || row['Minute'] || '',
+          event: row.Event || row['Event'] || row.Status || '',
+          player: row.Player || '',
+          cardType: row['Card Type'] || '',
+          assist: row.Assist || '',
+          homeScore: toScore(row['Home Score']),
+          awayScore: toScore(row['Away Score']),
+          timestamp: row.Timestamp || row['Timestamp'] || '',
+          notes: row.Notes || row['Notes'] || ''
+        }));
+      }
+    }
+
+    const info = {
+      clubName: clubName,
+      clubShortName: clubShortName,
+      opponent: opponent,
+      competition: competition,
+      matchId: matchId || defaultMatchId || '',
+      defaultMatchId: defaultMatchId || '',
+      homeName: clubShortName
+    };
+
+    const payload = {
+      success: true,
+      info: info,
+      players: uniquePlayers,
+      statusOptions: statusOptions,
+      cardTypes: cardTypes,
+      noteMarkers: noteMarkers,
+      scoreboard: scoreboard,
+      recentEvents: recentEvents
+    };
+
+    consoleLogger.exitFunction('getLiveMatchConsoleState', {
+      success: true,
+      players: uniquePlayers.length,
+      events: recentEvents.length
+    });
+
+    return payload;
+
+  } catch (error) {
+    consoleLogger.error('Failed to load live match console state', { error: error.toString() });
+    consoleLogger.exitFunction('getLiveMatchConsoleState', { success: false });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Record a goal event via the live match console
+ * @param {Object} payload - Goal payload
+ * @returns {Object} Result
+ */
+function recordLiveMatchGoal(payload) {
+  const consoleLogger = logger.scope('LiveMatchConsole');
+  consoleLogger.enterFunction('recordLiveMatchGoal', { requestId: payload && payload.requestId });
+
+  try {
+    const requestId = sanitizeLiveConsoleField(payload && payload.requestId);
+    const guard = prepareLiveConsoleGuard(requestId, 'goal');
+
+    const minute = sanitizeLiveConsoleField(payload && payload.minute);
+    const player = sanitizeLiveConsoleField(payload && payload.player);
+    const assist = sanitizeLiveConsoleField(payload && payload.assist);
+    const note = sanitizeLiveConsoleField(payload && payload.note);
+    const matchId = sanitizeLiveConsoleField(payload && payload.matchId) || null;
+
+    if (!minute || !player) {
+      throw new Error('Minute and scorer are required');
+    }
+
+    const manager = new EnhancedEventsManager();
+    // @testHook(live_console_goal_request)
+    const result = manager.processGoalEvent(minute, player, assist, matchId);
+
+    if (result && result.success) {
+      if (note) {
+        writeLiveConsoleNote(matchId, minute, 'Goal note', player, note);
+      }
+      commitLiveConsoleGuard(guard);
+    }
+
+    consoleLogger.exitFunction('recordLiveMatchGoal', { success: !!(result && result.success) });
+    return result;
+
+  } catch (error) {
+    if (error && error.code === 'DUPLICATE_LIVE_REQUEST') {
+      consoleLogger.warn('Duplicate goal request ignored', { requestId: payload && payload.requestId });
+      consoleLogger.exitFunction('recordLiveMatchGoal', { success: true, duplicate: true });
+      return { success: true, duplicate: true, message: 'Duplicate request ignored' };
+    }
+
+    consoleLogger.error('Live match goal submission failed', { error: error.toString() });
+    consoleLogger.exitFunction('recordLiveMatchGoal', { success: false });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Record a card event via the live console
+ * @param {Object} payload - Card payload
+ * @returns {Object} Result
+ */
+function recordLiveMatchCard(payload) {
+  const consoleLogger = logger.scope('LiveMatchConsole');
+  consoleLogger.enterFunction('recordLiveMatchCard', { requestId: payload && payload.requestId });
+
+  try {
+    const requestId = sanitizeLiveConsoleField(payload && payload.requestId);
+    const guard = prepareLiveConsoleGuard(requestId, 'card');
+
+    const minute = sanitizeLiveConsoleField(payload && payload.minute);
+    const player = sanitizeLiveConsoleField(payload && payload.player);
+    const cardTypeId = sanitizeLiveConsoleField(payload && payload.cardType);
+    const note = sanitizeLiveConsoleField(payload && payload.note);
+    const matchId = sanitizeLiveConsoleField(payload && payload.matchId) || null;
+
+    if (!minute || !player || !cardTypeId) {
+      throw new Error('Minute, player, and card type are required');
+    }
+
+    const normalisedCardType = mapLiveConsoleCardType(cardTypeId);
+    const manager = new EnhancedEventsManager();
+    // @testHook(live_console_card_request)
+    const result = manager.processCardEvent(minute, player, normalisedCardType, matchId);
+
+    if (result && result.success) {
+      if (note) {
+        writeLiveConsoleNote(matchId, minute, 'Card note', player, note);
+      }
+      commitLiveConsoleGuard(guard);
+    }
+
+    consoleLogger.exitFunction('recordLiveMatchCard', { success: !!(result && result.success) });
+    return result;
+
+  } catch (error) {
+    if (error && error.code === 'DUPLICATE_LIVE_REQUEST') {
+      consoleLogger.warn('Duplicate card request ignored', { requestId: payload && payload.requestId });
+      consoleLogger.exitFunction('recordLiveMatchCard', { success: true, duplicate: true });
+      return { success: true, duplicate: true, message: 'Duplicate request ignored' };
+    }
+
+    consoleLogger.error('Live match card submission failed', { error: error.toString() });
+    consoleLogger.exitFunction('recordLiveMatchCard', { success: false });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Record a substitution event via the live console
+ * @param {Object} payload - Substitution payload
+ * @returns {Object} Result
+ */
+function recordLiveMatchSubstitution(payload) {
+  const consoleLogger = logger.scope('LiveMatchConsole');
+  consoleLogger.enterFunction('recordLiveMatchSubstitution', { requestId: payload && payload.requestId });
+
+  try {
+    const requestId = sanitizeLiveConsoleField(payload && payload.requestId);
+    const guard = prepareLiveConsoleGuard(requestId, 'substitution');
+
+    const minute = sanitizeLiveConsoleField(payload && payload.minute);
+    const playerOff = sanitizeLiveConsoleField(payload && payload.playerOff);
+    const playerOn = sanitizeLiveConsoleField(payload && payload.playerOn);
+    const note = sanitizeLiveConsoleField(payload && payload.note);
+    const matchId = sanitizeLiveConsoleField(payload && payload.matchId) || null;
+
+    if (!minute || !playerOff || !playerOn) {
+      throw new Error('Minute, player off, and player on are required');
+    }
+
+    const manager = new EnhancedEventsManager();
+    // @testHook(live_console_sub_request)
+    const result = manager.processSubstitution(minute, playerOff, playerOn, matchId);
+
+    if (result && result.success) {
+      if (note) {
+        writeLiveConsoleNote(matchId, minute, 'Substitution note', `${playerOff} ➜ ${playerOn}`, note);
+      }
+      commitLiveConsoleGuard(guard);
+    }
+
+    consoleLogger.exitFunction('recordLiveMatchSubstitution', { success: !!(result && result.success) });
+    return result;
+
+  } catch (error) {
+    if (error && error.code === 'DUPLICATE_LIVE_REQUEST') {
+      consoleLogger.warn('Duplicate substitution request ignored', { requestId: payload && payload.requestId });
+      consoleLogger.exitFunction('recordLiveMatchSubstitution', { success: true, duplicate: true });
+      return { success: true, duplicate: true, message: 'Duplicate request ignored' };
+    }
+
+    consoleLogger.error('Live match substitution failed', { error: error.toString() });
+    consoleLogger.exitFunction('recordLiveMatchSubstitution', { success: false });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Record a match status event via the live console
+ * @param {Object} payload - Status payload
+ * @returns {Object} Result
+ */
+function recordLiveMatchStatus(payload) {
+  const consoleLogger = logger.scope('LiveMatchConsole');
+  consoleLogger.enterFunction('recordLiveMatchStatus', { requestId: payload && payload.requestId, statusId: payload && payload.statusId });
+
+  try {
+    const requestId = sanitizeLiveConsoleField(payload && payload.requestId);
+    const guard = prepareLiveConsoleGuard(requestId, 'status');
+
+    const statusId = sanitizeLiveConsoleField(payload && payload.statusId).toLowerCase();
+    const matchId = sanitizeLiveConsoleField(payload && payload.matchId) || null;
+
+    if (!statusId) {
+      throw new Error('Status identifier is required');
+    }
+
+    const manager = new EnhancedEventsManager();
+    const handlers = {
+      'kick_off': () => manager.processKickOff(matchId),
+      'half_time': () => manager.processHalfTime(matchId),
+      'second_half_kickoff': () => manager.processSecondHalfKickOff(matchId),
+      'full_time': () => manager.processFullTime(matchId)
+    };
+
+    const handler = handlers[statusId];
+    if (!handler) {
+      throw new Error('Unknown status: ' + statusId);
+    }
+
+    // @testHook(live_console_status_request)
+    const result = handler();
+    if (result && result.success) {
+      commitLiveConsoleGuard(guard);
+    }
+
+    consoleLogger.exitFunction('recordLiveMatchStatus', { success: !!(result && result.success) });
+    return result;
+
+  } catch (error) {
+    if (error && error.code === 'DUPLICATE_LIVE_REQUEST') {
+      consoleLogger.warn('Duplicate status request ignored', { requestId: payload && payload.requestId });
+      consoleLogger.exitFunction('recordLiveMatchStatus', { success: true, duplicate: true });
+      return { success: true, duplicate: true, message: 'Duplicate request ignored' };
+    }
+
+    consoleLogger.error('Live match status submission failed', { error: error.toString() });
+    consoleLogger.exitFunction('recordLiveMatchStatus', { success: false });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Record a video editor note via the live console
+ * @param {Object} payload - Note payload
+ * @returns {Object} Result
+ */
+function recordLiveMatchNote(payload) {
+  const consoleLogger = logger.scope('LiveMatchConsole');
+  consoleLogger.enterFunction('recordLiveMatchNote', { requestId: payload && payload.requestId });
+
+  try {
+    const requestId = sanitizeLiveConsoleField(payload && payload.requestId);
+    const guard = prepareLiveConsoleGuard(requestId, 'note');
+
+    const minute = sanitizeLiveConsoleField(payload && payload.minute);
+    const noteType = sanitizeLiveConsoleField(payload && payload.noteType) || 'Video note';
+    const player = sanitizeLiveConsoleField(payload && payload.player);
+    const details = sanitizeLiveConsoleField(payload && payload.details);
+    const matchId = sanitizeLiveConsoleField(payload && payload.matchId) || null;
+
+    writeLiveConsoleNote(matchId, minute, noteType, player, details);
+    commitLiveConsoleGuard(guard);
+
+    consoleLogger.exitFunction('recordLiveMatchNote', { success: true });
+    return { success: true };
+
+  } catch (error) {
+    if (error && error.code === 'DUPLICATE_LIVE_REQUEST') {
+      consoleLogger.warn('Duplicate note request ignored', { requestId: payload && payload.requestId });
+      consoleLogger.exitFunction('recordLiveMatchNote', { success: true, duplicate: true });
+      return { success: true, duplicate: true, message: 'Duplicate request ignored' };
+    }
+
+    consoleLogger.error('Live match note submission failed', { error: error.toString() });
+    consoleLogger.exitFunction('recordLiveMatchNote', { success: false });
+    return { success: false, error: error.toString() };
+  }
+}
+
+// ==================== LIVE MATCH CONSOLE HELPERS ====================
+
+/**
+ * Guard repeated submissions using request identifiers
+ * @param {string} requestId - Unique identifier
+ * @param {string} action - Action name
+ * @returns {Object} Guard context
+ */
+function prepareLiveConsoleGuard(requestId, action) {
+  const guardLogger = logger.scope('LiveMatchGuard');
+  guardLogger.enterFunction('prepareLiveConsoleGuard', { requestId: requestId, action: action });
+
+  if (!requestId) {
+    guardLogger.exitFunction('prepareLiveConsoleGuard', { success: false, reason: 'missing_request_id' });
+    throw new Error('Missing request identifier');
+  }
+
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `live_console_${requestId}`;
+  const existing = cache.get(cacheKey);
+
+  if (existing) {
+    const duplicateError = new Error('Duplicate live match console request');
+    duplicateError.code = 'DUPLICATE_LIVE_REQUEST';
+    guardLogger.exitFunction('prepareLiveConsoleGuard', { success: false, reason: 'duplicate' });
+    throw duplicateError;
+  }
+
+  guardLogger.exitFunction('prepareLiveConsoleGuard', { success: true });
+  return { cache: cache, cacheKey: cacheKey };
+}
+
+/**
+ * Persist guard state after successful execution
+ * @param {Object} guard - Guard context
+ */
+function commitLiveConsoleGuard(guard) {
+  if (!guard || !guard.cache || !guard.cacheKey) {
+    return;
+  }
+  guard.cache.put(guard.cacheKey, 'processed', 21600); // 6 hours
+}
+
+/**
+ * Convert console payload fields to trimmed strings
+ * @param {*} value - Value to sanitize
+ * @returns {string} Sanitized text
+ */
+function sanitizeLiveConsoleField(value) {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  return String(value).trim();
+}
+
+/**
+ * Map select identifiers to card types understood by the event processor
+ * @param {string} identifier - Identifier from UI
+ * @returns {string} Normalised card type string
+ */
+function mapLiveConsoleCardType(identifier) {
+  const value = sanitizeLiveConsoleField(identifier).toLowerCase();
+  switch (value) {
+    case 'yellow':
+      return 'yellow';
+    case 'second_yellow':
+    case 'second yellow':
+      return 'second yellow (red)';
+    case 'red':
+      return 'red';
+    case 'sin_bin':
+    case 'sin bin':
+      return 'sin_bin';
+    default:
+      return identifier;
+  }
+}
+
+/**
+ * Append a note into the Live Match Updates sheet for video editors
+ * @param {string} matchId - Match identifier
+ * @param {string} minute - Minute marker
+ * @param {string} eventName - Note event name
+ * @param {string} player - Player reference
+ * @param {string} details - Note body
+ */
+function writeLiveConsoleNote(matchId, minute, eventName, player, details) {
+  const noteLogger = logger.scope('LiveMatchConsoleNote');
+  noteLogger.enterFunction('writeLiveConsoleNote', { matchId: matchId, eventName: eventName });
+
+  try {
+    const liveMatchSheet = SheetUtils.getOrCreateSheet(
+      getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES'),
+      getConfig('SHEETS.REQUIRED_COLUMNS.LIVE_MATCH_UPDATES')
+    );
+
+    if (!liveMatchSheet) {
+      throw new Error('Live Match Updates sheet not available');
+    }
+
+    const row = {
+      'Timestamp': DateUtils.formatISO(DateUtils.now()),
+      'Minute': minute || '',
+      'Event': eventName || 'Note',
+      'Player': player || '',
+      'Opponent': '',
+      'Home Score': '',
+      'Away Score': '',
+      'Card Type': '',
+      'Assist': '',
+      'Notes': details || '',
+      'Send': 'FALSE',
+      'Status': eventName || 'NOTE',
+      'Match ID': matchId || ''
+    };
+
+    // @testHook(live_console_note_sheet_write)
+    SheetUtils.addRowFromObject(liveMatchSheet, row);
+
+    noteLogger.exitFunction('writeLiveConsoleNote', { success: true });
+
+  } catch (error) {
+    noteLogger.error('Failed to store live console note', { error: error.toString() });
+    noteLogger.exitFunction('writeLiveConsoleNote', { success: false });
+  }
+}
+
 /** Run actions requested by the web UI */
 function actionRunRunner(name) {
   try {

@@ -129,6 +129,29 @@ const SYSTEM_CONFIG = {
     INSTAGRAM_POSTING: true
   },
 
+  LIVE_MATCH_CONSOLE: {
+    STATUS_OPTIONS: [
+      { id: 'kick_off', label: 'Kick-off' },
+      { id: 'half_time', label: 'Half-time' },
+      { id: 'second_half_kickoff', label: '2nd Half Kick-off' },
+      { id: 'full_time', label: 'Full-time' }
+    ],
+    CARD_TYPES: [
+      { id: 'yellow', label: 'Yellow Card' },
+      { id: 'second_yellow', label: 'Second Yellow (Red)' },
+      { id: 'red', label: 'Red Card' },
+      { id: 'sin_bin', label: 'Sin Bin' }
+    ],
+    NOTE_MARKERS: [
+      { id: 'big_chance', label: 'Big chance' },
+      { id: 'great_tackle', label: 'Great tackle' },
+      { id: 'good_play', label: 'Good play' },
+      { id: 'goal', label: 'Goal clip marker' }
+    ],
+    DEFAULT_MATCH_ID_PROPERTY: 'LIVE_MATCH_ACTIVE_ID',
+    RECENT_EVENT_LIMIT: 8
+  },
+
   // ==================== DOCUMENTATION REFERENCE ====================
   DOCUMENTATION: {
     VERSION: '6.2.0',

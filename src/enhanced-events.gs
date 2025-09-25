@@ -1118,6 +1118,26 @@ function processSubstitution(minute, playerOff, playerOn, matchId = null) {
 }
 
 /**
+ * Post kick-off status update
+ * @param {string} matchId - Match identifier
+ * @returns {Object} Processing result
+ */
+function postKickOff(matchId = null) {
+  const manager = new EnhancedEventsManager();
+  return manager.processKickOff(matchId);
+}
+
+/**
+ * Post half-time status update
+ * @param {string} matchId - Match identifier
+ * @returns {Object} Processing result
+ */
+function postHalfTime(matchId = null) {
+  const manager = new EnhancedEventsManager();
+  return manager.processHalfTime(matchId);
+}
+
+/**
  * Process second half kick-off (public API)
  * @param {string} matchId - Match identifier
  * @returns {Object} Processing result
@@ -1125,6 +1145,16 @@ function processSubstitution(minute, playerOff, playerOn, matchId = null) {
 function postSecondHalfKickoff(matchId = null) {
   const manager = new EnhancedEventsManager();
   return manager.processSecondHalfKickOff(matchId);
+}
+
+/**
+ * Post full-time status update
+ * @param {string} matchId - Match identifier
+ * @returns {Object} Processing result
+ */
+function postFullTime(matchId = null) {
+  const manager = new EnhancedEventsManager();
+  return manager.processFullTime(matchId);
 }
 
 /**
