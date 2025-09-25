@@ -1673,13 +1673,39 @@ function getSheetAccessLogger() {
   return _sheetAccessLogger;
 }
 
+function normalizeSpreadsheetIdCandidate(candidate) {
+  if (candidate === null || candidate === undefined) {
+    return '';
+  }
+
+  const trimmed = String(candidate).trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.indexOf('<<') !== -1 || trimmed.indexOf('>>') !== -1) {
+    return '';
+  }
+
+  const spreadsheetIdPattern = /^[a-zA-Z0-9-_]{30,}$/;
+
+  if (!spreadsheetIdPattern.test(trimmed)) {
+    return '';
+  }
+
+  return trimmed;
+}
+
 function getPrimarySpreadsheetId() {
   const sheetLogger = getSheetAccessLogger();
   sheetLogger.enterFunction('getPrimarySpreadsheetId');
 
   try {
-    const configuredId = (getConfig('SHEETS.PRIMARY_SPREADSHEET_ID', '') || '').trim();
-    const legacyId = (getConfig('SHEETS.SPREADSHEET_ID', '') || '').trim();
+    const configuredId = normalizeSpreadsheetIdCandidate(
+      getConfig('SHEETS.PRIMARY_SPREADSHEET_ID', '')
+    );
+    const legacyId = normalizeSpreadsheetIdCandidate(getConfig('SHEETS.SPREADSHEET_ID', ''));
 
     let spreadsheetId = configuredId || legacyId;
 
@@ -1689,7 +1715,7 @@ function getPrimarySpreadsheetId() {
 
       if (scriptProperties) {
         // @testHook(primary_spreadsheet_property_read_start)
-        spreadsheetId = (scriptProperties.getProperty(propertyKey) || '').trim();
+        spreadsheetId = normalizeSpreadsheetIdCandidate(scriptProperties.getProperty(propertyKey));
         // @testHook(primary_spreadsheet_property_read_complete)
       }
     }
