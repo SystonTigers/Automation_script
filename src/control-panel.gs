@@ -36,47 +36,51 @@ class ControlPanelManager {
   showControlPanel(sessionToken = null) {
     this.logger.enterFunction('showControlPanel', { hasSession: !!sessionToken });
 
+    let result;
+
     try {
-      let panelHtml;
+      let htmlOutput;
 
       if (sessionToken) {
         // @testHook(control_panel_check_auth_start)
-        // Use enhanced security validation
         const authResult = EnhancedSecurity.validateEncryptedSession(sessionToken);
         if (!authResult.success) {
-          panelHtml = this.generateLoginHTML('Session expired. Please log in again.');
+          htmlOutput = HtmlService.createHtmlOutput(this.generateLoginHTML('Session expired. Please log in again.'))
+            .setTitle('⚽ Football Automation Control Panel')
+            .setWidth(400);
+        } else if (authResult.session.passwordChangeRequired) {
+          htmlOutput = HtmlService.createHtmlOutput(this.generatePasswordChangeHTML(sessionToken))
+            .setTitle('⚽ Football Automation Control Panel')
+            .setWidth(400);
         } else {
-          // Check if password change is required
-          if (authResult.session.passwordChangeRequired) {
-            panelHtml = this.generatePasswordChangeHTML(sessionToken);
-          } else {
-            panelHtml = this.generateControlPanelHTML(authResult.session);
-          }
+          htmlOutput = HtmlService.createHtmlOutputFromFile('ControlPanelConsole')
+            .setTitle('⚽ Football Automation Control Panel')
+            .setWidth(400);
         }
         // @testHook(control_panel_check_auth_end)
       } else {
-        // Show login form for unauthenticated users
-        panelHtml = this.generateLoginHTML();
+        htmlOutput = HtmlService.createHtmlOutput(this.generateLoginHTML())
+          .setTitle('⚽ Football Automation Control Panel')
+          .setWidth(400);
       }
 
       // @testHook(control_panel_show_sidebar_start)
-      const htmlOutput = HtmlService.createHtmlOutput(panelHtml)
-        .setTitle('⚽ Football Automation Control Panel')
-        .setWidth(400);
-
       SpreadsheetApp.getUi().showSidebar(htmlOutput);
       // @testHook(control_panel_show_sidebar_end)
 
       this.panelOpen = true;
       this.logger.info('Control panel displayed successfully', { authenticated: !!sessionToken });
-
-      this.logger.exitFunction('showControlPanel', { success: true });
-      return { success: true, message: 'Control panel opened' };
+      result = { success: true, message: 'Control panel opened' };
 
     } catch (error) {
       this.logger.error('Control panel display failed', { error: error.toString() });
-      return { success: false, error: error.toString() };
+      this.panelOpen = false;
+      result = { success: false, error: error.toString() };
+    } finally {
+      this.logger.exitFunction('showControlPanel', { success: !!(result && result.success) });
     }
+
+    return result;
   }
 
   /**
@@ -1352,12 +1356,26 @@ const ControlPanel = new ControlPanelManager();
  * @returns {Object} Result
  */
 function showControlPanel() {
-  var html = HtmlService
-    .createHtmlOutputFromFile('ControlPanelConsole')
-    .setTitle('⚙️ Syston Tigers – Control Panel')
-    .setWidth(400);
-  SpreadsheetApp.getUi().showSidebar(html);
-  return { success: true };
+  logger.enterFunction('showControlPanelSidebar');
+
+  let result;
+
+  try {
+    const html = HtmlService
+      .createHtmlOutputFromFile('ControlPanelConsole')
+      .setTitle('⚙️ Syston Tigers – Control Panel')
+      .setWidth(400);
+
+    SpreadsheetApp.getUi().showSidebar(html);
+    result = { success: true };
+  } catch (error) {
+    logger.error('showControlPanelSidebar failed', { error: error.toString() });
+    result = { success: false, error: error.toString() };
+  } finally {
+    logger.exitFunction('showControlPanelSidebar', { success: !!(result && result.success) });
+  }
+
+  return result;
 }
 /**
  * Control panel toggle feature - Called from HTML
@@ -1376,72 +1394,97 @@ function controlPanelToggleFeature(featureName, enabled) {
  */
 function controlPanelTriggerAction(actionType) {
   logger.enterFunction('controlPanelTriggerAction', { actionType });
-  
+
+  let result;
+
   try {
-    let result = {};
-    
-    switch (actionType) {
-      case 'weekly_automation':
-        result = triggerWeeklyAutomation();
-        break;
-        
-      case 'monthly_automation':
-        result = triggerMonthlyAutomation();
-        break;
-        
-      case 'player_stats':
-        result = postPlayerStatsSummary(true); // Force posting
-        break;
-        
-      case 'goal_of_month':
-        result = collectGoalOfTheMonth();
-        break;
-        
-      case 'system_health_check':
-        result = performSystemHealthCheck();
-        break;
-        
-      default:
-        throw new Error(`Unknown action: ${actionType}`);}
-                
-      } 
-    catch (error) {
-      logger.error('Trigger action failed', { actionType, error: error.toString() });
-      return { success: false, error: error.toString() };
+    const actionMap = {
+      weekly_automation: () => triggerWeeklyAutomation(),
+      monthly_automation: () => triggerMonthlyAutomation(),
+      player_stats: () => postPlayerStatsSummary(true),
+      goal_of_month: () => collectGoalOfTheMonth(),
+      system_health_check: () => performSystemHealthCheck()
+    };
+
+    // @testHook(control_panel_trigger_start)
+    const handler = actionMap[actionType];
+    if (!handler) {
+      throw new Error('Unknown action: ' + actionType);
     }
-    logger.exitFunction('controlPanelTriggerAction', { success: true });
-    return result;
+
+    const handlerResult = handler();
+    if (handlerResult && typeof handlerResult === 'object' && 'success' in handlerResult) {
+      result = handlerResult;
+    } else {
+      result = {
+        success: true,
+        message: 'Action completed',
+        data: handlerResult
+      };
+    }
+
+  } catch (error) {
+    logger.error('Trigger action failed', { actionType, error: error.toString() });
+    result = { success: false, error: error.toString(), actionType };
+  } finally {
+    logger.exitFunction('controlPanelTriggerAction', { success: !!(result && result.success), actionType });
   }
+
+  return result;
+}
 /** Serve the web UI (ControlPanelConsole.html) as a Web App */
 function doGet() {
-  return HtmlService
-    .createHtmlOutputFromFile('ControlPanelConsole')
-    .setTitle('Syston Tigers – Control Panel');
+  logger.enterFunction('doGetControlPanel');
+
+  try {
+    const html = HtmlService
+      .createHtmlOutputFromFile('ControlPanelConsole')
+      .setTitle('Syston Tigers – Control Panel');
+
+    logger.exitFunction('doGetControlPanel', { success: true });
+    return html;
+  } catch (error) {
+    logger.error('doGetControlPanel failed', { error: error.toString() });
+    logger.exitFunction('doGetControlPanel', { success: false });
+    return HtmlService.createHtmlOutput('<p>Control panel unavailable.</p>');
+  }
 }
 
 /** State for ControlPanelConsole.html on load */
 function getControlPanelState() {
-  var features = getConfig('FEATURES', {});
-  var info = {
-    version: getConfig('SYSTEM.VERSION', ''),
-    club: getConfig('SYSTEM.CLUB_NAME', ''),
-    season: getConfig('SYSTEM.SEASON', ''),
-    tz: getConfig('SYSTEM.TIMEZONE', ''),
-    webhook: !!getWebhookUrl()
-  };
-  var validation = validateConfiguration();
-  var privacySummary = getConsentDashboardSummary();
-  var privacyFlags = {
-    anonymiseFaces: getConfig('PRIVACY.GLOBAL_FLAGS.ANONYMISE_FACES', false),
-    useInitialsOnly: getConfig('PRIVACY.GLOBAL_FLAGS.USE_INITIALS_ONLY', false)
-  };
-  return {
-    features: features,
-    info: info,
-    validation: validation,
-    privacy: privacySummary,
-    privacyFlags: privacyFlags
-  };
+  logger.enterFunction('getControlPanelState');
+
+  try {
+    const features = getConfig('FEATURES', {});
+    const info = {
+      version: getConfig('SYSTEM.VERSION', ''),
+      club: getConfig('SYSTEM.CLUB_NAME', ''),
+      season: getConfig('SYSTEM.SEASON', ''),
+      tz: getConfig('SYSTEM.TIMEZONE', ''),
+      webhook: !!getWebhookUrl()
+    };
+    const validation = validateConfiguration();
+    const privacySummary = getConsentDashboardSummary();
+    const privacyFlags = {
+      anonymiseFaces: getConfig('PRIVACY.GLOBAL_FLAGS.ANONYMISE_FACES', false),
+      useInitialsOnly: getConfig('PRIVACY.GLOBAL_FLAGS.USE_INITIALS_ONLY', false)
+    };
+
+    const state = {
+      features,
+      info,
+      validation,
+      privacy: privacySummary,
+      privacyFlags
+    };
+
+    logger.exitFunction('getControlPanelState', { success: true });
+    return state;
+  } catch (error) {
+    logger.error('getControlPanelState failed', { error: error.toString() });
+    logger.exitFunction('getControlPanelState', { success: false });
+    return { success: false, error: error.toString() };
+  }
 }
 
 /** Save feature toggles from ControlPanelConsole.html */
