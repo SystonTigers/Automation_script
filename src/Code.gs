@@ -589,7 +589,7 @@ function getPlayersForWeb() {
     }
 
     // Fallback to basic implementation
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Players');
+    const sheet = getSheet().getSheetByName('Players');
     if (!sheet) {
       return [];
     }
@@ -627,8 +627,8 @@ function savePlayersFromWeb(players) {
     }
 
     // Fallback to basic implementation
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Players') ||
-                  SpreadsheetApp.getActiveSpreadsheet().insertSheet('Players');
+    const spreadsheet = getSheet();
+    const sheet = spreadsheet.getSheetByName('Players') || spreadsheet.insertSheet('Players');
 
     // Clear and write headers if needed
     if (sheet.getLastRow() === 0) {
@@ -772,7 +772,7 @@ function getRecentEventsForWeb(limit = 10) {
     }
 
     // Fallback implementation
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Events');
+    const sheet = getSheet().getSheetByName('Events');
     if (!sheet || sheet.getLastRow() <= 1) {
       return [];
     }

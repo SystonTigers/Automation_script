@@ -62,7 +62,7 @@ const SheetUtils = {
     let failure = null;
 
     try {
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const spreadsheet = getSheet();
       sheet = spreadsheet.getSheetByName(sheetName);
 
       if (!sheet) {
