@@ -349,14 +349,20 @@ const SYSTEM_CONFIG = {
 
   // ==================== GOOGLE SHEETS CONFIGURATION ====================
   SHEETS: {
-    SPREADSHEET_ID: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '',
+    PRIMARY_SPREADSHEET_ID: '<<REQUIRED_SPREADSHEET_ID>>',
+    SCRIPT_PROPERTY_KEYS: {
+      PRIMARY_SPREADSHEET_ID: 'SPREADSHEET_ID'
+    },
+    SPREADSHEET_ID: '<<REQUIRED_SPREADSHEET_ID>>',
     TAB_NAMES: {
       // Core sheets
       LIVE_MATCH: 'Live Match Updates',
       FIXTURES: 'Fixtures',
       RESULTS: 'Results',
       PLAYER_STATS: 'Player Stats',
+      PLAYERS: 'Players',
       PLAYER_EVENTS: 'Player Events',
+      EVENTS: 'Events',
       LIVE_MATCH_UPDATES: 'Live Match Updates',
       FIXTURES_RESULTS: 'Fixtures & Results',
       PLAYER_MINUTES: 'Player Minutes',
@@ -1609,7 +1615,7 @@ function getWebhookUrl() {
 function validateConfiguration() {
   const issues = [];
   const warnings = [];
-  
+
   // Check required webhook URL
   if (!getWebhookUrl()) {
     issues.push('Webhook URL not configured');
@@ -1635,6 +1641,173 @@ function validateConfiguration() {
     warnings: warnings,
     timestamp: new Date().toISOString()
   };
+}
+
+// ==================== SPREADSHEET ACCESS HELPERS ====================
+
+let _sheetAccessLogger = null;
+
+function getSheetAccessLogger() {
+  if (_sheetAccessLogger) {
+    return _sheetAccessLogger;
+  }
+
+  if (typeof logger !== 'undefined' && logger && typeof logger.scope === 'function') {
+    _sheetAccessLogger = logger.scope('SheetAccess');
+    return _sheetAccessLogger;
+  }
+
+  _sheetAccessLogger = {
+    enterFunction() {},
+    exitFunction() {},
+    info() {},
+    warn() {},
+    debug() {},
+    error(message, context = {}) {
+      if (typeof console !== 'undefined' && typeof console.error === 'function') {
+        console.error('[SheetAccess] ' + message, context);
+      }
+    }
+  };
+
+  return _sheetAccessLogger;
+}
+
+function getPrimarySpreadsheetId() {
+  const sheetLogger = getSheetAccessLogger();
+  sheetLogger.enterFunction('getPrimarySpreadsheetId');
+
+  try {
+    const configuredId = (getConfig('SHEETS.PRIMARY_SPREADSHEET_ID', '') || '').trim();
+    const legacyId = (getConfig('SHEETS.SPREADSHEET_ID', '') || '').trim();
+
+    let spreadsheetId = configuredId || legacyId;
+
+    if (!spreadsheetId && typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) {
+      const propertyKey = getConfig('SHEETS.SCRIPT_PROPERTY_KEYS.PRIMARY_SPREADSHEET_ID', 'SPREADSHEET_ID');
+      const scriptProperties = PropertiesService.getScriptProperties();
+
+      if (scriptProperties) {
+        // @testHook(primary_spreadsheet_property_read_start)
+        spreadsheetId = (scriptProperties.getProperty(propertyKey) || '').trim();
+        // @testHook(primary_spreadsheet_property_read_complete)
+      }
+    }
+
+    if (!spreadsheetId) {
+      throw new Error('Primary spreadsheet ID not configured. Update SHEETS.PRIMARY_SPREADSHEET_ID in config.js.');
+    }
+
+    sheetLogger.exitFunction('getPrimarySpreadsheetId', { resolved: true });
+    return spreadsheetId;
+  } catch (error) {
+    sheetLogger.error('Failed to resolve primary spreadsheet ID', {
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+    });
+    sheetLogger.exitFunction('getPrimarySpreadsheetId', {
+      resolved: false,
+      errorMessage: error && error.message ? error.message : String(error)
+    });
+    throw error;
+  }
+}
+
+function getSpreadsheet() {
+  const sheetLogger = getSheetAccessLogger();
+  sheetLogger.enterFunction('getSpreadsheet');
+
+  try {
+    const spreadsheetId = getPrimarySpreadsheetId();
+
+    // @testHook(primary_spreadsheet_open_start)
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    // @testHook(primary_spreadsheet_open_complete)
+
+    sheetLogger.exitFunction('getSpreadsheet', { success: true });
+    return spreadsheet;
+  } catch (error) {
+    sheetLogger.error('Failed to open primary spreadsheet', {
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+    });
+    sheetLogger.exitFunction('getSpreadsheet', {
+      success: false,
+      errorMessage: error && error.message ? error.message : String(error)
+    });
+    throw error;
+  }
+}
+
+function getSheet(sheetName, options = {}) {
+  const sheetLogger = getSheetAccessLogger();
+  const normalizedName = typeof sheetName === 'string' ? sheetName.trim() : '';
+  const createIfMissing = options && options.createIfMissing === true;
+  const requiredColumns = Array.isArray(options && options.requiredColumns) ? options.requiredColumns : [];
+
+  sheetLogger.enterFunction('getSheet', {
+    sheetName: normalizedName,
+    createIfMissing,
+    requiredColumns: requiredColumns.length
+  });
+
+  try {
+    if (!normalizedName) {
+      throw new Error('Sheet name must be provided');
+    }
+
+    const spreadsheet = getSpreadsheet();
+    let sheet = spreadsheet.getSheetByName(normalizedName);
+    let created = false;
+
+    if (!sheet && createIfMissing) {
+      // @testHook(primary_sheet_create_start)
+      sheet = spreadsheet.insertSheet(normalizedName);
+      created = true;
+      // @testHook(primary_sheet_create_complete)
+
+      if (requiredColumns.length > 0) {
+        const headerRange = sheet.getRange(1, 1, 1, requiredColumns.length);
+        headerRange.setValues([requiredColumns]);
+        headerRange.setFontWeight('bold');
+        headerRange.setBackground('#f0f0f0');
+      }
+    } else if (sheet && requiredColumns.length > 0) {
+      const lastColumn = sheet.getLastColumn();
+      const existingHeaders = lastColumn > 0
+        ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0]
+        : [];
+      const missingColumns = requiredColumns.filter(column => !existingHeaders.includes(column));
+
+      if (missingColumns.length > 0) {
+        const startColumn = existingHeaders.length + 1;
+        const range = sheet.getRange(1, startColumn, 1, missingColumns.length);
+        range.setValues([missingColumns]);
+        range.setFontWeight('bold');
+        range.setBackground('#f0f0f0');
+      }
+    }
+
+    if (!sheet) {
+      throw new Error(`Sheet not found: ${normalizedName}`);
+    }
+
+    sheetLogger.exitFunction('getSheet', {
+      success: true,
+      created
+    });
+
+    return sheet;
+  } catch (error) {
+    sheetLogger.error('Failed to access sheet', {
+      sheetName: normalizedName,
+      createIfMissing,
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+    });
+    sheetLogger.exitFunction('getSheet', {
+      success: false,
+      errorMessage: error && error.message ? error.message : String(error)
+    });
+    throw error;
+  }
 }
 
 // ==================== BUYER CONFIGURATION MANAGEMENT ====================

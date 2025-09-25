@@ -338,10 +338,8 @@ class BatchFixturesManager {
    */
   getFixturesSheet() {
     try {
-      const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
-      if (!ssId) return null;
-      const ss = SpreadsheetApp.openById(ssId);
-      return ss.getSheetByName(getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures'));
+      const fixturesTabName = getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures');
+      return getSheet(fixturesTabName);
     } catch (e) {
       this.logger.error('Failed to open Fixtures sheet', { error: e.toString() });
       return null;
@@ -350,10 +348,8 @@ class BatchFixturesManager {
 
   getResultsSheet() {
     try {
-      const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
-      if (!ssId) return null;
-      const ss = SpreadsheetApp.openById(ssId);
-      return ss.getSheetByName(getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results'));
+      const resultsTabName = getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results');
+      return getSheet(resultsTabName);
     } catch (e) {
       this.logger.error('Failed to open Results sheet', { error: e.toString() });
       return null;
@@ -952,12 +948,12 @@ function runBatchFixtures() {
  */
 function initBatchFixtures() {
   try {
-    const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
     const tabs = getConfig('SHEETS.TAB_NAMES', {});
+    const spreadsheet = getSpreadsheet();
 
     const results = {
-      fixtures: !!SpreadsheetApp.openById(ssId).getSheetByName(tabs.FIXTURES),
-      results: !!SpreadsheetApp.openById(ssId).getSheetByName(tabs.RESULTS)
+      fixtures: !!(tabs.FIXTURES ? spreadsheet.getSheetByName(tabs.FIXTURES) : null),
+      results: !!(tabs.RESULTS ? spreadsheet.getSheetByName(tabs.RESULTS) : null)
     };
 
     const webhookConfigured = !!getWebhookUrl();

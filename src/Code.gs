@@ -589,8 +589,16 @@ function getPlayersForWeb() {
     }
 
     // Fallback to basic implementation
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Players');
-    if (!sheet) {
+    const playersTabName = getConfig('SHEETS.TAB_NAMES.PLAYERS', 'Players');
+    let sheet;
+
+    try {
+      sheet = getSheet(playersTabName);
+    } catch (sheetError) {
+      logger.warn('Players sheet not available for web fetch', {
+        tabName: playersTabName,
+        error: sheetError instanceof Error ? sheetError.message : String(sheetError)
+      });
       return [];
     }
 
@@ -627,13 +635,11 @@ function savePlayersFromWeb(players) {
     }
 
     // Fallback to basic implementation
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Players') ||
-                  SpreadsheetApp.getActiveSpreadsheet().insertSheet('Players');
-
-    // Clear and write headers if needed
-    if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, 6).setValues([['Number', 'Name', 'Position', 'IsActive', 'Notes', 'ShortName']]);
-    }
+    const playersTabName = getConfig('SHEETS.TAB_NAMES.PLAYERS', 'Players');
+    const sheet = getSheet(playersTabName, {
+      createIfMissing: true,
+      requiredColumns: ['Number', 'Name', 'Position', 'IsActive', 'Notes', 'ShortName']
+    });
 
     // Clear existing data
     if (sheet.getLastRow() > 1) {
@@ -772,7 +778,19 @@ function getRecentEventsForWeb(limit = 10) {
     }
 
     // Fallback implementation
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Events');
+    const eventsTabName = getConfig('SHEETS.TAB_NAMES.EVENTS', 'Events');
+    let sheet;
+
+    try {
+      sheet = getSheet(eventsTabName);
+    } catch (sheetError) {
+      logger.warn('Events sheet not available for web fetch', {
+        tabName: eventsTabName,
+        error: sheetError instanceof Error ? sheetError.message : String(sheetError)
+      });
+      return [];
+    }
+
     if (!sheet || sheet.getLastRow() <= 1) {
       return [];
     }

@@ -225,13 +225,13 @@ class MonitoringAlertingSystem {
 
     try {
       // Test sheet access
-      const testSheet = SpreadsheetApp.getActiveSpreadsheet();
-      if (!testSheet) {
+      const testSpreadsheet = getSpreadsheet();
+      if (!testSpreadsheet) {
         throw new Error('Cannot access active spreadsheet');
       }
 
       // Test sheet operations
-      const sheetNames = testSheet.getSheets().map(sheet => sheet.getName());
+      const sheetNames = testSpreadsheet.getSheets().map(sheet => sheet.getName());
       const accessTime = Date.now() - startTime;
 
       return {

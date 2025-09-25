@@ -31,7 +31,7 @@ function runSystemHealthCheck() {
  */
 function checkSheets() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSpreadsheet();
     if (!ss) throw new Error("Spreadsheet not found.");
     Logger.log("✅ Spreadsheet accessible: " + ss.getName());
   } catch (e) {
@@ -53,7 +53,15 @@ function checkSheetTabs() {
     "League Canva Map"
   ];
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let ss;
+
+  try {
+    ss = getSpreadsheet();
+  } catch (error) {
+    Logger.log("❌ Spreadsheet access error: " + (error && error.message ? error.message : error));
+    return;
+  }
+
   requiredTabs.forEach(tabName => {
     const sheet = ss.getSheetByName(tabName);
     if (sheet) {
@@ -147,8 +155,8 @@ function testRefreshToday() {
  */
 function simulateLiveMatchUpdate() {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Live Match Updates");
-    if (!sheet) throw new Error("Live Match Updates tab missing.");
+    const liveMatchTabName = getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES', 'Live Match Updates');
+    const sheet = getSheet(liveMatchTabName);
 
     const lastRow = sheet.getLastRow() + 1;
     const fakeData = ["2099-12-31", "Test United", "Test Player", "Assist Player", "12", true];
