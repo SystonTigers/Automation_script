@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview Web App Entry Point for Club Console
  * @version 6.2.0
