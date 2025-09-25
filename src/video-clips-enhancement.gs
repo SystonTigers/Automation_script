@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Video Clip Metadata Enhancement for Syston Tigers Football Automation
  * @version 6.2.0
