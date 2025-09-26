@@ -322,6 +322,275 @@ class MonthlySummariesManager {
   }
 
   /**
+   * Start Goal of the Month voting (public API).
+   * @param {number|null} month - Previous month to vote on (optional)
+   * @param {number|null} year - Year (optional)
+   * @returns {Object} Voting start result
+   */
+  postGOTMVoting(month = null, year = null) {
+    this.logger.enterFunction('postGOTMVoting', { month, year });
+
+    try {
+      // @testHook(gotm_voting_start)
+
+      if (!isFeatureEnabled('GOTM')) {
+        const disabled = {
+          success: true,
+          skipped: true,
+          reason: 'Goal of the Month voting disabled'
+        };
+        this.logger.exitFunction('postGOTMVoting', disabled);
+        return disabled;
+      }
+
+      const gotmConfig = getConfig('MONTHLY.GOTM', {});
+      if (!gotmConfig.ENABLED) {
+        const disabled = {
+          success: true,
+          skipped: true,
+          reason: 'GOTM disabled in config'
+        };
+        this.logger.exitFunction('postGOTMVoting', disabled);
+        return disabled;
+      }
+
+      const { targetDate, monthNumber, yearNumber } = this.resolveMonthParameters(month, year, 'results');
+      const monthKey = this.buildMonthKey(yearNumber, monthNumber);
+
+      if (this.isDuplicateRequest('gotm_voting', monthKey)) {
+        const duplicate = {
+          success: true,
+          skipped: true,
+          duplicate: true,
+          month_key: monthKey,
+          message: 'GOTM voting already started for this month'
+        };
+        this.logger.exitFunction('postGOTMVoting', duplicate);
+        return duplicate;
+      }
+
+      // Get goals from the month
+      const monthlyGoals = this.getMonthlyGoals(targetDate);
+
+      const minGoals = gotmConfig.MIN_GOALS_FOR_COMPETITION || 3;
+      if (monthlyGoals.length < minGoals) {
+        this.logger.info('Insufficient goals for GOTM competition', {
+          goals_count: monthlyGoals.length,
+          min_required: minGoals
+        });
+
+        return {
+          success: true,
+          message: `Insufficient goals for competition (${monthlyGoals.length} < ${minGoals})`,
+          goal_count: monthlyGoals.length,
+          min_required: minGoals,
+          skipped: true
+        };
+      }
+
+      // Create voting payload
+      const idempotencyKey = this.buildIdempotencyKey('gotm_voting', monthKey);
+      const payload = this.createGOTMVotingPayload(monthlyGoals, monthNumber, yearNumber, idempotencyKey);
+
+      const consentContext = {
+        module: 'monthly_summaries',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: monthlyGoals.map(goal => goal.player).filter(player => player !== 'Goal')
+      };
+
+      // @testHook(gotm_voting_consent_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(gotm_voting_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('GOTM voting blocked by consent gate', {
+          month_key: monthKey,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
+      // @testHook(gotm_voting_make_dispatch_start)
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey,
+        consentDecision,
+        consentContext
+      });
+      // @testHook(gotm_voting_make_dispatch_complete)
+
+      // Store voting data for later winner announcement
+      if (makeResult.success) {
+        this.storeGOTMVotingData(monthlyGoals, monthNumber, yearNumber);
+        this.markProcessed('gotm_voting', monthKey, {
+          count: monthlyGoals.length,
+          goals: monthlyGoals,
+          payload,
+          makeResult,
+          idempotencyKey
+        });
+      }
+
+      const result = {
+        success: makeResult.success,
+        goal_count: monthlyGoals.length,
+        month: monthNumber,
+        year: yearNumber,
+        month_key: monthKey,
+        goals: monthlyGoals,
+        voting_period_days: gotmConfig.VOTING_PERIOD_DAYS || 5,
+        make_result: makeResult,
+        idempotency_key: idempotencyKey,
+        consent: consentDecision
+      };
+
+      this.logger.exitFunction('postGOTMVoting', result);
+      return result;
+
+    } catch (error) {
+      this.logger.error('GOTM voting start failed', {
+        error: error.toString(),
+        month, year
+      });
+
+      return {
+        success: false,
+        error: error.toString(),
+        month: month,
+        year: year
+      };
+    }
+  }
+
+  /**
+   * Announce Goal of the Month winner (public API).
+   * @param {number|null} month - Month that was voted on (optional)
+   * @param {number|null} year - Year (optional)
+   * @returns {Object} Winner announcement result
+   */
+  announceGOTMWinner(month = null, year = null) {
+    this.logger.enterFunction('announceGOTMWinner', { month, year });
+
+    try {
+      // @testHook(gotm_winner_start)
+
+      if (!isFeatureEnabled('GOTM')) {
+        const disabled = {
+          success: true,
+          skipped: true,
+          reason: 'Goal of the Month disabled'
+        };
+        this.logger.exitFunction('announceGOTMWinner', disabled);
+        return disabled;
+      }
+
+      const gotmConfig = getConfig('MONTHLY.GOTM', {});
+      if (!gotmConfig.ENABLED) {
+        const disabled = {
+          success: true,
+          skipped: true,
+          reason: 'GOTM disabled in config'
+        };
+        this.logger.exitFunction('announceGOTMWinner', disabled);
+        return disabled;
+      }
+
+      const { monthNumber, yearNumber } = this.resolveMonthParameters(month, year, 'results');
+      const monthKey = this.buildMonthKey(yearNumber, monthNumber);
+
+      // Get stored voting data
+      const votingData = this.getStoredGOTMVotingData(monthNumber, yearNumber);
+
+      if (!votingData || !votingData.goals || votingData.goals.length === 0) {
+        return {
+          success: true,
+          message: 'No voting data found for this month',
+          month: monthNumber,
+          year: yearNumber,
+          month_key: monthKey,
+          skipped: true
+        };
+      }
+
+      // Determine winner (simulated - in real implementation would come from social media polling)
+      const winner = this.determineGOTMWinner(votingData.goals);
+
+      // Create winner announcement payload
+      const idempotencyKey = this.buildIdempotencyKey('gotm_winner', monthKey);
+      const payload = this.createGOTMWinnerPayload(winner, votingData.goals, monthNumber, yearNumber, idempotencyKey);
+
+      const consentContext = {
+        module: 'monthly_summaries',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: [winner.player].filter(player => player !== 'Goal')
+      };
+
+      // @testHook(gotm_winner_consent_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(gotm_winner_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('GOTM winner announcement blocked by consent gate', {
+          month_key: monthKey,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
+      // @testHook(gotm_winner_make_dispatch_start)
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey,
+        consentDecision,
+        consentContext
+      });
+      // @testHook(gotm_winner_make_dispatch_complete)
+
+      const result = {
+        success: makeResult.success,
+        winner: winner,
+        month: monthNumber,
+        year: yearNumber,
+        month_key: monthKey,
+        total_goals: votingData.goals.length,
+        make_result: makeResult,
+        idempotency_key: idempotencyKey,
+        consent: consentDecision
+      };
+
+      this.logger.exitFunction('announceGOTMWinner', result);
+      return result;
+
+    } catch (error) {
+      this.logger.error('GOTM winner announcement failed', {
+        error: error.toString(),
+        month, year
+      });
+
+      return {
+        success: false,
+        error: error.toString(),
+        month: month,
+        year: year
+      };
+    }
+  }
+
+  /**
    * Evaluate monthly scheduling rules and trigger summaries when needed.
    * @returns {Object} Scheduling result
    */
@@ -356,6 +625,27 @@ class MonthlySummariesManager {
           type: 'results',
           result: this.postMonthlyResultsSummary()
         });
+      }
+
+      // GOTM scheduling
+      const gotmConfig = getConfig('MONTHLY.GOTM', {});
+      if (gotmConfig && gotmConfig.ENABLED && isFeatureEnabled('GOTM')) {
+        // 1st of month: Start GOTM voting for previous month
+        if (this.shouldTriggerOnDay(today, 1)) {
+          triggers.push({
+            type: 'gotm_voting',
+            result: this.postGOTMVoting()
+          });
+        }
+
+        // Winner announcement day (default 6th): Announce GOTM winner
+        const winnerDay = gotmConfig.WINNER_ANNOUNCE_DAY || 6;
+        if (this.shouldTriggerOnDay(today, winnerDay)) {
+          triggers.push({
+            type: 'gotm_winner',
+            result: this.announceGOTMWinner()
+          });
+        }
       }
 
       const outcome = {
@@ -460,6 +750,63 @@ class MonthlySummariesManager {
     } catch (error) {
       this.logger.error('Monthly results gathering failed', { error: error.toString(), stack: error.stack });
       return { results: [], metadata: {} };
+    }
+  }
+
+  /**
+   * Get goals from a specific month.
+   * @param {Date} targetDate - Date within the target month
+   * @returns {Array} Goals array
+   */
+  getMonthlyGoals(targetDate) {
+    this.logger.enterFunction('getMonthlyGoals', { month: targetDate.getMonth() + 1, year: targetDate.getFullYear() });
+
+    try {
+      // @testHook(monthly_goals_sheet_prepare_start)
+      const sheet = SheetUtils.getOrCreateSheet(
+        getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES')
+      );
+      // @testHook(monthly_goals_sheet_prepare_complete)
+
+      if (!sheet) {
+        this.logger.warn('Live match updates sheet unavailable');
+        const fallback = [];
+        this.logger.exitFunction('getMonthlyGoals', { count: 0 });
+        return fallback;
+      }
+
+      const allEvents = SheetUtils.getAllDataAsObjects(sheet);
+      const { monthStart, monthEnd } = this.getMonthBounds(targetDate);
+
+      const goals = allEvents.filter(event => {
+        // Only include goals by our team (exclude opposition goals where player = "Goal")
+        if (event.Event !== 'Goal' || !event.Player || event.Player === 'Goal') {
+          return false;
+        }
+
+        if (!event.Timestamp) return false;
+
+        const eventDate = new Date(event.Timestamp);
+        if (!eventDate || isNaN(eventDate.getTime())) return false;
+
+        return eventDate >= monthStart && eventDate <= monthEnd;
+      }).map(event => ({
+        player: event.Player,
+        minute: event.Minute || '0',
+        opponent: event.Opponent || 'Unknown',
+        assist: event.Assist || '',
+        date: DateUtils.formatUK(new Date(event.Timestamp)),
+        match_score: `${event['Home Score'] || '0'}-${event['Away Score'] || '0'}`,
+        notes: event.Notes || '',
+        goal_id: `goal_${event.Player}_${event.Minute}_${new Date(event.Timestamp).getTime()}`
+      }));
+
+      this.logger.exitFunction('getMonthlyGoals', { count: goals.length });
+      return goals;
+
+    } catch (error) {
+      this.logger.error('Failed to get monthly goals', { error: error.toString(), stack: error.stack });
+      return [];
     }
   }
 
@@ -587,6 +934,82 @@ class MonthlySummariesManager {
 
     stats.goal_difference = stats.goals_for - stats.goals_against;
     return stats;
+  }
+
+  // ==================== GOTM PAYLOAD BUILDERS ====================
+
+  /**
+   * Create GOTM voting payload.
+   * @param {Array} goals - Goals array
+   * @param {number} month - Month
+   * @param {number} year - Year
+   * @param {string} idempotencyKey - Idempotency key
+   * @returns {Object} Payload
+   */
+  createGOTMVotingPayload(goals, month, year, idempotencyKey) {
+    const monthName = DateUtils.getMonthName(month);
+
+    return {
+      event_type: getConfig('MAKE.EVENT_TYPES.GOTM_VOTING_OPEN', 'gotm_voting_start'),
+      idempotency_key: idempotencyKey,
+      system_version: getConfig('SYSTEM.VERSION'),
+      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      month: month,
+      year: year,
+      month_name: monthName,
+      goal_count: goals.length,
+      goals: goals,
+      voting_period_days: getConfig('MONTHLY.GOTM.VOTING_PERIOD_DAYS', 5),
+      content_title: `${monthName} Goal of the Month - Voting Open`,
+      voting_instructions: 'Vote for your favourite goal using the poll in our social media posts',
+      metadata: {
+        posted_at: DateUtils.formatISO(DateUtils.now()),
+        source: 'monthly_summaries'
+      }
+    };
+  }
+
+  /**
+   * Create GOTM winner payload.
+   * @param {Object} winner - Winner object
+   * @param {Array} allGoals - All goals in competition
+   * @param {number} month - Month
+   * @param {number} year - Year
+   * @param {string} idempotencyKey - Idempotency key
+   * @returns {Object} Payload
+   */
+  createGOTMWinnerPayload(winner, allGoals, month, year, idempotencyKey) {
+    const monthName = DateUtils.getMonthName(month);
+
+    return {
+      event_type: getConfig('MAKE.EVENT_TYPES.GOTM_WINNER', 'gotm_winner_announcement'),
+      idempotency_key: idempotencyKey,
+      system_version: getConfig('SYSTEM.VERSION'),
+      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      month: month,
+      year: year,
+      month_name: monthName,
+
+      // Winner details
+      winner_player: winner.player,
+      winner_minute: winner.minute,
+      winner_opponent: winner.opponent,
+      winner_assist: winner.assist || '',
+      winner_date: winner.date,
+      winner_votes: winner.votes,
+      winner_vote_percentage: winner.vote_percentage,
+
+      // Competition details
+      total_goals: allGoals.length,
+      total_votes: winner.total_votes,
+
+      content_title: `${monthName} Goal of the Month Winner`,
+      winner_announcement: `${winner.player} wins ${monthName} Goal of the Month!`,
+      metadata: {
+        posted_at: DateUtils.formatISO(DateUtils.now()),
+        source: 'monthly_summaries'
+      }
+    };
   }
 
   // ==================== PAYLOAD BUILDERS ====================
@@ -1084,6 +1507,118 @@ class MonthlySummariesManager {
 
     return this.monthlySheet;
   }
+
+  // ==================== GOTM HELPER METHODS ====================
+
+  /**
+   * Store GOTM voting data.
+   * @param {Array} goals - Goals array
+   * @param {number} month - Month
+   * @param {number} year - Year
+   */
+  storeGOTMVotingData(goals, month, year) {
+    try {
+      const monthlyStatsSheet = SheetUtils.getOrCreateSheet(
+        getConfig('SHEETS.TAB_NAMES.MONTHLY_STATS', 'Monthly Stats'),
+        ['Month', 'Year', 'Type', 'Data', 'Created']
+      );
+
+      if (!monthlyStatsSheet) {
+        this.logger.warn('Cannot store GOTM voting data - Monthly Stats sheet unavailable');
+        return;
+      }
+
+      const votingData = {
+        'Month': month,
+        'Year': year,
+        'Type': 'GOTM_VOTING',
+        'Data': JSON.stringify({
+          goals: goals,
+          voting_started: DateUtils.formatISO(DateUtils.now()),
+          voting_period_days: getConfig('MONTHLY.GOTM.VOTING_PERIOD_DAYS', 5)
+        }),
+        'Created': DateUtils.formatISO(DateUtils.now())
+      };
+
+      // @testHook(gotm_voting_data_store_start)
+      SheetUtils.addRowFromObject(monthlyStatsSheet, votingData);
+      // @testHook(gotm_voting_data_store_complete)
+
+    } catch (error) {
+      this.logger.error('Failed to store GOTM voting data', { error: error.toString() });
+    }
+  }
+
+  /**
+   * Get stored GOTM voting data.
+   * @param {number} month - Month
+   * @param {number} year - Year
+   * @returns {Object|null} Voting data
+   */
+  getStoredGOTMVotingData(month, year) {
+    try {
+      const monthlyStatsSheet = SheetUtils.getOrCreateSheet(
+        getConfig('SHEETS.TAB_NAMES.MONTHLY_STATS', 'Monthly Stats')
+      );
+
+      if (!monthlyStatsSheet) {
+        this.logger.warn('Cannot retrieve GOTM voting data - Monthly Stats sheet unavailable');
+        return null;
+      }
+
+      // @testHook(gotm_voting_data_retrieve_start)
+      const allData = SheetUtils.getAllDataAsObjects(monthlyStatsSheet);
+      // @testHook(gotm_voting_data_retrieve_complete)
+
+      const votingRecord = allData.find(record =>
+        parseInt(record.Month) === month &&
+        parseInt(record.Year) === year &&
+        record.Type === 'GOTM_VOTING'
+      );
+
+      if (!votingRecord || !votingRecord.Data) {
+        return null;
+      }
+
+      return JSON.parse(votingRecord.Data);
+
+    } catch (error) {
+      this.logger.error('Failed to get stored GOTM voting data', { error: error.toString() });
+      return null;
+    }
+  }
+
+  /**
+   * Determine GOTM winner (simulated).
+   * @param {Array} goals - Goals array
+   * @returns {Object} Winner object
+   */
+  determineGOTMWinner(goals) {
+    // In a real implementation, this would integrate with social media polling results
+    // For now, we'll randomly select or use the first goal as winner
+
+    if (!goals || goals.length === 0) {
+      return {
+        player: 'Unknown',
+        minute: '0',
+        opponent: 'Unknown',
+        votes: 0,
+        vote_percentage: '0%'
+      };
+    }
+
+    // Simulate voting - in reality this would come from social media polls
+    const winner = goals[Math.floor(Math.random() * goals.length)];
+    const totalVotes = Math.floor(Math.random() * 100) + 50; // 50-150 votes
+    const winnerVotes = Math.floor(totalVotes * (0.3 + Math.random() * 0.4)); // 30-70% of votes
+
+    return {
+      ...winner,
+      votes: winnerVotes,
+      total_votes: totalVotes,
+      vote_percentage: `${((winnerVotes / totalVotes) * 100).toFixed(1)}%`
+    };
+  }
 }
 
 // ==================== INITIALIZATION & PUBLIC API ====================
@@ -1174,6 +1709,107 @@ function runMonthlySchedulingCheck() {
   }
 }
 
+/**
+ * Public API: Start Goal of the Month voting.
+ * @param {number|null} month - Month (1-12)
+ * @param {number|null} year - Year
+ * @returns {Object} Result
+ */
+function startGOTMVoting(month = null, year = null) {
+  logger.enterFunction('startGOTMVoting', { month, year });
+
+  try {
+    const manager = new MonthlySummariesManager();
+    const result = manager.postGOTMVoting(month, year);
+    logger.exitFunction('startGOTMVoting', { success: result.success });
+    return result;
+  } catch (error) {
+    logger.error('Public GOTM voting start failed', { error: error.toString(), stack: error.stack });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Public API: Announce Goal of the Month winner.
+ * @param {number|null} month - Month (1-12)
+ * @param {number|null} year - Year
+ * @returns {Object} Result
+ */
+function announceGOTMWinner(month = null, year = null) {
+  logger.enterFunction('announceGOTMWinner', { month, year });
+
+  try {
+    const manager = new MonthlySummariesManager();
+    const result = manager.announceGOTMWinner(month, year);
+    logger.exitFunction('announceGOTMWinner', { success: result.success });
+    return result;
+  } catch (error) {
+    logger.error('Public GOTM winner announcement failed', { error: error.toString(), stack: error.stack });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Public API: Run monthly scheduled tasks (Enhanced with GOTM).
+ * @returns {Object} Execution result
+ */
+function runMonthlyScheduledTasks() {
+  logger.enterFunction('runMonthlyScheduledTasks');
+
+  try {
+    const today = DateUtils.now();
+    const dayOfMonth = today.getDate();
+    const results = {};
+
+    // 1st of month: Monthly fixtures + GOTM voting
+    if (dayOfMonth === 1) {
+      results.monthly_fixtures = postMonthlyFixturesSummary();
+      if (isFeatureEnabled('GOTM')) {
+        results.gotm_voting = startGOTMVoting();
+      }
+    }
+
+    // 6th of month: GOTM winner announcement
+    const gotmConfig = getConfig('MONTHLY.GOTM', {});
+    const winnerDay = gotmConfig.WINNER_ANNOUNCE_DAY || 6;
+    if (dayOfMonth === winnerDay && isFeatureEnabled('GOTM')) {
+      results.gotm_winner = announceGOTMWinner();
+    }
+
+    // Last day of month: Monthly results
+    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    if (dayOfMonth === lastDayOfMonth) {
+      results.monthly_results = postMonthlyResultsSummary();
+    }
+
+    const tasksRun = Object.keys(results).length;
+    const successfulTasks = Object.values(results).filter(result => result.success).length;
+
+    logger.exitFunction('runMonthlyScheduledTasks', {
+      success: successfulTasks === tasksRun,
+      tasks_run: tasksRun
+    });
+
+    return {
+      success: successfulTasks === tasksRun,
+      day_of_month: dayOfMonth,
+      tasks_run: tasksRun,
+      successful_tasks: successfulTasks,
+      results: results,
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+
+  } catch (error) {
+    logger.error('Monthly scheduled tasks failed', { error: error.toString() });
+
+    return {
+      success: false,
+      error: error.toString(),
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+  }
+}
+
 // Export globals for Apps Script triggers
 // eslint-disable-next-line no-undef
 globalThis.initializeMonthlySummaries = initializeMonthlySummaries;
@@ -1183,6 +1819,12 @@ globalThis.postMonthlyFixturesSummary = postMonthlyFixturesSummary;
 globalThis.postMonthlyResultsSummary = postMonthlyResultsSummary;
 // eslint-disable-next-line no-undef
 globalThis.runMonthlySchedulingCheck = runMonthlySchedulingCheck;
+// eslint-disable-next-line no-undef
+globalThis.startGOTMVoting = startGOTMVoting;
+// eslint-disable-next-line no-undef
+globalThis.announceGOTMWinner = announceGOTMWinner;
+// eslint-disable-next-line no-undef
+globalThis.runMonthlyScheduledTasks = runMonthlyScheduledTasks;
 
 /**
  * Public API: Post postponed match notification.
