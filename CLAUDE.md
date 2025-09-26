@@ -1049,8 +1049,8 @@ function testConsentValidation() {
 - **Status:** ✅ FULLY OPERATIONAL
 
 ### **Monitoring Dashboard URLs**
-- **Apps Script Console:** `https://script.google.com/home/projects/1OnoYkfZE1aSKdJCfz-DaMdg2aRUCRG7zGypExFCjIOHyS1ItpNKBn3oE`
-- **Live Web App:** `https://script.google.com/macros/s/.../exec`
+- **Apps Script Console:** `https://script.google.com/home/projects/1x4MvHn9BTvlKQmUi2KcQuNdkPck5FeECBkiaKol7oy0VKcfHsneBNjA-`
+- **Live Web App:** `https://script.google.com/macros/s/1x4MvHn9BTvlKQmUi2KcQuNdkPck5FeECBkiaKol7oy0VKcfHsneBNjA-/exec`
 - **Performance Logs:** Automatic logging to Google Cloud Console
 - **Error Alerts:** Slack webhook integration
 
