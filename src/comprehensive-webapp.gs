@@ -22,9 +22,7 @@ function doGet(e) {
       case 'historical':
         return createHistoricalDataInterface();
       case 'live':
-        return createEnhancedLiveMatchInterface();
-      case 'stats':
-        return createStatisticsInterface();
+        return createLiveMatchInterface();
       case 'health':
         return createHealthResponse();
       case 'test':
@@ -58,12 +56,12 @@ function doPost(e) {
         return handleAddPlayer(params);
       case 'add_fixture':
         return handleAddFixture(params);
-      case 'season_setup':
+      case 'setup_season':
         return handleSeasonSetup(params);
-      case 'add_historical_match':
-        return handleHistoricalMatch(params);
       case 'live_event':
         return handleLiveEvent(params);
+      case 'historical_data':
+        return handleHistoricalData(params);
       default:
         return ContentService.createTextOutput(JSON.stringify({
           success: false,
@@ -151,7 +149,7 @@ function createMainDashboard() {
       <a href="?live" class="card">
         <div class="card-icon">⚽</div>
         <div class="card-title">Enhanced Live Match</div>
-        <div class="card-desc">Professional live console with automation</div>
+        <div class="card-desc">Professional live match console with automation</div>
       </a>
 
       <a href="?season" class="card">
@@ -748,4 +746,416 @@ function handleAddFixture(params) {
       error: error.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+/**
+ * Create Season Setup interface
+ */
+function createSeasonSetupInterface() {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🏆 Season Setup - Syston Tigers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      max-width: 1200px; margin: 0 auto; padding: 20px;
+      background: #f8f9fa; color: #333;
+    }
+    .header {
+      text-align: center; margin-bottom: 30px;
+      background: #28a745; color: white; padding: 25px; border-radius: 15px;
+    }
+    .section {
+      background: white; margin: 20px 0; padding: 25px;
+      border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block; margin-bottom: 8px; font-weight: bold; color: #495057;
+    }
+    input, select, textarea {
+      width: 100%; padding: 12px; border: 2px solid #dee2e6;
+      border-radius: 8px; font-size: 16px; transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: #28a745;
+    }
+    .btn {
+      padding: 12px 25px; margin: 8px; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 8px; cursor: pointer;
+      transition: all 0.2s; text-decoration: none; display: inline-block;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary { background: #007bff; color: white; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-secondary { background: #6c757d; color: white; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .status-card {
+      padding: 20px; border-radius: 8px; text-align: center;
+      border-left: 4px solid #28a745;
+    }
+    .setup-progress {
+      background: #e9ecef; height: 8px; border-radius: 4px; margin: 20px 0;
+    }
+    .progress-bar {
+      background: #28a745; height: 100%; border-radius: 4px; width: 60%;
+      transition: width 0.3s;
+    }
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🏆 Season Setup</h1>
+    <p>Configure your season settings, league information, and team details</p>
+    <div class="setup-progress">
+      <div class="progress-bar"></div>
+    </div>
+    <p><small>Setup Progress: 60% Complete</small></p>
+  </div>
+
+  <div class="section">
+    <h2>⚽ Basic Season Information</h2>
+    <form id="seasonForm">
+      <div class="grid">
+        <div class="form-group">
+          <label for="seasonName">Season Name</label>
+          <input type="text" id="seasonName" name="seasonName" value="2024/25" placeholder="e.g., 2024/25">
+        </div>
+        <div class="form-group">
+          <label for="ageGroup">Age Group</label>
+          <select id="ageGroup" name="ageGroup">
+            <option value="Senior">Senior Team</option>
+            <option value="U18">Under 18s</option>
+            <option value="U16">Under 16s</option>
+            <option value="U14">Under 14s</option>
+            <option value="Veterans">Veterans</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label for="league">League/Competition</label>
+          <input type="text" id="league" name="league" placeholder="e.g., Leicester & District League Division 2">
+        </div>
+        <div class="form-group">
+          <label for="division">Division</label>
+          <input type="text" id="division" name="division" placeholder="e.g., Division 2">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="homeVenue">Home Venue</label>
+        <input type="text" id="homeVenue" name="homeVenue" placeholder="e.g., Syston Sports Ground">
+      </div>
+
+      <div class="form-group">
+        <label for="seasonObjectives">Season Objectives</label>
+        <textarea id="seasonObjectives" name="seasonObjectives" rows="3" placeholder="e.g., Promotion to Division 1, Good cup run, Develop youth players"></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-success">💾 Save Season Settings</button>
+    </form>
+  </div>
+
+  <div class="section">
+    <h2>📊 League Configuration</h2>
+    <div class="grid">
+      <div class="form-group">
+        <label for="pointsWin">Points for Win</label>
+        <input type="number" id="pointsWin" name="pointsWin" value="3" min="1" max="10">
+      </div>
+      <div class="form-group">
+        <label for="pointsDraw">Points for Draw</label>
+        <input type="number" id="pointsDraw" name="pointsDraw" value="1" min="0" max="5">
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="form-group">
+        <label for="matchDuration">Match Duration (minutes)</label>
+        <input type="number" id="matchDuration" name="matchDuration" value="90" min="60" max="120">
+      </div>
+      <div class="form-group">
+        <label for="maxSubs">Maximum Substitutions</label>
+        <input type="number" id="maxSubs" name="maxSubs" value="5" min="3" max="7">
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🎨 Branding & Social Media</h2>
+    <div class="grid">
+      <div class="form-group">
+        <label for="primaryColor">Primary Team Color</label>
+        <input type="color" id="primaryColor" name="primaryColor" value="#dc143c">
+      </div>
+      <div class="form-group">
+        <label for="secondaryColor">Secondary Color</label>
+        <input type="color" id="secondaryColor" name="secondaryColor" value="#ffffff">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="clubBadge">Club Badge URL</label>
+      <input type="url" id="clubBadge" name="clubBadge" placeholder="https://example.com/badge.png">
+    </div>
+
+    <div class="form-group">
+      <label for="socialHashtags">Social Media Hashtags</label>
+      <input type="text" id="socialHashtags" name="socialHashtags" placeholder="#SystonTigers #FootballClub #LocalFootball">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>✅ Setup Status</h2>
+    <div class="grid">
+      <div class="status-card">
+        <h4>✅ Players</h4>
+        <p>15 players configured</p>
+      </div>
+      <div class="status-card">
+        <h4>✅ Fixtures</h4>
+        <p>Ready for season</p>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px;">
+      <a href="?" class="btn btn-secondary">← Back to Dashboard</a>
+      <button class="btn btn-primary" onclick="completeSetup()">🚀 Complete Season Setup</button>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('seasonForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const formData = new FormData(this);
+      const seasonData = {};
+
+      for (let [key, value] of formData.entries()) {
+        seasonData[key] = value;
+      }
+
+      // Submit to backend
+      fetch(window.location.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          action: 'season_setup',
+          data: JSON.stringify(seasonData)
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('✅ Season settings saved successfully!');
+          updateProgress();
+        } else {
+          alert('❌ Error: ' + data.error);
+        }
+      })
+      .catch(error => {
+        alert('❌ Error saving settings: ' + error.message);
+      });
+    });
+
+    function updateProgress() {
+      const progressBar = document.querySelector('.progress-bar');
+      progressBar.style.width = '80%';
+    }
+
+    function completeSetup() {
+      if (confirm('Complete season setup? This will finalize your configuration.')) {
+        alert('🎉 Season setup completed! Your automation system is ready.');
+        window.location.href = '?';
+      }
+    }
+
+    console.log('🏆 Season Setup Interface Ready!');
+  </script>
+</body>
+</html>`;
+
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Season Setup - Syston Tigers')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Create Historical Data Entry interface
+ */
+function createHistoricalDataInterface() {
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>📊 Historical Data Import - Syston Tigers</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      max-width: 1200px; margin: 0 auto; padding: 20px;
+      background: #f8f9fa; color: #333;
+    }
+    .header {
+      text-align: center; margin-bottom: 30px;
+      background: #6610f2; color: white; padding: 25px; border-radius: 15px;
+    }
+    .section {
+      background: white; margin: 20px 0; padding: 25px;
+      border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block; margin-bottom: 8px; font-weight: bold; color: #495057;
+    }
+    input, select, textarea {
+      width: 100%; padding: 12px; border: 2px solid #dee2e6;
+      border-radius: 8px; font-size: 16px; transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: #6610f2;
+    }
+    .btn {
+      padding: 12px 25px; margin: 8px; font-size: 16px; font-weight: bold;
+      border: none; border-radius: 8px; cursor: pointer;
+      transition: all 0.2s; text-decoration: none; display: inline-block;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary { background: #007bff; color: white; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-warning { background: #ffc107; color: #333; }
+    .btn-secondary { background: #6c757d; color: white; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .file-drop {
+      border: 2px dashed #6610f2; padding: 40px; text-align: center;
+      border-radius: 8px; background: #f8f9ff; margin: 20px 0;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .file-drop:hover {
+      border-color: #5a0fc8; background: #f0f0ff;
+    }
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📊 Historical Data Import</h1>
+    <p>Import previous season data, match results, and player statistics</p>
+  </div>
+
+  <div class="section">
+    <h2>📤 Bulk Data Import</h2>
+    <p>Upload CSV files with your historical match data, player statistics, and season results.</p>
+
+    <div class="file-drop" onclick="document.getElementById('csvFile').click()">
+      <h3>📁 Drop CSV File Here</h3>
+      <p>Or click to browse and select your data file</p>
+      <p><small>Supported: CSV files up to 10MB</small></p>
+    </div>
+
+    <input type="file" id="csvFile" accept=".csv" style="display: none;">
+
+    <button class="btn btn-success" onclick="processImport()">📊 Process Import</button>
+    <button class="btn btn-warning" onclick="validateData()">✅ Validate Data</button>
+  </div>
+
+  <div class="section">
+    <h2>⚽ Manual Match Entry</h2>
+    <form id="manualMatchForm">
+      <div class="grid">
+        <div class="form-group">
+          <label for="matchDate">Match Date</label>
+          <input type="date" id="matchDate" name="matchDate" required>
+        </div>
+        <div class="form-group">
+          <label for="opposition">Opposition</label>
+          <input type="text" id="opposition" name="opposition" placeholder="e.g., Example FC" required>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="form-group">
+          <label for="homeScore">Syston Tigers Score</label>
+          <input type="number" id="homeScore" name="homeScore" min="0" max="20" required>
+        </div>
+        <div class="form-group">
+          <label for="awayScore">Opposition Score</label>
+          <input type="number" id="awayScore" name="awayScore" min="0" max="20" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">💾 Add Historical Match</button>
+    </form>
+  </div>
+
+  <div style="text-align: center; margin-top: 30px;">
+    <a href="?" class="btn btn-secondary">← Back to Dashboard</a>
+  </div>
+
+  <script>
+    document.getElementById('manualMatchForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const formData = new FormData(this);
+      const matchData = {};
+
+      for (let [key, value] of formData.entries()) {
+        matchData[key] = value;
+      }
+
+      fetch(window.location.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          action: 'add_historical_match',
+          data: JSON.stringify(matchData)
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('✅ Historical match added successfully!');
+          this.reset();
+        } else {
+          alert('❌ Error: ' + data.error);
+        }
+      })
+      .catch(error => {
+        alert('❌ Error adding match: ' + error.message);
+      });
+    });
+
+    function processImport() {
+      alert('🔄 Processing import... This feature will be implemented soon.');
+    }
+
+    function validateData() {
+      alert('✅ Data validation feature coming soon!');
+    }
+
+    document.getElementById('matchDate').max = new Date().toISOString().split('T')[0];
+    console.log('📊 Historical Data Interface Ready!');
+  </script>
+</body>
+</html>`;
+
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Historical Data Import - Syston Tigers')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
