@@ -12,6 +12,68 @@
 // ==================== SYSTEM CONFIGURATION ====================
 
 /**
+ * Global config for Syston Tigers Automation System
+ * Enables use of standalone Apps Script project with linked Sheet
+ * @version 6.2.0
+ */
+const CONFIG_LOGGER = typeof logger !== 'undefined' && logger && typeof logger.scope === 'function'
+  ? logger.scope('Config')
+  : {
+    enterFunction() {},
+    exitFunction() {},
+    error() {}
+  };
+
+const SHEET_ID = (function resolveSheetId() {
+  CONFIG_LOGGER.enterFunction('resolveSheetId');
+
+  try {
+    const propertyValue = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const trimmedValue = propertyValue && typeof propertyValue === 'string' ? propertyValue.trim() : '';
+
+    if (!trimmedValue) {
+      const error = new Error('SPREADSHEET_ID script property is not configured');
+      CONFIG_LOGGER.error(error.message);
+      throw error;
+    }
+
+    CONFIG_LOGGER.exitFunction('resolveSheetId', { success: true });
+    return trimmedValue;
+  } catch (error) {
+    CONFIG_LOGGER.exitFunction('resolveSheetId', { success: false });
+    throw error;
+  }
+})();
+
+/**
+ * Returns the main spreadsheet using the configured sheet ID
+ * Replaces all use of getActiveSpreadsheet()
+ * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
+ */
+function getSheet() {
+  CONFIG_LOGGER.enterFunction('getSheet');
+
+  try {
+    // @testHook(config_get_sheet_open_start)
+    const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+    // @testHook(config_get_sheet_open_complete)
+
+    CONFIG_LOGGER.exitFunction('getSheet', {
+      success: true,
+      sheetId: SHEET_ID
+    });
+    return spreadsheet;
+  } catch (error) {
+    CONFIG_LOGGER.error('Failed to open spreadsheet by ID', {
+      sheetId: SHEET_ID,
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error
+    });
+    CONFIG_LOGGER.exitFunction('getSheet', { success: false });
+    throw error;
+  }
+}
+
+/**
  * Merge arrays into a unique ordered list (legacy + new columns)
  * @param {...Array<*>} arrays - Arrays of values to merge
  * @returns {Array<*>} Array with unique entries preserving first occurrence order
@@ -349,7 +411,7 @@ const SYSTEM_CONFIG = {
 
   // ==================== GOOGLE SHEETS CONFIGURATION ====================
   SHEETS: {
-    SPREADSHEET_ID: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '',
+    SPREADSHEET_ID: SHEET_ID,
     TAB_NAMES: {
       // Core sheets
       LIVE_MATCH: 'Live Match Updates',
