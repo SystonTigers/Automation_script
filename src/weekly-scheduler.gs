@@ -240,6 +240,11 @@ class WeeklyScheduler {
         const sundayMatch = this.getSundayMatch();
         if (sundayMatch) {
           payload = this.createOppositionAnalysisPayload(sundayMatch);
+          // If no historical data available, fallback to general stats
+          if (!payload) {
+            this.logger.info(`No historical data for ${sundayMatch.Opposition}, posting general stats instead`);
+            payload = this.createGeneralStatsPayload();
+          }
         } else {
           // Fallback to general stats
           payload = this.createGeneralStatsPayload();
@@ -1109,39 +1114,85 @@ class WeeklyScheduler {
   }
 
   /**
-   * Create opposition analysis payload
+   * Create opposition analysis payload with historical data
    * @param {Object} match - Sunday match
    * @returns {Object} Payload object
    */
   createOppositionAnalysisPayload(match) {
+    // Get comprehensive historical data
+    const historicalData = this.getHistoricalDataForOpponent(match.Opposition);
     const previousMeetings = this.getPreviousMeetings(match.Opposition);
     const keyPlayers = 'Opposition key players to watch';
+
+    // Only create payload if historical data exists
+    if (!historicalData.hasHistory) {
+      this.logger.info(`No historical data for ${match.Opposition}, skipping opposition analysis`);
+      return null;
+    }
+
     const variantContext = {
-      content_title: `Facing ${match.Opposition}`,
+      content_title: `Head-to-Head: ${getConfig('SYSTEM.CLUB_NAME')} vs ${match.Opposition}`,
       opponent_name: match.Opposition,
       match_date: match.Date,
       previous_meetings: previousMeetings,
       opposition_form: 'Recent form analysis',
-      key_players: keyPlayers
+      key_players: keyPlayers,
+      historical_record: historicalData.stats.totalMatches > 0 ?
+        `Played ${historicalData.stats.totalMatches}: Won ${historicalData.stats.wins}, Drew ${historicalData.stats.draws}, Lost ${historicalData.stats.losses}` :
+        'First meeting between these teams',
+      recent_results: historicalData.matches.slice(0, 3).map(m => `${m.Result || 'Unknown'} (${m.Date || 'Unknown date'})`).join(' | ')
     };
 
     const templateVariants = this.buildTemplateVariants('stats', variantContext);
 
     return {
-      event_type: 'weekly_stats',
+      event_type: 'historical_comparison',
       system_version: getConfig('SYSTEM.VERSION'),
       club_name: getConfig('SYSTEM.CLUB_NAME'),
 
-      // Opposition analysis
-      stats_type: 'opposition_analysis',
-      content_title: `Facing ${match.Opposition}`,
+      // Opposition analysis with historical data
+      stats_type: 'opposition_analysis_historical',
+      content_title: `Head-to-Head: vs ${match.Opposition}`,
       opponent_name: match.Opposition,
       match_date: match.Date,
-      
-      // Analysis data
+
+      // Historical analysis data
+      has_history: historicalData.hasHistory,
+      total_meetings: historicalData.stats.totalMatches,
+      head_to_head_record: `Played ${historicalData.stats.totalMatches}: Won ${historicalData.stats.wins}, Drew ${historicalData.stats.draws}, Lost ${historicalData.stats.losses}`,
+      wins: historicalData.stats.wins,
+      draws: historicalData.stats.draws,
+      losses: historicalData.stats.losses,
+      goals_for: historicalData.stats.goalsFor,
+      goals_against: historicalData.stats.goalsAgainst,
+      goal_difference: historicalData.stats.goalsFor - historicalData.stats.goalsAgainst,
+
+      // Recent meetings
+      recent_meetings_count: Math.min(historicalData.matches.length, 3),
+      recent_meetings: historicalData.matches.slice(0, 3).map(match => ({
+        result: match.Result || 'Unknown',
+        date: match.Date || 'Unknown date',
+        venue: match.Venue || 'Unknown venue'
+      })),
+      form_guide: historicalData.matches.slice(0, 3).map(m => `${m.Result || 'Unknown'} (${m.Date || 'Unknown date'})`).join(' | '),
+
+      // Last meeting details
+      last_meeting_result: historicalData.lastMeeting ? historicalData.lastMeeting.Result : null,
+      last_meeting_date: historicalData.lastMeeting ? historicalData.lastMeeting.Date : null,
+      last_meeting_venue: historicalData.lastMeeting ? historicalData.lastMeeting.Venue : null,
+
+      // Additional context
       previous_meetings: previousMeetings,
       opposition_form: 'Recent form analysis',
       key_players: keyPlayers,
+      is_first_meeting: historicalData.stats.totalMatches === 0,
+      dominant_team: this.getDominantTeam(historicalData.stats, getConfig('SYSTEM.CLUB_NAME')),
+
+      // Canva placeholders for historical posts
+      fixture_preview_title: `${getConfig('SYSTEM.CLUB_NAME')} vs ${match.Opposition}`,
+      historical_stats_text: `Played ${historicalData.stats.totalMatches}: Won ${historicalData.stats.wins}, Drew ${historicalData.stats.draws}, Lost ${historicalData.stats.losses}`,
+      recent_form_text: historicalData.matches.slice(0, 3).map(m => `${m.Result || 'Unknown'}`).join(' | '),
+      next_match_text: `Next: ${new Date(match.Date).toLocaleDateString('en-GB')} at ${match.Venue || 'TBC'}`,
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
@@ -1411,6 +1462,48 @@ class WeeklyScheduler {
     ];
     const randomIndex = Math.floor(Math.random() * themes.length);
     return themes[randomIndex];
+  }
+
+  /**
+   * Get comprehensive historical data for opponent
+   * @param {string} opponent - Opposition team name
+   * @returns {Object} Historical data object
+   */
+  getHistoricalDataForOpponent(opponent) {
+    try {
+      // Use the HistoricalFixturesManager for comprehensive data
+      // Note: Requires historical-fixtures.gs to be loaded in the same project
+      const historicalManager = new HistoricalFixturesManager();
+      return historicalManager.getHistoricalResults(opponent);
+    } catch (error) {
+      this.logger.error('Failed to get historical data', { error: error.toString() });
+      return {
+        hasHistory: false,
+        matches: [],
+        stats: {
+          totalMatches: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0
+        },
+        lastMeeting: null
+      };
+    }
+  }
+
+  /**
+   * Determine which team has been dominant historically
+   * @param {Object} stats - Historical stats object
+   * @param {string} clubName - Our club name
+   * @returns {string} Dominant team ('equal', club name, or 'opponent')
+   */
+  getDominantTeam(stats, clubName) {
+    if (stats.totalMatches === 0) return 'equal';
+    if (stats.wins > stats.losses) return clubName;
+    if (stats.losses > stats.wins) return 'opponent';
+    return 'equal';
   }
 
   /**

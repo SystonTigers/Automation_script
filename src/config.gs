@@ -621,6 +621,7 @@ const SYSTEM_CONFIG = {
       TUESDAY_QUOTES: 'weekly_quotes',
       WEDNESDAY_STATS: 'weekly_stats',
       WEDNESDAY_OPPOSITION: 'weekly_opposition_analysis',
+      HISTORICAL_COMPARISON: 'historical_comparison',
       THURSDAY_THROWBACK: 'weekly_throwback',
       FRIDAY_COUNTDOWN: 'weekly_countdown_2',
       SATURDAY_COUNTDOWN: 'weekly_countdown_1',
