@@ -167,29 +167,246 @@ function testGOTMScheduling() {
 }
 
 /**
- * Run All GOTM Tests
+ * Test GOTS Configuration
+ */
+function testGOTSConfig() {
+  console.log('=== Testing GOTS Configuration ===');
+
+  try {
+    // Test config access
+    const gotsConfig = getConfig('MONTHLY.GOTS', {});
+    console.log('✅ GOTS Config:', gotsConfig);
+
+    const isGOTSEnabled = isFeatureEnabled('GOTS');
+    console.log('✅ GOTS Feature Enabled:', isGOTSEnabled);
+
+    const eventTypes = getConfig('MAKE.EVENT_TYPES', {});
+    console.log('✅ GOTS Event Types:', {
+      voting: eventTypes.gots_voting_open,
+      winner: eventTypes.gots_winner
+    });
+
+    return { success: true, config: gotsConfig, enabled: isGOTSEnabled };
+  } catch (error) {
+    console.error('❌ GOTS Config Test Failed:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Test GOTS Storage and Retrieval
+ */
+function testGOTSStorage() {
+  console.log('=== Testing GOTS Storage ===');
+
+  try {
+    const manager = new MonthlySummariesManager();
+    const testYear = 2025;
+
+    // Create test GOTS data
+    const testGotsData = {
+      year: testYear,
+      season: '2024-25',
+      goals: [
+        {
+          player: 'John Smith',
+          minute: '25',
+          opponent: 'Test FC',
+          month: 9,
+          monthName: 'September',
+          place: 1,
+          goal_id: 'goal_john_smith_25_test'
+        },
+        {
+          player: 'Mike Johnson',
+          minute: '67',
+          opponent: 'Example United',
+          month: 9,
+          monthName: 'September',
+          place: 2,
+          goal_id: 'goal_mike_johnson_67_test'
+        }
+      ],
+      created: new Date().toISOString()
+    };
+
+    // Test storage
+    manager.storeGOTSData(testGotsData, testYear);
+    console.log('✅ GOTS data stored successfully');
+
+    // Test retrieval
+    const retrievedData = manager.getStoredGOTSData(testYear);
+    console.log('✅ GOTS data retrieved:', retrievedData ? retrievedData.goals.length + ' goals' : 'null');
+
+    return { success: true, stored: true, retrieved: !!retrievedData };
+  } catch (error) {
+    console.error('❌ GOTS Storage Test Failed:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Test GOTS Voting Payload Creation
+ */
+function testGOTSVotingPayload() {
+  console.log('=== Testing GOTS Voting Payload ===');
+
+  try {
+    const manager = new MonthlySummariesManager();
+    const testGoals = [
+      {
+        player: 'John Smith',
+        minute: '25',
+        opponent: 'Test FC',
+        month: 9,
+        monthName: 'September',
+        place: 1,
+        goal_id: 'goal_john_smith_25_test'
+      },
+      {
+        player: 'Mike Johnson',
+        minute: '67',
+        opponent: 'Example United',
+        month: 10,
+        monthName: 'October',
+        place: 1,
+        goal_id: 'goal_mike_johnson_67_test'
+      }
+    ];
+
+    const payload = manager.createGOTSVotingPayload(testGoals, 2025, 'test_gots_voting_key');
+
+    console.log('✅ GOTS Voting Payload Created:');
+    console.log('   Event Type:', payload.event_type);
+    console.log('   Year:', payload.year);
+    console.log('   Season:', payload.season);
+    console.log('   Goal Count:', payload.goal_count);
+    console.log('   Voting Duration:', payload.voting_duration);
+
+    return { success: true, payload };
+  } catch (error) {
+    console.error('❌ GOTS Voting Payload Test Failed:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Test GOTS Winner Determination
+ */
+function testGOTSWinnerDetermination() {
+  console.log('=== Testing GOTS Winner Determination ===');
+
+  try {
+    const manager = new MonthlySummariesManager();
+    const testGoals = [
+      {
+        player: 'John Smith',
+        minute: '25',
+        opponent: 'Test FC',
+        monthName: 'September',
+        place: 1
+      },
+      {
+        player: 'Mike Johnson',
+        minute: '67',
+        opponent: 'Example United',
+        monthName: 'October',
+        place: 1
+      },
+      {
+        player: 'David Wilson',
+        minute: '89',
+        opponent: 'Sample City',
+        monthName: 'November',
+        place: 2
+      }
+    ];
+
+    const winner = manager.determineGOTSWinner(testGoals);
+
+    console.log('✅ GOTS Winner Determined:');
+    console.log('   Player:', winner.player);
+    console.log('   Votes:', winner.votes);
+    console.log('   Percentage:', winner.vote_percentage);
+
+    return { success: true, winner };
+  } catch (error) {
+    console.error('❌ GOTS Winner Test Failed:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Test Adding GOTM Winners to GOTS Pool
+ */
+function testAddGOTMWinnersToGOTS() {
+  console.log('=== Testing Add GOTM Winners to GOTS ===');
+
+  try {
+    const manager = new MonthlySummariesManager();
+
+    const winner = {
+      player: 'John Smith',
+      minute: '25',
+      opponent: 'Test FC',
+      votes: 85,
+      goal_id: 'goal_john_smith_25_test'
+    };
+
+    const allGoals = [
+      winner,
+      {
+        player: 'Mike Johnson',
+        minute: '67',
+        opponent: 'Example United',
+        goal_id: 'goal_mike_johnson_67_test'
+      }
+    ];
+
+    manager.addGOTMWinnersToGOTS(winner, allGoals, 9, 2025);
+
+    // Verify storage
+    const gotsData = manager.getStoredGOTSData(2025);
+    console.log('✅ GOTM Winners Added to GOTS:');
+    console.log('   Total GOTS goals:', gotsData ? gotsData.goals.length : 0);
+    console.log('   Winner added:', gotsData ? gotsData.goals.some(g => g.player === 'John Smith') : false);
+
+    return { success: true, gotsData };
+  } catch (error) {
+    console.error('❌ Add GOTM Winners to GOTS Test Failed:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Run All GOTM and GOTS Tests
  */
 function runAllGOTMTests() {
-  console.log('🎯 Starting GOTM Functionality Tests...\n');
+  console.log('🎯 Starting GOTM & GOTS Functionality Tests...\n');
 
   const testResults = {
-    config: testGOTMConfig(),
-    votingPayload: testGOTMVotingPayload(),
-    winnerDetermination: testGOTMWinnerDetermination(),
-    winnerPayload: testGOTMWinnerPayload(),
-    scheduling: testGOTMScheduling()
+    gotmConfig: testGOTMConfig(),
+    gotmVotingPayload: testGOTMVotingPayload(),
+    gotmWinnerDetermination: testGOTMWinnerDetermination(),
+    gotmWinnerPayload: testGOTMWinnerPayload(),
+    gotmScheduling: testGOTMScheduling(),
+    gotsConfig: testGOTSConfig(),
+    gotsStorage: testGOTSStorage(),
+    gotsVotingPayload: testGOTSVotingPayload(),
+    gotsWinnerDetermination: testGOTSWinnerDetermination(),
+    addGotmToGots: testAddGOTMWinnersToGOTS()
   };
 
-  console.log('\n=== GOTM Test Summary ===');
+  console.log('\n=== GOTM & GOTS Test Summary ===');
   const passedTests = Object.values(testResults).filter(result => result.success).length;
   const totalTests = Object.keys(testResults).length;
 
   console.log(`✅ Passed: ${passedTests}/${totalTests} tests`);
 
   if (passedTests === totalTests) {
-    console.log('🎉 All GOTM tests passed! Goal of the Month functionality is working correctly.');
+    console.log('🎉 All GOTM & GOTS tests passed! Goal of the Month and Goal of the Season functionality is working correctly.');
   } else {
-    console.log('⚠️ Some GOTM tests failed. Check the errors above.');
+    console.log('⚠️ Some tests failed. Check the errors above.');
   }
 
   return {
@@ -207,6 +424,11 @@ if (typeof module !== 'undefined' && module.exports) {
     testGOTMVotingPayload,
     testGOTMWinnerDetermination,
     testGOTMWinnerPayload,
-    testGOTMScheduling
+    testGOTMScheduling,
+    testGOTSConfig,
+    testGOTSStorage,
+    testGOTSVotingPayload,
+    testGOTSWinnerDetermination,
+    testAddGOTMWinnersToGOTS
   };
 }

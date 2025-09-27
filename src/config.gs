@@ -169,6 +169,7 @@ const SYSTEM_CONFIG = {
     SECOND_YELLOW_PROCESSING: true,
     MONTHLY_SUMMARIES: true,
     GOTM: true,
+    GOTS: true,
     WEEKLY_CONTENT_AUTOMATION: true,
     POSTPONED_MATCH_HANDLING: true,
     PLAYER_MINUTES_TRACKING: true,
@@ -642,7 +643,9 @@ const SYSTEM_CONFIG = {
       results_batch_5: 'results_5_league',
       birthday: 'player_birthday',
       gotm_voting_open: 'gotm_voting_start',
-      gotm_winner: 'gotm_winner_announcement'
+      gotm_winner: 'gotm_winner_announcement',
+      gots_voting_open: 'gots_voting_start',
+      gots_winner: 'gots_winner_announcement'
     },
 
     // Router content slot mapping for template variants
@@ -1489,6 +1492,11 @@ const SYSTEM_CONFIG = {
       MIN_GOALS_FOR_COMPETITION: 3,
       VOTING_START_DAY: 1,
       WINNER_ANNOUNCE_DAY: 6,
+      ENABLED: true
+    },
+    GOTS: {
+      VOTING_DURATION_DAYS: 14,
+      MIN_CANDIDATES_FOR_COMPETITION: 6, // Need 6 goals (1st & 2nd from 3+ months)
       ENABLED: true
     },
     SUMMARIES: {

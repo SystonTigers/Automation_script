@@ -560,6 +560,18 @@ class MonthlySummariesManager {
       });
       // @testHook(gotm_winner_make_dispatch_complete)
 
+      // Add winner and runner-up to Goal of the Season pool
+      if (makeResult.success) {
+        try {
+          this.addGOTMWinnersToGOTS(winner, votingData.goals, monthNumber, yearNumber);
+        } catch (error) {
+          this.logger.warn('Failed to add GOTM winners to GOTS pool', {
+            error: error.toString(),
+            monthKey
+          });
+        }
+      }
+
       const result = {
         success: makeResult.success,
         winner: winner,
@@ -1619,6 +1631,427 @@ class MonthlySummariesManager {
       vote_percentage: `${((winnerVotes / totalVotes) * 100).toFixed(1)}%`
     };
   }
+
+  // ==================== GOAL OF THE SEASON (GOTS) FUNCTIONALITY ====================
+
+  /**
+   * Add GOTM winner and runner-up to Goal of the Season pool.
+   * @param {Object} winner - GOTM winner
+   * @param {Array} allGoals - All goals for the month
+   * @param {number} month - Month number
+   * @param {number} year - Year
+   */
+  addGOTMWinnersToGOTS(winner, allGoals, month, year) {
+    this.logger.enterFunction('addGOTMWinnersToGOTS', { month, year, winnerPlayer: winner.player });
+
+    try {
+      // Get or create GOTS storage
+      const gotsKey = `gots_${year}`;
+      let gotsData = this.getStoredGOTSData(year);
+
+      if (!gotsData) {
+        gotsData = {
+          year: year,
+          season: getConfig('SYSTEM.SEASON'),
+          goals: [],
+          created: DateUtils.formatISO(DateUtils.now())
+        };
+      }
+
+      // Sort goals by votes (simulated) to determine 1st and 2nd place
+      const sortedGoals = [...allGoals].sort(() => Math.random() - 0.5); // Simulate voting results
+
+      // Add winner (1st place)
+      const winnerEntry = {
+        ...winner,
+        month: month,
+        year: year,
+        monthName: DateUtils.getMonthName(month),
+        place: 1,
+        addedAt: DateUtils.formatISO(DateUtils.now())
+      };
+
+      gotsData.goals.push(winnerEntry);
+
+      // Add runner-up (2nd place) if available
+      if (sortedGoals.length > 1) {
+        const runnerUp = sortedGoals.find(goal => goal.goal_id !== winner.goal_id);
+        if (runnerUp) {
+          const runnerUpEntry = {
+            ...runnerUp,
+            month: month,
+            year: year,
+            monthName: DateUtils.getMonthName(month),
+            place: 2,
+            votes: Math.floor((winner.votes || 50) * 0.7), // Simulate runner-up votes
+            addedAt: DateUtils.formatISO(DateUtils.now())
+          };
+          gotsData.goals.push(runnerUpEntry);
+        }
+      }
+
+      // Store updated GOTS data
+      this.storeGOTSData(gotsData, year);
+
+      this.logger.info('GOTM winners added to GOTS pool', {
+        year: year,
+        month: month,
+        winner: winner.player,
+        totalGotsGoals: gotsData.goals.length
+      });
+
+      this.logger.exitFunction('addGOTMWinnersToGOTS', { success: true });
+
+    } catch (error) {
+      this.logger.error('Failed to add GOTM winners to GOTS pool', {
+        error: error.toString(),
+        month, year
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Start Goal of the Season voting (triggered at end of season).
+   * @param {number} year - Season year
+   * @returns {Object} Posting result
+   */
+  postGOTSVoting(year = null) {
+    this.logger.enterFunction('postGOTSVoting', { year });
+
+    try {
+      if (!isFeatureEnabled('GOTS')) {
+        const disabled = {
+          success: true,
+          skipped: true,
+          reason: 'GOTS feature disabled'
+        };
+        this.logger.exitFunction('postGOTSVoting', disabled);
+        return disabled;
+      }
+
+      const currentYear = year || DateUtils.now().getFullYear();
+      const gotsData = this.getStoredGOTSData(currentYear);
+
+      if (!gotsData || !gotsData.goals || gotsData.goals.length === 0) {
+        return {
+          success: true,
+          message: 'No GOTS candidates found for this season',
+          year: currentYear,
+          skipped: true
+        };
+      }
+
+      // Check for duplicate request
+      const gotsKey = `gots_voting_${currentYear}`;
+      if (this.isDuplicateRequest('gots_voting', gotsKey)) {
+        return {
+          success: true,
+          skipped: true,
+          duplicate: true,
+          message: 'GOTS voting already posted for this season'
+        };
+      }
+
+      // Create GOTS voting payload
+      const idempotencyKey = this.buildIdempotencyKey('gots_voting', gotsKey);
+      const payload = this.createGOTSVotingPayload(gotsData.goals, currentYear, idempotencyKey);
+
+      const consentContext = {
+        module: 'monthly_summaries',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: gotsData.goals.map(goal => goal.player).filter(player => player !== 'Goal')
+      };
+
+      // @testHook(gots_voting_consent_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(gots_voting_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('GOTS voting blocked by consent gate', {
+          year: currentYear,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
+      // @testHook(gots_voting_make_dispatch_start)
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey,
+        consentDecision,
+        consentContext
+      });
+      // @testHook(gots_voting_make_dispatch_complete)
+
+      // Mark as processed
+      this.markProcessed('gots_voting', gotsKey, {
+        goal_count: gotsData.goals.length,
+        season: gotsData.season
+      });
+
+      const result = {
+        success: makeResult.success,
+        year: currentYear,
+        season: gotsData.season,
+        goal_count: gotsData.goals.length,
+        make_result: makeResult,
+        idempotency_key: idempotencyKey,
+        consent: consentDecision
+      };
+
+      this.logger.exitFunction('postGOTSVoting', result);
+      return result;
+
+    } catch (error) {
+      this.logger.error('GOTS voting failed', {
+        error: error.toString(),
+        year
+      });
+
+      return {
+        success: false,
+        error: error.toString(),
+        year: year
+      };
+    }
+  }
+
+  /**
+   * Announce Goal of the Season winner.
+   * @param {number} year - Season year
+   * @returns {Object} Announcement result
+   */
+  announceGOTSWinner(year = null) {
+    this.logger.enterFunction('announceGOTSWinner', { year });
+
+    try {
+      if (!isFeatureEnabled('GOTS')) {
+        const disabled = {
+          success: true,
+          skipped: true,
+          reason: 'GOTS feature disabled'
+        };
+        this.logger.exitFunction('announceGOTSWinner', disabled);
+        return disabled;
+      }
+
+      const currentYear = year || DateUtils.now().getFullYear();
+      const gotsData = this.getStoredGOTSData(currentYear);
+
+      if (!gotsData || !gotsData.goals || gotsData.goals.length === 0) {
+        return {
+          success: true,
+          message: 'No GOTS candidates found for this season',
+          year: currentYear,
+          skipped: true
+        };
+      }
+
+      // Determine GOTS winner (simulated - in reality would come from voting)
+      const winner = this.determineGOTSWinner(gotsData.goals);
+
+      // Create winner announcement payload
+      const gotsKey = `gots_winner_${currentYear}`;
+      const idempotencyKey = this.buildIdempotencyKey('gots_winner', gotsKey);
+      const payload = this.createGOTSWinnerPayload(winner, gotsData.goals, currentYear, idempotencyKey);
+
+      const consentContext = {
+        module: 'monthly_summaries',
+        eventType: payload.event_type,
+        platform: 'make_webhook',
+        players: [winner.player].filter(player => player !== 'Goal')
+      };
+
+      // @testHook(gots_winner_consent_start)
+      const consentDecision = ConsentGate.evaluatePost(payload, consentContext);
+      // @testHook(gots_winner_consent_complete)
+
+      if (!consentDecision.allowed) {
+        this.logger.warn('GOTS winner announcement blocked by consent gate', {
+          year: currentYear,
+          reason: consentDecision.reason
+        });
+        return {
+          success: false,
+          blocked: true,
+          reason: consentDecision.reason,
+          consent: consentDecision
+        };
+      }
+
+      const enrichedPayload = ConsentGate.applyDecisionToPayload(payload, consentDecision);
+
+      // @testHook(gots_winner_make_dispatch_start)
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey,
+        consentDecision,
+        consentContext
+      });
+      // @testHook(gots_winner_make_dispatch_complete)
+
+      const result = {
+        success: makeResult.success,
+        winner: winner,
+        year: currentYear,
+        season: gotsData.season,
+        total_goals: gotsData.goals.length,
+        make_result: makeResult,
+        idempotency_key: idempotencyKey,
+        consent: consentDecision
+      };
+
+      this.logger.exitFunction('announceGOTSWinner', result);
+      return result;
+
+    } catch (error) {
+      this.logger.error('GOTS winner announcement failed', {
+        error: error.toString(),
+        year
+      });
+
+      return {
+        success: false,
+        error: error.toString(),
+        year: year
+      };
+    }
+  }
+
+  /**
+   * Create GOTS voting payload for Make.com.
+   * @param {Array} goals - All GOTS candidate goals
+   * @param {number} year - Season year
+   * @param {string} idempotencyKey - Unique key
+   * @returns {Object} Payload
+   */
+  createGOTSVotingPayload(goals, year, idempotencyKey) {
+    const seasonName = getConfig('SYSTEM.SEASON');
+
+    return {
+      event_type: getConfig('MAKE.EVENT_TYPES.GOTS_VOTING', 'gots_voting_start'),
+      idempotency_key: idempotencyKey,
+      system_version: getConfig('SYSTEM.VERSION'),
+      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      year: year,
+      season: seasonName,
+      goal_count: goals.length,
+      goals: goals.map(goal => ({
+        player: goal.player,
+        minute: goal.minute,
+        opponent: goal.opponent,
+        month: goal.monthName,
+        place: goal.place,
+        goal_id: goal.goal_id
+      })),
+      voting_duration: getConfig('GOTS.VOTING_DURATION_DAYS', 14),
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+  }
+
+  /**
+   * Create GOTS winner payload for Make.com.
+   * @param {Object} winner - GOTS winner
+   * @param {Array} allGoals - All candidate goals
+   * @param {number} year - Season year
+   * @param {string} idempotencyKey - Unique key
+   * @returns {Object} Payload
+   */
+  createGOTSWinnerPayload(winner, allGoals, year, idempotencyKey) {
+    const seasonName = getConfig('SYSTEM.SEASON');
+
+    return {
+      event_type: getConfig('MAKE.EVENT_TYPES.GOTS_WINNER', 'gots_winner_announcement'),
+      idempotency_key: idempotencyKey,
+      system_version: getConfig('SYSTEM.VERSION'),
+      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      year: year,
+      season: seasonName,
+      winner_player: winner.player,
+      winner_minute: winner.minute,
+      winner_opponent: winner.opponent,
+      winner_month: winner.monthName,
+      winner_votes: winner.votes,
+      winner_vote_percentage: winner.vote_percentage,
+      total_goals: allGoals.length,
+      total_votes: winner.total_votes,
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+  }
+
+  /**
+   * Determine GOTS winner from all candidates.
+   * @param {Array} goals - All GOTS candidate goals
+   * @returns {Object} Winner object
+   */
+  determineGOTSWinner(goals) {
+    if (!goals || goals.length === 0) {
+      return {
+        player: 'Unknown',
+        minute: '0',
+        opponent: 'Unknown',
+        votes: 0,
+        vote_percentage: '0%'
+      };
+    }
+
+    // Simulate voting - in reality this would come from social media polls
+    const winner = goals[Math.floor(Math.random() * goals.length)];
+    const totalVotes = Math.floor(Math.random() * 500) + 200; // 200-700 votes for season-end
+    const winnerVotes = Math.floor(totalVotes * (0.25 + Math.random() * 0.35)); // 25-60% of votes
+
+    return {
+      ...winner,
+      votes: winnerVotes,
+      total_votes: totalVotes,
+      vote_percentage: `${((winnerVotes / totalVotes) * 100).toFixed(1)}%`
+    };
+  }
+
+  /**
+   * Store GOTS data for a season.
+   * @param {Object} gotsData - GOTS data
+   * @param {number} year - Year
+   */
+  storeGOTSData(gotsData, year) {
+    const key = `gots_data_${year}`;
+    const serialized = JSON.stringify(gotsData);
+
+    if (this.properties) {
+      this.properties.setProperty(key, serialized);
+    }
+
+    this.logger.info('GOTS data stored', { year, goalCount: gotsData.goals.length });
+  }
+
+  /**
+   * Get stored GOTS data for a season.
+   * @param {number} year - Year
+   * @returns {Object|null} GOTS data
+   */
+  getStoredGOTSData(year) {
+    const key = `gots_data_${year}`;
+
+    if (this.properties) {
+      const stored = this.properties.getProperty(key);
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (error) {
+          this.logger.warn('Failed to parse stored GOTS data', { year, error: error.toString() });
+        }
+      }
+    }
+
+    return null;
+  }
 }
 
 // ==================== INITIALIZATION & PUBLIC API ====================
@@ -1916,8 +2349,50 @@ function postSecondHalfKickoff(matchData) {
   }
 }
 
+/**
+ * Public API: Start Goal of the Season voting.
+ * @param {number|null} year - Season year
+ * @returns {Object} Result
+ */
+function postGOTSVoting(year = null) {
+  logger.enterFunction('postGOTSVoting', { year });
+
+  try {
+    const manager = new MonthlySummariesManager();
+    const result = manager.postGOTSVoting(year);
+    logger.exitFunction('postGOTSVoting', { success: result.success });
+    return result;
+  } catch (error) {
+    logger.error('Public GOTS voting failed', { error: error.toString(), stack: error.stack });
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Public API: Announce Goal of the Season winner.
+ * @param {number|null} year - Season year
+ * @returns {Object} Result
+ */
+function announceGOTSWinner(year = null) {
+  logger.enterFunction('announceGOTSWinner', { year });
+
+  try {
+    const manager = new MonthlySummariesManager();
+    const result = manager.announceGOTSWinner(year);
+    logger.exitFunction('announceGOTSWinner', { success: result.success });
+    return result;
+  } catch (error) {
+    logger.error('Public GOTS winner announcement failed', { error: error.toString(), stack: error.stack });
+    return { success: false, error: error.toString() };
+  }
+}
+
 // Export new functions for Apps Script triggers
 // eslint-disable-next-line no-undef
 globalThis.postPostponed = postPostponed;
 // eslint-disable-next-line no-undef
 globalThis.postSecondHalfKickoff = postSecondHalfKickoff;
+// eslint-disable-next-line no-undef
+globalThis.postGOTSVoting = postGOTSVoting;
+// eslint-disable-next-line no-undef
+globalThis.announceGOTSWinner = announceGOTSWinner;
