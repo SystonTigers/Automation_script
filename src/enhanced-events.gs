@@ -1196,9 +1196,59 @@ function initializeEnhancedEvents() {
         video_clips: isFeatureEnabled('VIDEO_CLIP_CREATION')
       }
     };
-    
+
   } catch (error) {
     logger.error('Enhanced events initialization failed', { error: error.toString() });
     return { success: false, error: error.toString() };
+  }
+
+  /**
+   * Process score update from sheet edits
+   * @param {number} homeScore - Home team score
+   * @param {number} awayScore - Away team score
+   * @param {string} matchId - Match identifier
+   * @returns {Object} Processing result
+   */
+  processScoreUpdate(homeScore, awayScore, matchId) {
+    this.logger.enterFunction('processScoreUpdate', {
+      homeScore,
+      awayScore,
+      matchId
+    });
+
+    try {
+      const currentScores = {
+        home: parseInt(homeScore) || 0,
+        away: parseInt(awayScore) || 0
+      };
+
+      // Update XbotGo scoreboard if enabled
+      if (isFeatureEnabled('XBOTGO_INTEGRATION')) {
+        this.updateXbotGoScoreboard(currentScores, matchId);
+      }
+
+      // Log the score update
+      this.logger.info('Score updated', {
+        homeScore: currentScores.home,
+        awayScore: currentScores.away,
+        matchId
+      });
+
+      const result = {
+        success: true,
+        event_type: 'score_update',
+        home_score: currentScores.home,
+        away_score: currentScores.away,
+        match_id: matchId,
+        timestamp: DateUtils.formatISO(DateUtils.now())
+      };
+
+      this.logger.exitFunction('processScoreUpdate', result);
+      return result;
+
+    } catch (error) {
+      this.logger.error('Score update processing failed', { error: error.toString() });
+      return { success: false, error: error.toString() };
+    }
   }
 }

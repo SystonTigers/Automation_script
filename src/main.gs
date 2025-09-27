@@ -1678,6 +1678,339 @@ function autoInitializeIfNeeded() {
   return { success: true, message: 'System already initialized' };
 }
 
+// ==================== LIVE EDIT TRIGGER ====================
+
+/**
+ * onEdit trigger for live match updates
+ * Critical: This function enables real-time automation from sheet edits
+ * @param {Object} e - Edit event object
+ */
+function onEdit(e) {
+  // Early exit if no event data
+  if (!e || !e.range || !e.source) {
+    return;
+  }
+
+  // Get basic event info
+  const sheet = e.source.getActiveSheet();
+  const sheetName = sheet.getName();
+  const range = e.range;
+  const editedColumn = range.getColumn();
+  const editedRow = range.getRow();
+
+  // Only process edits on Live Match Updates sheet
+  const liveSheetName = getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES', 'Live Match Updates');
+  if (sheetName !== liveSheetName) {
+    return;
+  }
+
+  // Skip header row
+  if (editedRow <= 1) {
+    return;
+  }
+
+  // Get expected columns configuration
+  const expectedColumns = getConfig('SHEETS.REQUIRED_COLUMNS.LIVE_MATCH_UPDATES', [
+    'Timestamp', 'Minute', 'Event', 'Player', 'Opponent', 'Home Score',
+    'Away Score', 'Card Type', 'Assist', 'Notes', 'Send', 'Status'
+  ]);
+
+  // Map column numbers to names (1-indexed)
+  const columnNames = {
+    1: 'Timestamp',    // A
+    2: 'Minute',       // B
+    3: 'Event',        // C
+    4: 'Player',       // D
+    5: 'Opponent',     // E
+    6: 'Home Score',   // F
+    7: 'Away Score',   // G
+    8: 'Card Type',    // H
+    9: 'Assist',       // I
+    10: 'Notes',       // J
+    11: 'Send',        // K
+    12: 'Status'       // L
+  };
+
+  const editedColumnName = columnNames[editedColumn];
+
+  // Only process edits to key columns
+  const processableColumns = ['Minute', 'Event', 'Player', 'Home Score', 'Away Score', 'Card Type', 'Assist', 'Send'];
+  if (!processableColumns.includes(editedColumnName)) {
+    return;
+  }
+
+  // Acquire lock to prevent concurrent processing
+  const lock = LockService.getDocumentLock();
+  try {
+    if (!lock.tryLock(5000)) { // 5 second timeout
+      logger.warn('onEdit: Could not acquire lock, skipping edit processing', {
+        sheet: sheetName,
+        row: editedRow,
+        column: editedColumnName
+      });
+      return;
+    }
+
+    // Process the edit
+    processLiveMatchEdit(e, editedRow, editedColumnName, sheet);
+
+  } catch (error) {
+    logger.error('onEdit: Error processing sheet edit', {
+      error: error.toString(),
+      sheet: sheetName,
+      row: editedRow,
+      column: editedColumnName,
+      stack: error.stack
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Process a live match sheet edit
+ * @param {Object} e - Edit event
+ * @param {number} row - Edited row number
+ * @param {string} columnName - Edited column name
+ * @param {Object} sheet - Sheet object
+ */
+function processLiveMatchEdit(e, row, columnName, sheet) {
+  logger.enterFunction('processLiveMatchEdit', {
+    row,
+    column: columnName,
+    sheet: sheet.getName()
+  });
+
+  try {
+    // Auto-initialize system if needed
+    const initResult = autoInitializeIfNeeded();
+    if (!initResult.success) {
+      logger.error('System initialization failed during onEdit', initResult);
+      return;
+    }
+
+    // Get row data
+    const rowData = sheet.getRange(row, 1, 1, 12).getValues()[0];
+    const eventData = {
+      timestamp: rowData[0],
+      minute: rowData[1],
+      event: rowData[2],
+      player: rowData[3],
+      opponent: rowData[4],
+      homeScore: rowData[5],
+      awayScore: rowData[6],
+      cardType: rowData[7],
+      assist: rowData[8],
+      notes: rowData[9],
+      send: rowData[10],
+      status: rowData[11],
+      row: row
+    };
+
+    // Create idempotency key to prevent duplicate processing
+    const idempotencyKey = `onEdit_${sheet.getName()}_${row}_${eventData.minute}_${eventData.event}_${eventData.player}_${Date.now()}`;
+
+    // Check if this edit should trigger automation
+    const shouldProcess = shouldProcessLiveEdit(eventData, columnName);
+    if (!shouldProcess.process) {
+      logger.info('onEdit: Edit skipped', {
+        reason: shouldProcess.reason,
+        row,
+        column: columnName
+      });
+      return;
+    }
+
+    // Get current match ID (from first non-header row or default)
+    const matchId = getActiveMatchId(sheet);
+
+    // Update timestamp if not already set
+    if (!eventData.timestamp && columnName !== 'Timestamp') {
+      const currentTime = DateUtils.formatISO(DateUtils.now());
+      sheet.getRange(row, 1).setValue(currentTime);
+      eventData.timestamp = currentTime;
+    }
+
+    // Process the specific event type
+    const enhancedEvents = new EnhancedEventsManager();
+    let processingResult = null;
+
+    // Route to appropriate processor based on event type and edited column
+    if (eventData.event === 'Goal' && ['Player', 'Minute', 'Assist', 'Send'].includes(columnName)) {
+      processingResult = enhancedEvents.processGoalEvent(
+        eventData.minute,
+        eventData.player,
+        eventData.assist,
+        matchId
+      );
+    } else if (eventData.event === 'Card' && ['Player', 'Minute', 'Card Type', 'Send'].includes(columnName)) {
+      processingResult = enhancedEvents.processCardEvent(
+        eventData.minute,
+        eventData.player,
+        eventData.cardType || 'Yellow',
+        matchId
+      );
+    } else if (eventData.event === 'Substitution' && ['Player', 'Minute', 'Send'].includes(columnName)) {
+      // For substitutions, player field should contain "PlayerOff > PlayerOn"
+      const subPlayers = eventData.player ? eventData.player.split('>').map(p => p.trim()) : [];
+      if (subPlayers.length === 2) {
+        processingResult = enhancedEvents.processSubstitution(
+          eventData.minute,
+          subPlayers[0],
+          subPlayers[1],
+          matchId
+        );
+      }
+    } else if (['Home Score', 'Away Score'].includes(columnName)) {
+      // Score updates might trigger goal processing
+      processingResult = enhancedEvents.processScoreUpdate(
+        eventData.homeScore,
+        eventData.awayScore,
+        matchId
+      );
+    } else if (eventData.event === 'Kick Off' && columnName === 'Send') {
+      processingResult = enhancedEvents.processKickOff(matchId);
+    } else if (eventData.event === 'Half Time' && columnName === 'Send') {
+      processingResult = enhancedEvents.processHalfTime(matchId);
+    } else if (eventData.event === 'Second Half' && columnName === 'Send') {
+      processingResult = enhancedEvents.processSecondHalfKickOff(matchId);
+    } else if (eventData.event === 'Full Time' && columnName === 'Send') {
+      processingResult = enhancedEvents.processFullTime(matchId);
+    }
+
+    // Update status based on processing result
+    if (processingResult) {
+      const status = processingResult.success ? 'Posted' : 'Failed';
+      sheet.getRange(row, 12).setValue(status); // Status column
+
+      logger.info('onEdit: Event processed', {
+        row,
+        column: columnName,
+        event: eventData.event,
+        player: eventData.player,
+        success: processingResult.success,
+        idempotencyKey
+      });
+    }
+
+    logger.exitFunction('processLiveMatchEdit', {
+      success: true,
+      processed: !!processingResult
+    });
+
+  } catch (error) {
+    logger.error('processLiveMatchEdit failed', {
+      error: error.toString(),
+      row,
+      column: columnName,
+      stack: error.stack
+    });
+
+    // Mark row as failed
+    try {
+      sheet.getRange(row, 12).setValue('Error');
+    } catch (statusError) {
+      logger.error('Could not update status after error', statusError);
+    }
+  }
+}
+
+/**
+ * Determine if a live edit should trigger automation
+ * @param {Object} eventData - Event data from row
+ * @param {string} columnName - Edited column name
+ * @returns {Object} Processing decision
+ */
+function shouldProcessLiveEdit(eventData, columnName) {
+  // Must have basic required fields
+  if (!eventData.minute || !eventData.event) {
+    return {
+      process: false,
+      reason: 'Missing minute or event type'
+    };
+  }
+
+  // Check if send flag is set (for most events)
+  if (columnName === 'Send' && !eventData.send) {
+    return {
+      process: false,
+      reason: 'Send flag not checked'
+    };
+  }
+
+  // For non-send edits, only process if send is already checked
+  if (columnName !== 'Send' && !eventData.send) {
+    return {
+      process: false,
+      reason: 'Send flag not checked, edit only'
+    };
+  }
+
+  // Skip if already processed
+  if (eventData.status === 'Posted') {
+    return {
+      process: false,
+      reason: 'Already processed'
+    };
+  }
+
+  // Event-specific validation
+  if (eventData.event === 'Goal' && !eventData.player) {
+    return {
+      process: false,
+      reason: 'Goal missing player name'
+    };
+  }
+
+  if (eventData.event === 'Card' && !eventData.player) {
+    return {
+      process: false,
+      reason: 'Card missing player name'
+    };
+  }
+
+  if (eventData.event === 'Substitution') {
+    const subPlayers = eventData.player ? eventData.player.split('>') : [];
+    if (subPlayers.length !== 2) {
+      return {
+        process: false,
+        reason: 'Substitution must use format "PlayerOff > PlayerOn"'
+      };
+    }
+  }
+
+  return {
+    process: true,
+    reason: 'All validation passed'
+  };
+}
+
+/**
+ * Get the active match ID from the sheet
+ * @param {Object} sheet - Live match sheet
+ * @returns {string} Match ID
+ */
+function getActiveMatchId(sheet) {
+  try {
+    // Look for match ID in a dedicated cell or derive from sheet data
+    const matchIdCell = sheet.getRange('N1'); // Column N for match ID
+    let matchId = matchIdCell.getValue();
+
+    if (!matchId) {
+      // Generate match ID from today's date if not set
+      const today = DateUtils.formatDate(DateUtils.now(), 'yyyy-MM-dd');
+      matchId = `match_${today}_${getConfig('SYSTEM.CLUB_NAME', 'club').toLowerCase().replace(/\s+/g, '_')}`;
+      matchIdCell.setValue(matchId);
+    }
+
+    return matchId;
+  } catch (error) {
+    logger.warn('Could not get/set match ID', error);
+    // Fallback match ID
+    return `match_${DateUtils.formatDate(DateUtils.now(), 'yyyy-MM-dd')}_fallback`;
+  }
+}
+
 // ==================== EXPORT FOR TESTING ====================
 
 /**
