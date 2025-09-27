@@ -248,7 +248,7 @@ function createMainDashboard_LEGACY() {
  * Create player management interface with dynamic configuration
  */
 function createPlayerManagementInterface() {
-  return renderHtml_('player-management', {
+  return renderHtml_('player-management-ui', {
     titlePrefix: 'Player Management'
   });
 }
