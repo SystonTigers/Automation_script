@@ -1196,15 +1196,15 @@ function initializeEnhancedEvents() {
     return { success: false, error: error.toString() };
   }
 
-  /**
-   * Process score update from sheet edits
-   * @param {number} homeScore - Home team score
-   * @param {number} awayScore - Away team score
-   * @param {string} matchId - Match identifier
-   * @returns {Object} Processing result
-   */
-  processScoreUpdate(homeScore, awayScore, matchId) {
-    this.logger.enterFunction('processScoreUpdate', {
+/**
+ * Process score update from sheet edits
+ * @param {number} homeScore - Home team score
+ * @param {number} awayScore - Away team score
+ * @param {string} matchId - Match identifier
+ * @returns {Object} Processing result
+ */
+function processScoreUpdate(homeScore, awayScore, matchId) {
+  logger.enterFunction('processScoreUpdate', {
       homeScore,
       awayScore,
       matchId
