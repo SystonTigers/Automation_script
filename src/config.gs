@@ -1,5 +1,5 @@
 /**
- * @fileoverview Centralized configuration for Syston Tigers Football Automation System
+ * @fileoverview Centralized configuration for Football Club Automation System
  * @version 6.2.0
  * @author Senior Software Architect
  * @description All system configuration in one place - no globals elsewhere
@@ -12,7 +12,7 @@
 // ==================== SYSTEM CONFIGURATION ====================
 
 /**
- * Global config for Syston Tigers Automation System
+ * Global config for Football Club Automation System
  * Enables use of standalone Apps Script project with linked Sheet
  * @version 6.2.0
  */
@@ -102,16 +102,16 @@ const SYSTEM_CONFIG = {
   // ==================== SYSTEM METADATA ====================
   SYSTEM: {
     VERSION: '6.2.0',
-    NAME: 'Syston Tigers Football Automation System',
+    NAME: 'Football Club Automation System',
     DESCRIPTION: 'Live football automation with weekly content calendar',
     ENVIRONMENT: 'production', // production | development | testing
     TIMEZONE: 'Europe/London',
-    CLUB_NAME: 'Syston Tigers',
-    CLUB_SHORT_NAME: 'Syston',
+    CLUB_NAME: 'Your Football Club',
+    CLUB_SHORT_NAME: 'YFC',
     SEASON: '2024/25',
-    LEAGUE: 'Leicester & District Football League',
+    LEAGUE: 'Your League',
     AGE_GROUP: "Senior Men's",
-    LAST_UPDATED: '2025-09-20',
+    LAST_UPDATED: '2025-09-27',
     
     // Bible compliance settings
     BIBLE_COMPLIANT: true,
@@ -132,8 +132,8 @@ const SYSTEM_CONFIG = {
   CUSTOMER: {
     DEFAULT_PROFILE: {
       buyerId: 'default_buyer',
-      clubName: 'Syston Tigers',
-      clubShortName: 'Syston',
+      clubName: 'Your Football Club',
+      clubShortName: 'YFC',
       league: 'Leicester & District Football League',
       ageGroup: "Senior Men's",
       primaryColor: '#ff6600',
@@ -251,8 +251,8 @@ const SYSTEM_CONFIG = {
 
     OTHER_POSTS: [
       'Birthdays - as and when',
-      'Syston Fixtures - 1st day of the month',
-      'Syston Results - last day of the Month',
+      'Club Fixtures - 1st day of the month',
+      'Club Results - last day of the Month',
       'Goal of the month competition - repost daily until voting closes',
       'Voting closing reminders for competitions',
       'Goal of the month winner announced 5 days after competition opens',
@@ -306,7 +306,7 @@ const SYSTEM_CONFIG = {
 
     CLAUDE_GUIDANCE: {
       PROJECT_OVERVIEW: {
-        SUMMARY: 'Comprehensive automation platform for Syston Tigers FC',
+        SUMMARY: 'Comprehensive automation platform for football clubs',
         WEEKLY_SCHEDULE: ['Monday fixtures', 'Tuesday quotes', 'Wednesday stats/opposition history', 'Thursday throwback & countdown', 'Friday two days to go', 'Saturday one day to go', 'Sunday match day operations'],
         MATCHDAY_AUTOMATION: [
           'Live match tab activation on match day',
@@ -385,7 +385,7 @@ const SYSTEM_CONFIG = {
     },
 
     PLANNING: {
-      MISSION_STATEMENT: 'Automate every moment of Syston Tigers FC with Bible-compliant workflows.',
+      MISSION_STATEMENT: 'Automate every moment of your football club with Bible-compliant workflows.',
       VISION_2025: 'Every Goal. Every Card. Every Moment. Every Day of the Week. Automated.',
       SUCCESS_TARGETS: [
         '10,000+ social followers',
@@ -801,7 +801,7 @@ const SYSTEM_CONFIG = {
             primary_time: 'primary_fixture.time'
           },
           default_text: {
-            call_to_action: 'Be there to back the Tigers!'
+            call_to_action: 'Be there to back your team!'
           },
           style: {
             layout: 'split',
@@ -1162,7 +1162,7 @@ const SYSTEM_CONFIG = {
 
   BUYER_INTAKE: {
     CLUB_DETAILS: {
-      NAME: 'Syston Tigers',
+      NAME: 'Your Football Club',
       CONTACT: 'media@systontigers.co.uk'
     },
     BRAND_COLORS: {
@@ -1181,7 +1181,7 @@ const SYSTEM_CONFIG = {
     },
     TEXT_OVERRIDES: {
       fixtures: {
-        headline: 'Upcoming Tigers Fixtures',
+        headline: 'Upcoming Club Fixtures',
         call_to_action: 'Secure your spot today'
       },
       results: {
@@ -1193,7 +1193,7 @@ const SYSTEM_CONFIG = {
         call_to_action: 'Tag a teammate who needs this'
       },
       stats: {
-        headline: 'Tigers by the Numbers',
+        headline: 'Club by the Numbers',
         call_to_action: 'Study the form guide'
       },
       throwback: {

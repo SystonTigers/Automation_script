@@ -1,6 +1,6 @@
 /**
  * Comprehensive Web App - Full Admin Interface
- * Complete management system for Syston Tigers via web interface
+ * Complete management system for football clubs via web interface
  * @version 6.2.0
  */
 
@@ -81,14 +81,28 @@ function doPost(e) {
 }
 
 /**
- * Create main admin dashboard
+ * Create main admin dashboard with dynamic configuration
  */
 function createMainDashboard() {
+  // Use new dynamic config system instead of hardcoded HTML
+  return renderHtml_('dashboard', {
+    titlePrefix: 'Admin Dashboard',
+    data: {
+      // Any additional dashboard data goes here
+    }
+  });
+}
+
+/**
+ * Legacy function - creates hardcoded dashboard (DEPRECATED)
+ * TODO: Remove after template migration complete
+ */
+function createMainDashboard_LEGACY() {
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🏈 Syston Tigers - Admin Dashboard</title>
+  <title>🏈 Football Club - Admin Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -130,7 +144,7 @@ function createMainDashboard() {
 <body>
   <div class="dashboard">
     <div class="header">
-      <h1>🏈 Syston Tigers</h1>
+      <h1>🏈 Football Club Admin</h1>
       <h2>Complete Admin Dashboard</h2>
       <p>Manage everything from one place - no technical skills required!</p>
     </div>
@@ -220,25 +234,34 @@ function createMainDashboard() {
     }
 
     loadStats();
-    console.log('🏈 Syston Tigers Admin Dashboard Ready!');
+    console.log('🏈 Football Club Admin Dashboard Ready!');
   </script>
 </body>
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Syston Tigers - Admin Dashboard')
+    .setTitle('Football Club - Admin Dashboard')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 /**
- * Create player management interface
+ * Create player management interface with dynamic configuration
  */
 function createPlayerManagementInterface() {
+  return renderHtml_('player-management', {
+    titlePrefix: 'Player Management'
+  });
+}
+
+/**
+ * Legacy player management (DEPRECATED)
+ */
+function createPlayerManagementInterface_LEGACY() {
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>👥 Player Management - Syston Tigers</title>
+  <title>👥 Player Management - Football Club</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -447,7 +470,7 @@ function createPlayerManagementInterface() {
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Player Management - Syston Tigers')
+    .setTitle('Player Management - Football Club')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -514,14 +537,23 @@ function handleAddPlayer(params) {
 }
 
 /**
- * Create fixture management interface
+ * Create fixture management interface with dynamic configuration
  */
 function createFixtureManagementInterface() {
+  return renderHtml_('fixture-management', {
+    titlePrefix: 'Fixture Management'
+  });
+}
+
+/**
+ * Legacy fixture management (DEPRECATED)
+ */
+function createFixtureManagementInterface_LEGACY() {
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>📅 Fixture Management - Syston Tigers</title>
+  <title>📅 Fixture Management - Football Club</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -617,7 +649,7 @@ function createFixtureManagementInterface() {
           <div class="form-group">
             <label for="venueDetails">Venue Details</label>
             <input type="text" id="venueDetails" name="venueDetails"
-                   placeholder="e.g. Syston Sports Park">
+                   placeholder="e.g. Club Sports Ground">
           </div>
 
           <div class="form-group">
@@ -744,7 +776,7 @@ function createFixtureManagementInterface() {
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Fixture Management - Syston Tigers')
+    .setTitle('Fixture Management - Football Club')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -806,14 +838,16 @@ function handleAddFixture(params) {
 }
 
 /**
- * Get dashboard statistics for UI
+ * Get dashboard statistics for UI with dynamic configuration
  * @returns {Object} Dashboard stats
  */
 function getDashboardStats() {
   try {
-    const playersSheet = SheetUtils.getSheet(getConfig('SHEETS.TAB_NAMES.PLAYER_STATS', 'Player Stats'));
-    const fixturesSheet = SheetUtils.getSheet(getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures'));
-    const resultsSheet = SheetUtils.getSheet(getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results'));
+    // Use config-aware sheet access
+    const config = getConfig();
+    const playersSheet = SheetUtils.getSheet('Players');
+    const fixturesSheet = SheetUtils.getSheet('Fixtures');
+    const resultsSheet = SheetUtils.getSheet('Results');
 
     let playerCount = 0;
     let fixtureCount = 0;
@@ -878,12 +912,10 @@ function getPlayersList() {
       const row = data[i];
       if (!row[0]) continue; // Skip empty rows
 
-      // Calculate age from DOB
+      // Calculate age from DOB using UK date utilities
       let age = 'Unknown';
       if (row[1]) {
-        const dob = new Date(row[1]);
-        const today = new Date();
-        age = Math.floor((today - dob) / (365.25 * 24 * 60 * 60 * 1000));
+        age = calculateAge(row[1]);
       }
 
       players.push({
@@ -935,14 +967,8 @@ function getFixturesList() {
       const matchDate = new Date(row[0]);
       const isUpcoming = matchDate >= today;
 
-      // Format date nicely
-      const dateFormatted = matchDate.toLocaleDateString('en-GB', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      // Format date using UK utilities
+      const dateFormatted = formatFixtureDate(matchDate);
 
       fixtures.push({
         date: row[0],
@@ -971,5 +997,83 @@ function getFixturesList() {
   } catch (error) {
     Logger.log('Error getting fixtures list: ' + error.toString());
     return [];
+  }
+}
+
+// ==================== DYNAMIC CONFIG TESTING ====================
+
+/**
+ * Test the dynamic configuration system
+ * @returns {Object} Test results
+ */
+function testDynamicConfigSystem() {
+  console.log('🧪 Testing Dynamic Configuration System...');
+
+  try {
+    // Test 1: Config loading
+    const config = getConfig();
+    console.log('✅ Config loaded:', config.TEAM_NAME);
+
+    // Test 2: Template rendering
+    const testHtml = renderHtml_('dashboard', {
+      titlePrefix: 'Test Dashboard'
+    });
+    console.log('✅ Template rendering successful');
+
+    // Test 3: Payload building
+    const testPayload = buildConfiguredPayload({
+      event_type: 'test',
+      test_data: 'hello'
+    });
+    console.log('✅ Payload building successful');
+
+    // Test 4: Config validation
+    const validation = validateConfig();
+    console.log('✅ Config validation:', validation.valid ? 'PASSED' : 'FAILED');
+
+    return {
+      success: true,
+      message: 'Dynamic config system is working correctly',
+      config: config
+    };
+
+  } catch (error) {
+    console.error('❌ Dynamic config test failed:', error);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Quick config setup for new customers
+ * @param {Object} clubData - Club configuration data
+ */
+function quickConfigSetup(clubData = {}) {
+  try {
+    const defaults = {
+      TEAM_NAME: clubData.teamName || 'Your Football Club',
+      TEAM_SHORT: clubData.teamShort || 'YFC',
+      LEAGUE_NAME: clubData.league || 'Your League',
+      PRIMARY_COLOR: clubData.primaryColor || '#dc143c',
+      SECONDARY_COLOR: clubData.secondaryColor || '#ffffff',
+      BADGE_URL: clubData.badgeUrl || 'https://via.placeholder.com/100',
+      TIMEZONE: 'Europe/London',
+      AGE_GROUP: clubData.ageGroup || "Senior Men's",
+      SEASON: '2024/25'
+    };
+
+    // Update each config value
+    for (const [key, value] of Object.entries(defaults)) {
+      updateConfig(key, value);
+    }
+
+    console.log('✅ Quick config setup complete');
+    return { success: true, message: 'Configuration updated successfully' };
+
+  } catch (error) {
+    console.error('❌ Quick config setup failed:', error);
+    return { success: false, error: error.toString() };
   }
 }
