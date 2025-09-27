@@ -25,7 +25,7 @@
   ],
   "webapp": {
     "executeAs": "USER_DEPLOYING",
-    "access": "DOMAIN"
+    "access": "ANYONE"
   },
   "executionApi": {
     "access": "ANYONE"

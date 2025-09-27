@@ -28,6 +28,7 @@ class BatchFixturesManager {
 
   constructor() {
     this.logger = (typeof logger !== 'undefined') ? logger.scope('BatchFixtures') : console;
+    this.makeIntegration = new MakeIntegration();
     this.processedKeys = new Set(); // For idempotency (per-execution memory)
     this.variantBuilderAvailable = typeof buildTemplateVariantCollection === 'function';
   }
@@ -706,44 +707,24 @@ class BatchFixturesManager {
 
       // @testHook(batch_webhook_start)
 
-      const webhookUrl = getWebhookUrl();
-      if (!webhookUrl) {
-        throw new Error('Webhook URL not configured');
-      }
+      // Use centralized MakeIntegration instead of direct HTTP calls
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey: payload.idempotency_key,
+        consentDecision,
+        consentContext
+      });
 
-      const attempts = getConfig('MAKE.WEBHOOK_RETRY_ATTEMPTS', 3);
-      const delayMs = getConfig('MAKE.WEBHOOK_RETRY_DELAY_MS', 2000);
-      const timeoutMs = getConfig('MAKE.WEBHOOK_TIMEOUT_MS', 30000);
-      const rateLimitMs = getConfig('PERFORMANCE.WEBHOOK_RATE_LIMIT_MS', 1000);
+      this.logger.exitFunction('sendBatchToMake', {
+        success: makeResult.success,
+        response_code: makeResult.response_code
+      });
 
-      let lastResponse = null;
-      for (let attempt = 1; attempt <= attempts; attempt += 1) {
-        try {
-          Utilities.sleep(rateLimitMs);
-          lastResponse = UrlFetchApp.fetch(webhookUrl, {
-            method: 'POST',
-            contentType: 'application/json',
-            payload: JSON.stringify(enrichedPayload),
-            muteHttpExceptions: true,
-            followRedirects: true
-          });
-          const code = lastResponse.getResponseCode();
-          const ok = code >= 200 && code < 300;
-          if (ok) {
-            this.logger.exitFunction('sendBatchToMake', { success: true, response_code: code, attempt });
-            return {
-              success: true,
-              response_code: code,
-              response_text: lastResponse.getContentText(),
-              consent: consentDecision
-            };
-          }
-          this.logger.warn('Webhook non-2xx response', { code, attempt, text: lastResponse.getContentText() });
-        } catch (inner) {
-          this.logger.warn('Webhook attempt failed', { attempt, error: inner.toString() });
-        }
-        Utilities.sleep(delayMs);
-      }
+      return {
+        success: makeResult.success,
+        response_code: makeResult.response_code,
+        response_text: makeResult.response_text,
+        consent: consentDecision
+      };
 
       // Escalate alert if configured
       if (getConfig('ERROR_HANDLING.ALERT_ON_CRITICAL', false) || getConfig('ERROR_HANDLING.ALERT_ON_CRITICAL_ERROR', true)) {

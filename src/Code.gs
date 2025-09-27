@@ -202,10 +202,21 @@ function createMainDashboard() {
   <script>
     // Load dashboard stats
     function loadStats() {
-      // TODO: Load actual stats from Google Sheets
-      document.getElementById('playerCount').textContent = '25';
-      document.getElementById('fixtureCount').textContent = '12';
-      document.getElementById('resultCount').textContent = '8';
+      // Load actual stats from Google Sheets
+      google.script.run
+        .withSuccessHandler(function(stats) {
+          document.getElementById('playerCount').textContent = stats.playerCount || '0';
+          document.getElementById('fixtureCount').textContent = stats.fixtureCount || '0';
+          document.getElementById('resultCount').textContent = stats.resultCount || '0';
+        })
+        .withFailureHandler(function(error) {
+          console.error('Failed to load stats:', error);
+          // Fallback to default values
+          document.getElementById('playerCount').textContent = '0';
+          document.getElementById('fixtureCount').textContent = '0';
+          document.getElementById('resultCount').textContent = '0';
+        })
+        .getDashboardStats();
     }
 
     loadStats();
@@ -389,22 +400,44 @@ function createPlayerManagementInterface() {
     });
 
     function loadPlayers() {
-      // TODO: Load players from Google Sheets
-      const playerList = document.getElementById('playerList');
-      playerList.innerHTML = \`
-        <div class="player-item">
-          <div class="player-info">
-            <h4>Example Player</h4>
-            <p>Midfielder • Age 25 • #10</p>
-          </div>
-        </div>
-        <div class="player-item">
-          <div class="player-info">
-            <h4>Add your first player!</h4>
-            <p>Use the form to add players to your squad</p>
-          </div>
-        </div>
-      \`;
+      // Load actual players from Google Sheets
+      google.script.run
+        .withSuccessHandler(function(players) {
+          const playerList = document.getElementById('playerList');
+
+          if (players && players.length > 0) {
+            playerList.innerHTML = players.map(player => \`
+              <div class="player-item">
+                <div class="player-info">
+                  <h4>\${player.name}</h4>
+                  <p>\${player.position} • Age \${player.age}\${player.number ? ' • #' + player.number : ''}</p>
+                </div>
+              </div>
+            \`).join('');
+          } else {
+            playerList.innerHTML = \`
+              <div class="player-item">
+                <div class="player-info">
+                  <h4>No players added yet</h4>
+                  <p>Use the form to add your first player to the squad</p>
+                </div>
+              </div>
+            \`;
+          }
+        })
+        .withFailureHandler(function(error) {
+          console.error('Failed to load players:', error);
+          const playerList = document.getElementById('playerList');
+          playerList.innerHTML = \`
+            <div class="player-item">
+              <div class="player-info">
+                <h4>Error loading players</h4>
+                <p>Please refresh the page to try again</p>
+              </div>
+            </div>
+          \`;
+        })
+        .getPlayersList();
     }
 
     loadPlayers();
@@ -660,23 +693,45 @@ function createFixtureManagementInterface() {
     });
 
     function loadFixtures() {
-      // TODO: Load fixtures from Google Sheets
-      const fixtureList = document.getElementById('fixtureList');
-      fixtureList.innerHTML = \`
-        <div class="fixture-item">
-          <div class="fixture-info">
-            <h4>vs Example FC</h4>
-            <p>Saturday 15th Dec, 3:00 PM • Home • League</p>
-          </div>
-          <span class="fixture-status upcoming">Upcoming</span>
-        </div>
-        <div class="fixture-item">
-          <div class="fixture-info">
-            <h4>Add your first fixture!</h4>
-            <p>Use the form to add matches to your season</p>
-          </div>
-        </div>
-      \`;
+      // Load actual fixtures from Google Sheets
+      google.script.run
+        .withSuccessHandler(function(fixtures) {
+          const fixtureList = document.getElementById('fixtureList');
+
+          if (fixtures && fixtures.length > 0) {
+            fixtureList.innerHTML = fixtures.map(fixture => \`
+              <div class="fixture-item">
+                <div class="fixture-info">
+                  <h4>vs \${fixture.opposition}</h4>
+                  <p>\${fixture.dateFormatted} • \${fixture.venue} • \${fixture.competition}</p>
+                </div>
+                <span class="fixture-status \${fixture.status.toLowerCase()}">\${fixture.status}</span>
+              </div>
+            \`).join('');
+          } else {
+            fixtureList.innerHTML = \`
+              <div class="fixture-item">
+                <div class="fixture-info">
+                  <h4>No fixtures scheduled</h4>
+                  <p>Use the form to add your first fixture</p>
+                </div>
+              </div>
+            \`;
+          }
+        })
+        .withFailureHandler(function(error) {
+          console.error('Failed to load fixtures:', error);
+          const fixtureList = document.getElementById('fixtureList');
+          fixtureList.innerHTML = \`
+            <div class="fixture-item">
+              <div class="fixture-info">
+                <h4>Error loading fixtures</h4>
+                <p>Please refresh the page to try again</p>
+              </div>
+            </div>
+          \`;
+        })
+        .getFixturesList();
     }
 
     // Set minimum date to today
@@ -747,5 +802,174 @@ function handleAddFixture(params) {
       success: false,
       error: error.toString()
     })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Get dashboard statistics for UI
+ * @returns {Object} Dashboard stats
+ */
+function getDashboardStats() {
+  try {
+    const playersSheet = SheetUtils.getSheet(getConfig('SHEETS.TAB_NAMES.PLAYER_STATS', 'Player Stats'));
+    const fixturesSheet = SheetUtils.getSheet(getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures'));
+    const resultsSheet = SheetUtils.getSheet(getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results'));
+
+    let playerCount = 0;
+    let fixtureCount = 0;
+    let resultCount = 0;
+
+    if (playersSheet) {
+      const playerData = playersSheet.getDataRange().getValues();
+      playerCount = Math.max(0, playerData.length - 1); // Subtract header row
+    }
+
+    if (fixturesSheet) {
+      const fixtureData = fixturesSheet.getDataRange().getValues();
+      fixtureCount = Math.max(0, fixtureData.length - 1);
+    }
+
+    if (resultsSheet) {
+      const resultData = resultsSheet.getDataRange().getValues();
+      resultCount = Math.max(0, resultData.length - 1);
+    }
+
+    return {
+      playerCount: playerCount,
+      fixtureCount: fixtureCount,
+      resultCount: resultCount,
+      lastUpdated: new Date().toISOString()
+    };
+
+  } catch (error) {
+    Logger.log('Error getting dashboard stats: ' + error.toString());
+    return {
+      playerCount: 0,
+      fixtureCount: 0,
+      resultCount: 0,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Get players list for UI
+ * @returns {Array} Array of player objects
+ */
+function getPlayersList() {
+  try {
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    const playersSheet = spreadsheet.getSheetByName('Players');
+
+    if (!playersSheet) {
+      return [];
+    }
+
+    const data = playersSheet.getDataRange().getValues();
+    if (data.length <= 1) {
+      return []; // No players (just headers or empty)
+    }
+
+    const headers = data[0];
+    const players = [];
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (!row[0]) continue; // Skip empty rows
+
+      // Calculate age from DOB
+      let age = 'Unknown';
+      if (row[1]) {
+        const dob = new Date(row[1]);
+        const today = new Date();
+        age = Math.floor((today - dob) / (365.25 * 24 * 60 * 60 * 1000));
+      }
+
+      players.push({
+        name: row[0] || 'Unknown',
+        dob: row[1] || '',
+        position: row[2] || 'Unknown',
+        number: row[3] || '',
+        email: row[4] || '',
+        phone: row[5] || '',
+        notes: row[6] || '',
+        age: age
+      });
+    }
+
+    return players;
+
+  } catch (error) {
+    Logger.log('Error getting players list: ' + error.toString());
+    return [];
+  }
+}
+
+/**
+ * Get fixtures list for UI
+ * @returns {Array} Array of fixture objects
+ */
+function getFixturesList() {
+  try {
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+    const fixturesSheet = spreadsheet.getSheetByName('Fixtures');
+
+    if (!fixturesSheet) {
+      return [];
+    }
+
+    const data = fixturesSheet.getDataRange().getValues();
+    if (data.length <= 1) {
+      return []; // No fixtures (just headers or empty)
+    }
+
+    const fixtures = [];
+    const today = new Date();
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      if (!row[0] || !row[1]) continue; // Skip rows without date or opposition
+
+      const matchDate = new Date(row[0]);
+      const isUpcoming = matchDate >= today;
+
+      // Format date nicely
+      const dateFormatted = matchDate.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      fixtures.push({
+        date: row[0],
+        opposition: row[1] || 'TBC',
+        kickoff: row[2] || '',
+        venue: row[3] || 'TBC',
+        venueDetails: row[4] || '',
+        competition: row[5] || 'League',
+        importance: row[6] || 'Normal',
+        notes: row[7] || '',
+        status: row[8] || (isUpcoming ? 'Upcoming' : 'Completed'),
+        dateFormatted: dateFormatted,
+        isUpcoming: isUpcoming
+      });
+    }
+
+    // Sort by date (upcoming first)
+    fixtures.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return dateA - dateB;
+    });
+
+    return fixtures;
+
+  } catch (error) {
+    Logger.log('Error getting fixtures list: ' + error.toString());
+    return [];
   }
 }

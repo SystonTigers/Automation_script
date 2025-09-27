@@ -25,6 +25,7 @@ class EnhancedEventsManager {
     this.loggerName = 'EnhancedEvents';
     this._logger = null;
     this.playerManager = new PlayerManagementManager();
+    this.makeIntegration = new MakeIntegration();
     this.currentMatch = null;
     this.playerMinutes = new Map(); // Track player time on pitch
     this.matchStartTime = null;
@@ -945,30 +946,23 @@ class EnhancedEventsManager {
 
       // @testHook(webhook_send_start)
 
-      const webhookUrl = getWebhookUrl();
-      if (!webhookUrl) {
-        throw new Error('Webhook URL not configured');
-      }
-
-      const response = UrlFetchApp.fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        payload: JSON.stringify(enrichedPayload),
-        muteHttpExceptions: true
+      const makeResult = this.makeIntegration.sendToMake(enrichedPayload, {
+        idempotencyKey: payload.idempotency_key,
+        consentDecision,
+        consentContext
       });
-
-      const success = response.getResponseCode() === 200;
 
       // @testHook(webhook_send_complete)
 
-      this.logger.exitFunction('sendToMake', { success, response_code: response.getResponseCode() });
+      this.logger.exitFunction('sendToMake', {
+        success: makeResult.success,
+        response_code: makeResult.response_code
+      });
 
       return {
-        success: success,
-        response_code: response.getResponseCode(),
-        response_text: response.getContentText(),
+        success: makeResult.success,
+        response_code: makeResult.response_code,
+        response_text: makeResult.response_text,
         consent: consentDecision
       };
 
