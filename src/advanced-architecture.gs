@@ -8,9 +8,19 @@
  * Event-Driven Architecture System
  */
 class EventBus {
-  static listeners = new Map();
-  static eventHistory = [];
-  static maxHistorySize = 1000;
+  static getListeners() {
+    if (!this._listeners) this._listeners = new Map();
+    return this._listeners;
+  }
+
+  static getEventHistory() {
+    if (!this._eventHistory) this._eventHistory = [];
+    return this._eventHistory;
+  }
+
+  static getMaxHistorySize() {
+    return 1000;
+  }
 
   /**
    * Subscribe to events with pattern matching
@@ -31,14 +41,14 @@ class EventBus {
         callCount: 0
       };
 
-      if (!this.listeners.has(eventPattern)) {
-        this.listeners.set(eventPattern, []);
+      if (!this.getListeners().has(eventPattern)) {
+        this.getListeners().set(eventPattern, []);
       }
 
-      this.listeners.get(eventPattern).push(subscription);
+      this.getListeners().get(eventPattern).push(subscription);
 
       // Sort by priority (higher priority first)
-      this.listeners.get(eventPattern).sort((a, b) => b.options.priority - a.options.priority);
+      this.getListeners().get(eventPattern).sort((a, b) => b.options.priority - a.options.priority);
 
       console.log(`📡 Subscribed to event pattern: ${eventPattern}`);
       return subscription.id;
@@ -69,9 +79,9 @@ class EventBus {
       };
 
       // Add to history
-      this.eventHistory.push(event);
-      if (this.eventHistory.length > this.maxHistorySize) {
-        this.eventHistory.shift();
+      this.getEventHistory().push(event);
+      if (this.getEventHistory().length > this.getMaxHistorySize()) {
+        this.getEventHistory().shift();
       }
 
       // Find matching listeners
@@ -137,7 +147,7 @@ class EventBus {
   static findMatchingListeners(eventName) {
     const matching = [];
 
-    for (const [pattern, subscriptions] of this.listeners.entries()) {
+    for (const [pattern, subscriptions] of this.getListeners().entries()) {
       if (this.matchesPattern(eventName, pattern)) {
         matching.push(...subscriptions);
       }
@@ -187,12 +197,12 @@ class EventBus {
    * Unsubscribe from events
    */
   static unsubscribe(subscriptionId) {
-    for (const [pattern, subscriptions] of this.listeners.entries()) {
+    for (const [pattern, subscriptions] of this.getListeners().entries()) {
       const index = subscriptions.findIndex(sub => sub.id === subscriptionId);
       if (index !== -1) {
         subscriptions.splice(index, 1);
         if (subscriptions.length === 0) {
-          this.listeners.delete(pattern);
+          this.getListeners().delete(pattern);
         }
         return true;
       }
@@ -206,7 +216,7 @@ class EventBus {
   static getEventStatistics() {
     const now = Date.now();
     const oneHour = 60 * 60 * 1000;
-    const recentEvents = this.eventHistory.filter(event =>
+    const recentEvents = this.getEventHistory().filter(event =>
       now - event.publishedAt < oneHour
     );
 
@@ -216,13 +226,13 @@ class EventBus {
     });
 
     return {
-      totalEvents: this.eventHistory.length,
+      totalEvents: this.getEventHistory().length,
       recentEvents: recentEvents.length,
       eventTypes: Object.keys(eventCounts).length,
       topEvents: Object.entries(eventCounts)
         .sort(([,a], [,b]) => b - a)
         .slice(0, 10),
-      activeSubscriptions: Array.from(this.listeners.values())
+      activeSubscriptions: Array.from(this.getListeners().values())
         .reduce((sum, subs) => sum + subs.length, 0)
     };
   }
@@ -232,14 +242,21 @@ class EventBus {
  * Domain-Driven Design Components
  */
 class DomainModel {
-  static aggregates = new Map();
-  static repositories = new Map();
+  static getAggregates() {
+    if (!this._aggregates) this._aggregates = new Map();
+    return this._aggregates;
+  }
+
+  static getRepositories() {
+    if (!this._repositories) this._repositories = new Map();
+    return this._repositories;
+  }
 
   /**
    * Define domain aggregate
    */
   static defineAggregate(name, aggregateClass) {
-    this.aggregates.set(name, aggregateClass);
+    this.getAggregates().set(name, aggregateClass);
     console.log(`🏗️ Domain aggregate defined: ${name}`);
   }
 
@@ -247,7 +264,7 @@ class DomainModel {
    * Get aggregate instance
    */
   static getAggregate(name, id) {
-    const AggregateClass = this.aggregates.get(name);
+    const AggregateClass = this.getAggregates().get(name);
     if (!AggregateClass) {
       throw new Error(`Aggregate not found: ${name}`);
     }
@@ -259,7 +276,7 @@ class DomainModel {
    * Create repository for aggregate
    */
   static createRepository(aggregateName, repositoryClass) {
-    this.repositories.set(aggregateName, new repositoryClass());
+    this.getRepositories().set(aggregateName, new repositoryClass());
     console.log(`📚 Repository created for: ${aggregateName}`);
   }
 
@@ -267,7 +284,7 @@ class DomainModel {
    * Get repository
    */
   static getRepository(aggregateName) {
-    return this.repositories.get(aggregateName);
+    return this.getRepositories().get(aggregateName);
   }
 }
 
@@ -459,13 +476,16 @@ class MatchAggregate {
  * Command Query Responsibility Segregation (CQRS) Pattern
  */
 class CommandBus {
-  static handlers = new Map();
+  static getHandlers() {
+    if (!this._handlers) this._handlers = new Map();
+    return this._handlers;
+  }
 
   /**
    * Register command handler
    */
   static registerHandler(commandType, handler) {
-    this.handlers.set(commandType, handler);
+    this.getHandlers().set(commandType, handler);
     console.log(`⚡ Command handler registered: ${commandType}`);
   }
 
@@ -474,7 +494,7 @@ class CommandBus {
    */
   static async execute(command) {
     try {
-      const handler = this.handlers.get(command.type);
+      const handler = this.getHandlers().get(command.type);
       if (!handler) {
         throw new Error(`No handler registered for command: ${command.type}`);
       }
@@ -533,13 +553,16 @@ class CommandBus {
  * Query Bus for read operations
  */
 class QueryBus {
-  static handlers = new Map();
+  static getHandlers() {
+    if (!this._handlers) this._handlers = new Map();
+    return this._handlers;
+  }
 
   /**
    * Register query handler
    */
   static registerHandler(queryType, handler) {
-    this.handlers.set(queryType, handler);
+    this.getHandlers().set(queryType, handler);
     console.log(`🔍 Query handler registered: ${queryType}`);
   }
 
@@ -548,7 +571,7 @@ class QueryBus {
    */
   static async execute(query) {
     try {
-      const handler = this.handlers.get(query.type);
+      const handler = this.getHandlers().get(query.type);
       if (!handler) {
         throw new Error(`No handler registered for query: ${query.type}`);
       }
@@ -596,14 +619,21 @@ class QueryBus {
  * Dependency Injection Container
  */
 class DIContainer {
-  static services = new Map();
-  static singletons = new Map();
+  static getServices() {
+    if (!this._services) this._services = new Map();
+    return this._services;
+  }
+
+  static getSingletons() {
+    if (!this._singletons) this._singletons = new Map();
+    return this._singletons;
+  }
 
   /**
    * Register service
    */
   static register(name, factory, options = {}) {
-    this.services.set(name, {
+    this.getServices().set(name, {
       factory: factory,
       singleton: options.singleton || false,
       dependencies: options.dependencies || []
@@ -618,11 +648,11 @@ class DIContainer {
   static resolve(name) {
     try {
       // Check singleton cache
-      if (this.singletons.has(name)) {
-        return this.singletons.get(name);
+      if (this.getSingletons().has(name)) {
+        return this.getSingletons().get(name);
       }
 
-      const service = this.services.get(name);
+      const service = this.getServices().get(name);
       if (!service) {
         throw new Error(`Service not registered: ${name}`);
       }
@@ -635,7 +665,7 @@ class DIContainer {
 
       // Cache singleton
       if (service.singleton) {
-        this.singletons.set(name, instance);
+        this.getSingletons().set(name, instance);
       }
 
       return instance;
@@ -650,7 +680,7 @@ class DIContainer {
    * Clear singleton cache
    */
   static clearSingletons() {
-    this.singletons.clear();
+    this.getSingletons().clear();
   }
 }
 

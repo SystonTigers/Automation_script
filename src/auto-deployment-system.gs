@@ -6,7 +6,8 @@
  */
 
 class AutoDeploymentSystem {
-  static DEPLOYMENT_STAGES = {
+  static getDeploymentStages() {
+    return {
     INITIALIZATION: 'initialization',
     CONFIG_VALIDATION: 'config_validation',
     SHEET_SETUP: 'sheet_setup',
@@ -15,22 +16,27 @@ class AutoDeploymentSystem {
     TESTING: 'testing',
     ACTIVATION: 'activation',
     COMPLETION: 'completion'
-  };
+    };
+  }
 
-  static DEPLOYMENT_STATUS = {
+  static getDeploymentStatus() {
+    return {
     PENDING: 'pending',
     IN_PROGRESS: 'in_progress',
     COMPLETED: 'completed',
     FAILED: 'failed',
     ROLLBACK: 'rollback'
-  };
+    };
+  }
 
-  static DEPLOYMENT_TYPES = {
+  static getDeploymentTypes() {
+    return {
     FRESH_INSTALL: 'fresh_install',
     MIGRATION: 'migration',
     UPDATE: 'update',
     ROLLBACK: 'rollback'
-  };
+    };
+  }
 
   /**
    * Initiates automated deployment for new customer
@@ -43,8 +49,8 @@ class AutoDeploymentSystem {
         deploymentId: deploymentId,
         customerId: customerConfig.customerId,
         customerName: customerConfig.teamName,
-        type: this.DEPLOYMENT_TYPES.FRESH_INSTALL,
-        status: this.DEPLOYMENT_STATUS.PENDING,
+        type: this.getDeploymentTypes().FRESH_INSTALL,
+        status: this.getDeploymentStatus().PENDING,
         stages: this.initializeStages(),
         config: customerConfig,
         startedAt: new Date().toISOString(),
@@ -76,7 +82,7 @@ class AutoDeploymentSystem {
    */
   static async executeDeploymentPipeline(deployment) {
     try {
-      this.updateDeploymentStatus(deployment.deploymentId, this.DEPLOYMENT_STATUS.IN_PROGRESS);
+      this.updateDeploymentStatus(deployment.deploymentId, this.getDeploymentStatus().IN_PROGRESS);
 
       // Execute each stage sequentially
       for (const stageKey of Object.keys(deployment.stages)) {
@@ -103,7 +109,7 @@ class AutoDeploymentSystem {
 
           return {
             success: false,
-            status: this.DEPLOYMENT_STATUS.FAILED,
+            status: this.getDeploymentStatus().FAILED,
             failedStage: stageKey,
             error: stageError.toString()
           };
@@ -111,7 +117,7 @@ class AutoDeploymentSystem {
       }
 
       // All stages completed successfully
-      this.updateDeploymentStatus(deployment.deploymentId, this.DEPLOYMENT_STATUS.COMPLETED);
+      this.updateDeploymentStatus(deployment.deploymentId, this.getDeploymentStatus().COMPLETED);
       this.updateProgress(deployment.deploymentId, 100);
 
       // Send completion notifications
@@ -119,13 +125,13 @@ class AutoDeploymentSystem {
 
       return {
         success: true,
-        status: this.DEPLOYMENT_STATUS.COMPLETED,
+        status: this.getDeploymentStatus().COMPLETED,
         message: 'Deployment completed successfully'
       };
 
     } catch (error) {
       console.error('Deployment pipeline failed:', error);
-      this.updateDeploymentStatus(deployment.deploymentId, this.DEPLOYMENT_STATUS.FAILED);
+      this.updateDeploymentStatus(deployment.deploymentId, this.getDeploymentStatus().FAILED);
 
       return {
         success: false,
@@ -142,28 +148,28 @@ class AutoDeploymentSystem {
     const config = deployment.config;
 
     switch (stageKey) {
-      case this.DEPLOYMENT_STAGES.INITIALIZATION:
+      case this.getDeploymentStages().INITIALIZATION:
         return this.executeInitialization(config);
 
-      case this.DEPLOYMENT_STAGES.CONFIG_VALIDATION:
+      case this.getDeploymentStages().CONFIG_VALIDATION:
         return this.executeConfigValidation(config);
 
-      case this.DEPLOYMENT_STAGES.SHEET_SETUP:
+      case this.getDeploymentStages().SHEET_SETUP:
         return this.executeSheetSetup(config);
 
-      case this.DEPLOYMENT_STAGES.TEMPLATE_DEPLOYMENT:
+      case this.getDeploymentStages().TEMPLATE_DEPLOYMENT:
         return this.executeTemplateDeployment(config);
 
-      case this.DEPLOYMENT_STAGES.INTEGRATION_SETUP:
+      case this.getDeploymentStages().INTEGRATION_SETUP:
         return this.executeIntegrationSetup(config);
 
-      case this.DEPLOYMENT_STAGES.TESTING:
+      case this.getDeploymentStages().TESTING:
         return this.executeTesting(config);
 
-      case this.DEPLOYMENT_STAGES.ACTIVATION:
+      case this.getDeploymentStages().ACTIVATION:
         return this.executeActivation(config);
 
-      case this.DEPLOYMENT_STAGES.COMPLETION:
+      case this.getDeploymentStages().COMPLETION:
         return this.executeCompletion(config);
 
       default:
@@ -590,7 +596,7 @@ class AutoDeploymentSystem {
       console.log(`Initiating rollback for deployment ${deploymentId} at stage ${failedStage}`);
 
       // Update deployment status
-      this.updateDeploymentStatus(deploymentId, this.DEPLOYMENT_STATUS.ROLLBACK);
+      this.updateDeploymentStatus(deploymentId, this.getDeploymentStatus().ROLLBACK);
 
       // Execute rollback actions based on failed stage
       const rollbackResult = await this.executeRollback(deploymentId, failedStage);
@@ -667,7 +673,7 @@ class AutoDeploymentSystem {
       if (data[i][idCol] === deploymentId) {
         sheet.getRange(i + 1, statusCol + 1).setValue(status);
 
-        if (status === this.DEPLOYMENT_STATUS.COMPLETED) {
+        if (status === this.getDeploymentStatus().COMPLETED) {
           const completedCol = headers.indexOf('Completed At');
           sheet.getRange(i + 1, completedCol + 1).setValue(new Date().toISOString());
         }
@@ -682,7 +688,7 @@ class AutoDeploymentSystem {
   static initializeStages() {
     const stages = {};
 
-    Object.values(this.DEPLOYMENT_STAGES).forEach(stage => {
+    Object.values(this.getDeploymentStages()).forEach(stage => {
       stages[stage] = {
         status: 'pending',
         startedAt: null,

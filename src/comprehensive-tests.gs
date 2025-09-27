@@ -8,9 +8,20 @@
  * Advanced Test Framework - 10/10 test coverage
  */
 class AdvancedTestFramework {
-  static results = [];
-  static mockData = new Map();
-  static testSuites = new Map();
+  static getResults() {
+    if (!this._results) this._results = [];
+    return this._results;
+  }
+
+  static getMockData() {
+    if (!this._mockData) this._mockData = new Map();
+    return this._mockData;
+  }
+
+  static getTestSuites() {
+    if (!this._testSuites) this._testSuites = new Map();
+    return this._testSuites;
+  }
 
   /**
    * Enhanced test runner with setup/teardown
@@ -57,7 +68,7 @@ class AdvancedTestFramework {
     }
 
     suiteResults.duration = Date.now() - suiteResults.startTime;
-    this.testSuites.set(suiteName, suiteResults);
+    this.getTestSuites().set(suiteName, suiteResults);
 
     console.log(`✅ Suite ${suiteName}: ${suiteResults.passed} passed, ${suiteResults.failed} failed, ${suiteResults.skipped} skipped`);
 
@@ -103,7 +114,7 @@ class AdvancedTestFramework {
         timestamp: new Date().toISOString()
       };
 
-      this.results.push(result);
+      this.getResults().push(result);
       console.log(`✅ ${testName} - PASSED (${duration}ms)`);
 
       // Test cleanup
@@ -125,7 +136,7 @@ class AdvancedTestFramework {
         timestamp: new Date().toISOString()
       };
 
-      this.results.push(result);
+      this.getResults().push(result);
       console.error(`❌ ${testName} - FAILED (${duration}ms): ${error.toString()}`);
 
       // Test cleanup even on failure
@@ -240,19 +251,19 @@ class AdvancedTestFramework {
       };
     });
 
-    this.mockData.set(objectName, mock);
+    this.getMockData().set(objectName, mock);
     return mock;
   }
 
   static getMockCalls(objectName, methodName) {
-    const mock = this.mockData.get(objectName);
+    const mock = this.getMockData().get(objectName);
     if (!mock) return [];
 
     return mock._calls.filter(call => call.method === methodName);
   }
 
   static setMockReturn(objectName, methodName, returnValue) {
-    const mock = this.mockData.get(objectName);
+    const mock = this.getMockData().get(objectName);
     if (mock) {
       mock._returns[methodName] = returnValue;
     }
@@ -316,11 +327,11 @@ class AdvancedTestFramework {
    * Get comprehensive test results
    */
   static getTestResults() {
-    const passed = this.results.filter(r => r.status === 'PASS').length;
-    const failed = this.results.filter(r => r.status === 'FAIL').length;
-    const total = this.results.length;
+    const passed = this.getResults().filter(r => r.status === 'PASS').length;
+    const failed = this.getResults().filter(r => r.status === 'FAIL').length;
+    const total = this.getResults().length;
 
-    const suiteResults = Array.from(this.testSuites.values());
+    const suiteResults = Array.from(this.getTestSuites().values());
 
     return {
       summary: {
@@ -328,10 +339,10 @@ class AdvancedTestFramework {
         passed: passed,
         failed: failed,
         passRate: total > 0 ? (passed / total * 100).toFixed(1) : 0,
-        totalDuration: this.results.reduce((sum, r) => sum + r.duration, 0)
+        totalDuration: this.getResults().reduce((sum, r) => sum + r.duration, 0)
       },
       suites: suiteResults,
-      results: this.results,
+      results: this.getResults(),
       coverage: this.calculateCoverage()
     };
   }
@@ -343,7 +354,7 @@ class AdvancedTestFramework {
     const testedFunctions = new Set();
 
     // Extract function names from test names
-    this.results.forEach(result => {
+    this.getResults().forEach(result => {
       const parts = result.name.split('::');
       if (parts.length > 1) {
         testedFunctions.add(parts[1]);
@@ -361,9 +372,9 @@ class AdvancedTestFramework {
    * Reset test framework
    */
   static reset() {
-    this.results = [];
-    this.mockData.clear();
-    this.testSuites.clear();
+    this.getResults().length = 0;
+    this.getMockData().clear();
+    this.getTestSuites().clear();
   }
 }
 
