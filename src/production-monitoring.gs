@@ -9,21 +9,28 @@
  */
 class ProductionMonitoringManager {
 
-  static metrics = {
-    operations: new Map(),
-    errors: new Map(),
-    performance: new Map(),
-    alerts: new Map(),
-    healthChecks: new Map()
-  };
+  static getMetrics() {
+    if (!this._metrics) {
+      this._metrics = {
+        operations: new Map(),
+        errors: new Map(),
+        performance: new Map(),
+        alerts: new Map(),
+        healthChecks: new Map()
+      };
+    }
+    return this._metrics;
+  }
 
-  static thresholds = {
-    errorRate: 0.05,        // 5% error rate threshold
-    responseTime: 3000,     // 3 second response time threshold
-    memoryUsage: 0.8,       // 80% memory usage threshold
-    failedHealthChecks: 3,  // 3 consecutive failed health checks
-    apiQuotaUsage: 0.9      // 90% API quota usage threshold
-  };
+  static getThresholds() {
+    return {
+      errorRate: 0.05,        // 5% error rate threshold
+      responseTime: 3000,     // 3 second response time threshold
+      memoryUsage: 0.8,       // 80% memory usage threshold
+      failedHealthChecks: 3,  // 3 consecutive failed health checks
+      apiQuotaUsage: 0.9      // 90% API quota usage threshold
+    };
+  }
 
   /**
    * Comprehensive system monitoring with real-time metrics
@@ -78,11 +85,11 @@ class ProductionMonitoringManager {
       };
 
       // Store in appropriate collection
-      if (!this.metrics[category]) {
-        this.metrics[category] = new Map();
+      if (!this.getMetrics()[category]) {
+        this.getMetrics()[category] = new Map();
       }
 
-      const categoryMetrics = this.metrics[category];
+      const categoryMetrics = this.getMetrics()[category];
       const metricKey = `${metric}_${timestamp}`;
       categoryMetrics.set(metricKey, metricData);
 
@@ -156,7 +163,7 @@ class ProductionMonitoringManager {
       });
 
       // Record health check
-      this.metrics.healthChecks.set(Date.now(), healthReport);
+      this.getMetrics().healthChecks.set(Date.now(), healthReport);
 
       // Trigger alerts if necessary
       if (healthReport.overall === 'critical' || healthReport.overall === 'warning') {
@@ -295,7 +302,7 @@ class ProductionMonitoringManager {
 
       // Check average response time
       const avgDuration = parseFloat(analytics.operations.averageDuration);
-      if (avgDuration > this.thresholds.responseTime) {
+      if (avgDuration > this.getThresholds().responseTime) {
         check.status = 'warning';
         check.score = Math.max(5, check.score - 3);
         check.warnings = check.warnings || [];
@@ -472,7 +479,7 @@ class ProductionMonitoringManager {
         resolved: false
       };
 
-      this.metrics.alerts.set(alert.id, alert);
+      this.getMetrics().alerts.set(alert.id, alert);
 
       // Log alert
       console.log(`🚨 ALERT [${severity.toUpperCase()}] ${alertType}: ${message}`);
@@ -505,7 +512,7 @@ class ProductionMonitoringManager {
 
       // Get recent metrics
       const recentMetrics = {};
-      Object.entries(this.metrics).forEach(([category, metrics]) => {
+      Object.entries(this.getMetrics()).forEach(([category, metrics]) => {
         if (category !== 'alerts' && category !== 'healthChecks') {
           recentMetrics[category] = Array.from(metrics.values())
             .filter(metric => now - metric.timestamp < oneHour)
@@ -514,12 +521,12 @@ class ProductionMonitoringManager {
       });
 
       // Get recent health checks
-      const recentHealthChecks = Array.from(this.metrics.healthChecks.values())
+      const recentHealthChecks = Array.from(this.getMetrics().healthChecks.values())
         .filter(check => now - new Date(check.timestamp).getTime() < oneHour)
         .slice(-10);
 
       // Get active alerts
-      const activeAlerts = Array.from(this.metrics.alerts.values())
+      const activeAlerts = Array.from(this.getMetrics().alerts.values())
         .filter(alert => !alert.resolved)
         .slice(-20);
 
@@ -534,9 +541,9 @@ class ProductionMonitoringManager {
         recentHealthChecks: recentHealthChecks,
         activeAlerts: activeAlerts,
         monitoring: {
-          metricsCollected: Object.values(this.metrics).reduce((sum, cat) => sum + cat.size, 0),
-          alertsTriggered: this.metrics.alerts.size,
-          healthChecksPerformed: this.metrics.healthChecks.size
+          metricsCollected: Object.values(this.getMetrics()).reduce((sum, cat) => sum + cat.size, 0),
+          alertsTriggered: this.getMetrics().alerts.size,
+          healthChecksPerformed: this.getMetrics().healthChecks.size
         }
       };
 
@@ -587,11 +594,11 @@ class ProductionMonitoringManager {
 
   static checkThresholds(category, metric, value, metricData) {
     // Check for threshold violations and trigger alerts
-    if (category === 'performance' && metric === 'response_time' && value > this.thresholds.responseTime) {
+    if (category === 'performance' && metric === 'response_time' && value > this.getThresholds().responseTime) {
       this.triggerAlert('performance', 'warning', `Response time exceeded threshold: ${value}ms`, metricData);
     }
 
-    if (category === 'errors' && metric === 'error_rate' && value > this.thresholds.errorRate) {
+    if (category === 'errors' && metric === 'error_rate' && value > this.getThresholds().errorRate) {
       this.triggerAlert('errors', 'critical', `Error rate exceeded threshold: ${(value * 100).toFixed(2)}%`, metricData);
     }
   }
@@ -636,7 +643,7 @@ class ProductionMonitoringManager {
   }
 
   static getOverallSystemStatus() {
-    const latestHealth = Array.from(this.metrics.healthChecks.values()).slice(-1)[0];
+    const latestHealth = Array.from(this.getMetrics().healthChecks.values()).slice(-1)[0];
     return latestHealth ? latestHealth.overall : 'unknown';
   }
 }
