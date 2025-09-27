@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title><?= title ? `${title} – ${config.TEAM_NAME}` : 'Setup Wizard – Football Club Automation' ?></title>
+  <title><?= title ? `${title} – ${config.TEAM_NAME}` : `Setup Wizard – ${config.TEAM_NAME || 'Football Automation'}` ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     :root {
@@ -148,7 +148,7 @@
 <body>
   <div class="wizard-container">
     <div class="wizard-header">
-      <h1>🏈 Football Club Automation Setup</h1>
+      <h1>🏈 <?= config.TEAM_NAME || 'Football' ?> Automation Setup</h1>
       <h2>Complete Setup Wizard</h2>
       <p>Get your club's automation system up and running in 3 easy steps!</p>
 

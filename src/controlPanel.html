@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Syston Tigers – Control Panel</title>
+  <title><?= config.TEAM_NAME ?> – Control Panel</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     :root { --bg:#0b0b0b; --card:#151515; --accent:#ffd200; --muted:#999; --ok:#29a745; --warn:#e0a800; --err:#dc3545; }
@@ -74,7 +74,7 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>⚙️ Syston Tigers – Operations Console</h1>
+    <h1>⚙️ <?= config.TEAM_NAME ?> – Operations Console</h1>
 
     <div class="tabs">
       <button class="tab-btn active" data-view="control">Control panel</button>
@@ -146,7 +146,7 @@
           <h2>Scoreboard</h2>
           <div class="scoreboard">
             <div class="team">
-              <div class="team-name" id="homeTeamName">Syston Tigers</div>
+              <div class="team-name" id="homeTeamName"><?= config.TEAM_NAME ?></div>
               <div class="team-score" id="homeScore">0</div>
             </div>
             <div class="vs">vs</div>
@@ -428,7 +428,7 @@
       const scoreboard = state.scoreboard || { home: 0, away: 0 };
 
       if (el('#homeTeamName')) {
-        el('#homeTeamName').textContent = info.homeName || info.clubShortName || info.clubName || 'Syston Tigers';
+        el('#homeTeamName').textContent = info.homeName || info.clubShortName || info.clubName || '<?= config.TEAM_NAME ?>';
       }
       if (el('#awayTeamName')) {
         el('#awayTeamName').textContent = info.opponent || 'Opponent';
