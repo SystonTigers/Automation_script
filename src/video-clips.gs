@@ -546,7 +546,7 @@ class VideoClipsManager {
    * @returns {string} Generated title
    */
   generateClipTitle(player, opponent, minute) {
-    const clubName = getConfig('SYSTEM.CLUB_SHORT_NAME', 'Tigers');
+    const clubName = getConfig('SYSTEM.CLUB_SHORT_NAME', 'FC');
     
     if (opponent) {
       return `${player} Goal vs ${opponent} (${minute}')`;
@@ -564,7 +564,7 @@ class VideoClipsManager {
    * @returns {string} Generated description
    */
   generateClipDescription(player, assist, opponent, minute) {
-    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers');
+    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
     const season = getConfig('SYSTEM.SEASON', '2024/25');
     
     let description = `${player} scores in the ${minute}' for ${clubName}`;
@@ -590,7 +590,7 @@ class VideoClipsManager {
    * @returns {Array} Generated tags
    */
   generateClipTags(player, opponent) {
-    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers');
+    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
     const tags = [
       clubName,
       'Football',
@@ -970,7 +970,7 @@ class VideoClipsManager {
       type: 'logo_overlay',
       template: 'corner_logo',
       data: {
-        club_logo: 'syston_tigers_logo.png',
+        club_logo: 'club_logo.png',
         position: 'bottom_right'
       }
     };

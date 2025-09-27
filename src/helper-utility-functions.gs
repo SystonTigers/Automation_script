@@ -1,5 +1,5 @@
 /**
- * @fileoverview Helper Utility Functions for Syston Tigers Football Automation
+ * @fileoverview Helper Utility Functions for Football Automation System
  * @version 6.2.0
  * @author Senior Software Architect
  * @description Additional helper functions to add to utils.gs or enhanced-events.gs
@@ -76,7 +76,7 @@ function getOppositionTeam(matchData) {
     return matchData.opponent;
   }
   if (matchData.awayTeam && matchData.homeTeam) {
-    const ourTeam = getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers');
+    const ourTeam = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
     return matchData.homeTeam === ourTeam ? matchData.awayTeam : matchData.homeTeam;
   }
   if (matchData.versus) {
@@ -118,7 +118,7 @@ function getOppositionTeam(matchData) {
  */
 function isHomeTeam(matchData) {
   try {
-    const ourTeam = getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers');
+    const ourTeam = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
 
     if (typeof matchData === 'string') {
       // matchData is just an ID, look up in fixtures

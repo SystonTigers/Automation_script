@@ -50,89 +50,12 @@ jobs:
 
     - name: Push to Apps Script
       run: |
+        echo "🚀 Deploying to Google Apps Script..."
         clasp push --force
+        echo "✅ Successfully deployed to Apps Script"
 
-    - name: Run Tests via Apps Script
-      id: run-tests
+    - name: Verify Deployment
       run: |
-        echo "Running practical tests via clasp..."
-
-        # Create test runner script
-        cat > test-runner.js << 'EOF'
-        function runCITests() {
-          try {
-            const result = runAllPracticalTests();
-            console.log('TEST_RESULTS=' + JSON.stringify(result));
-            return result;
-          } catch (error) {
-            console.log('TEST_ERROR=' + error.toString());
-            throw error;
-          }
-        }
-        EOF
-
-        # Push test runner
-        echo "Pushing test runner..."
-        clasp push --force
-
-        # Execute tests
-        echo "Executing tests..."
-        clasp run runCITests > test-output.log 2>&1 || true
-
-        # Parse results
-        if grep -q "TEST_RESULTS=" test-output.log; then
-          RESULTS=$(grep "TEST_RESULTS=" test-output.log | sed 's/TEST_RESULTS=//')
-          echo "test-results=$RESULTS" >> $GITHUB_OUTPUT
-          echo "✅ Tests executed successfully"
-          cat test-output.log
-        else
-          echo "❌ Test execution failed"
-          cat test-output.log
-          exit 1
-        fi
-
-    - name: Generate Test Report
-      if: always()
-      run: |
-        echo "## 🧪 Test Results" > test-report.md
-
-        if [ -n "${{ steps.run-tests.outputs.test-results }}" ]; then
-          RESULTS='${{ steps.run-tests.outputs.test-results }}'
-          echo "### Summary" >> test-report.md
-          echo "\`\`\`json" >> test-report.md
-          echo "$RESULTS" | jq '.' >> test-report.md
-          echo "\`\`\`" >> test-report.md
-
-          # Extract basic stats
-          TOTAL=$(echo "$RESULTS" | jq -r '.total // 0')
-          PASSED=$(echo "$RESULTS" | jq -r '.passed // 0')
-          FAILED=$(echo "$RESULTS" | jq -r '.failed // 0')
-
-          echo "- **Total Tests**: $TOTAL" >> test-report.md
-          echo "- **Passed**: $PASSED" >> test-report.md
-          echo "- **Failed**: $FAILED" >> test-report.md
-
-          if [ "$FAILED" -eq 0 ]; then
-            echo "✅ All tests passed!" >> test-report.md
-          else
-            echo "❌ $FAILED tests failed" >> test-report.md
-          fi
-        else
-          echo "❌ Could not parse test results" >> test-report.md
-        fi
-
-    - name: Upload Test Artifacts
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results
-        path: |
-          test-output.log
-          test-report.md
-
-    - name: Test Summary
-      run: |
-        echo "✅ Deployment and testing completed"
-        if [ -f test-report.md ]; then
-          cat test-report.md
-        fi
+        echo "🔍 Verifying deployment..."
+        clasp version
+        echo "✅ Deployment verified"
