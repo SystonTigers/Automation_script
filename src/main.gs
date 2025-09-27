@@ -46,18 +46,30 @@ function doGet(e) {
         break;
 
       case 'dashboard':
-        result = ProductionMonitoringManager.getMonitoringDashboard();
+        result = getWorkingMonitoringDashboard();
+        break;
+
+      case 'monitoring':
+        result = runSystemMonitoring();
         break;
 
       case 'test':
         result = runPracticalTests();
         break;
 
+      case 'gdpr_init':
+        result = initializeGDPRCompliance();
+        break;
+
+      case 'gdpr_dashboard':
+        result = getGDPRComplianceDashboard();
+        break;
+
       default:
         result = {
           message: 'Football Automation System API',
           version: getConfig('SYSTEM.VERSION', '6.3.0'),
-          available_actions: ['health', 'advanced_health', 'dashboard', 'test']
+          available_actions: ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard']
         };
     }
 

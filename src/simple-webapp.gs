@@ -64,7 +64,7 @@ function createMainInterface() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>⚽ Syston Tigers - Live Match Updates</title>
+  <title>⚽ ${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} - Live Match Updates</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -105,12 +105,12 @@ function createMainInterface() {
 </head>
 <body>
   <div class="header">
-    <h1>🏈 Syston Tigers</h1>
+    <h1>🏈 ${getConfig('SYSTEM.CLUB_NAME', 'Football Club')}</h1>
     <p>Live Match Updates Console</p>
   </div>
 
   <div class="score">
-    <div>Syston Tigers <span id="homeScore">0</span> - <span id="awayScore">0</span> Opposition</div>
+    <div>${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} <span id="homeScore">0</span> - <span id="awayScore">0</span> Opposition</div>
     <div style="font-size: 16px; margin-top: 10px;">
       <span id="matchStatus">Ready for Kick-off</span> | <span id="matchTime">0'</span>
     </div>
@@ -156,7 +156,7 @@ function createMainInterface() {
       if (team === 'home') {
         homeScore++;
         updateScore();
-        showMessage('⚽ Syston Tigers Goal!', 'success');
+        showMessage('⚽ ${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} Goal!', 'success');
         // TODO: Connect to backend function
       } else {
         awayScore++;
@@ -226,13 +226,13 @@ function createMainInterface() {
 
     // Initialize
     updateScore();
-    console.log('⚽ Syston Tigers Live Match Console Ready!');
+    console.log('⚽ ${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} Live Match Console Ready!');
   </script>
 </body>
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Syston Tigers - Live Match Updates')
+    .setTitle(`${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} - Live Match Updates`)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -244,7 +244,7 @@ function createHealthResponse() {
     const healthData = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      app: 'Syston Tigers Football Automation',
+      app: `${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} Football Automation`,
       version: '6.2.0',
       checks: {
         webApp: 'online',

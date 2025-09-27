@@ -112,7 +112,7 @@ class EnhancedSecurityManager {
 
     // Check for common passwords
     const commonPasswords = [
-      'password', 'admin123', 'football', 'syston', 'tigers',
+      'password', 'admin123', 'football', 'club', 'team',
       '123456', 'qwerty', 'abc123', 'password123'
     ];
 

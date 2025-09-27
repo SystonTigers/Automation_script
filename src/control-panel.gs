@@ -1373,7 +1373,7 @@ const ControlPanel = new SystemControlPanel();
 function showControlPanel() {
   var html = HtmlService
     .createHtmlOutputFromFile('controlPanel')
-    .setTitle('⚙️ Syston Tigers – Control Panel')
+    .setTitle(`⚙️ ${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} – Control Panel`)
     .setWidth(400);
   SpreadsheetApp.getUi().showSidebar(html);
   return { success: true };
@@ -1435,7 +1435,7 @@ function controlPanelTriggerAction(actionType) {
 function doGet() {
   return HtmlService
     .createHtmlOutputFromFile('controlPanel')
-    .setTitle('Syston Tigers – Control Panel');
+    .setTitle(`${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} – Control Panel`);
 }
 
 /** State for ControlPanel.html on load */
@@ -1540,7 +1540,7 @@ function getLiveMatchConsoleState() {
     const recentLimit = getConfig('LIVE_MATCH_CONSOLE.RECENT_EVENT_LIMIT', 8);
     const defaultMatchIdProperty = getConfig('LIVE_MATCH_CONSOLE.DEFAULT_MATCH_ID_PROPERTY', '');
 
-    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers');
+    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
     const clubShortName = getConfig('SYSTEM.CLUB_SHORT_NAME', clubName);
 
     let defaultMatchId = '';

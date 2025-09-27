@@ -1163,7 +1163,7 @@ const SYSTEM_CONFIG = {
   BUYER_INTAKE: {
     CLUB_DETAILS: {
       NAME: 'Your Football Club',
-      CONTACT: 'media@systontigers.co.uk'
+      CONTACT: 'media@yourclub.co.uk'  // Configure via buyer intake
     },
     BRAND_COLORS: {
       PRIMARY: '#F05A28',
@@ -1172,8 +1172,8 @@ const SYSTEM_CONFIG = {
       NEUTRAL: '#FFFFFF'
     },
     CREST_URLS: {
-      PRIMARY: 'https://cdn.systontigers.co.uk/crest-primary.png',
-      SECONDARY: 'https://cdn.systontigers.co.uk/crest-secondary.png'
+      PRIMARY: 'https://cdn.yourclub.co.uk/crest-primary.png',  // Configure via buyer intake
+      SECONDARY: 'https://cdn.yourclub.co.uk/crest-secondary.png'  // Configure via buyer intake
     },
     TYPOGRAPHY: {
       PRIMARY_FONT: 'Montserrat',
