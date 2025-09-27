@@ -8,7 +8,10 @@
  * Simple Test Framework
  */
 class SimpleTestFramework {
-  static results = [];
+  static getResults() {
+    if (!this._results) this._results = [];
+    return this._results;
+  }
 
   static assertEquals(actual, expected, message) {
     if (actual === expected) {
@@ -41,7 +44,7 @@ class SimpleTestFramework {
       testFunction();
       const duration = Date.now() - startTime;
 
-      this.results.push({
+      this.getResults().push({
         name: testName,
         status: 'PASS',
         duration: duration,
@@ -53,7 +56,7 @@ class SimpleTestFramework {
     } catch (error) {
       const duration = Date.now() - startTime;
 
-      this.results.push({
+      this.getResults().push({
         name: testName,
         status: 'FAIL',
         duration: duration,
@@ -66,22 +69,22 @@ class SimpleTestFramework {
   }
 
   static getResults() {
-    const passed = this.results.filter(r => r.status === 'PASS').length;
-    const failed = this.results.filter(r => r.status === 'FAIL').length;
+    const passed = this.getResults().filter(r => r.status === 'PASS').length;
+    const failed = this.getResults().filter(r => r.status === 'FAIL').length;
 
     return {
       summary: {
-        total: this.results.length,
+        total: this.getResults().length,
         passed: passed,
         failed: failed,
-        passRate: this.results.length > 0 ? (passed / this.results.length * 100).toFixed(1) : 0
+        passRate: this.getResults().length > 0 ? (passed / this.getResults().length * 100).toFixed(1) : 0
       },
-      results: this.results
+      results: this.getResults()
     };
   }
 
   static reset() {
-    this.results = [];
+    this.getResults() = [];
   }
 }
 

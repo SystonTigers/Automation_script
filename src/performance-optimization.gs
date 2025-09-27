@@ -12,23 +12,28 @@ class PerformanceOptimizer {
   /**
    * Multi-tier intelligent caching system
    */
-  static cache = {
-    memory: new Map(),
-    script: PropertiesService.getScriptProperties(),
-    document: PropertiesService.getDocumentProperties(),
+  static getCache() {
+    if (!this._cache) {
+      this._cache = {
+        memory: new Map(),
+        script: PropertiesService.getScriptProperties(),
+        document: PropertiesService.getDocumentProperties(),
 
-    // Performance counters
-    hits: { memory: 0, script: 0, document: 0 },
-    misses: { memory: 0, script: 0, document: 0 },
+        // Performance counters
+        hits: { memory: 0, script: 0, document: 0 },
+        misses: { memory: 0, script: 0, document: 0 },
 
-    // Cache configuration
-    config: {
-      memoryTTL: 30000,      // 30 seconds
-      scriptTTL: 300000,     // 5 minutes
-      documentTTL: 1800000,  // 30 minutes
-      maxMemorySize: 100     // Max items in memory cache
+        // Cache configuration
+        config: {
+          memoryTTL: 30000,      // 30 seconds
+          scriptTTL: 300000,     // 5 minutes
+          documentTTL: 1800000,  // 30 minutes
+          maxMemorySize: 100     // Max items in memory cache
+        }
+      };
     }
-  };
+    return this._cache;
+  }
 
   /**
    * Intelligent cache get with automatic tier selection
@@ -44,38 +49,38 @@ class PerformanceOptimizer {
       if (tier >= 1) {
         result = this.getFromMemory(key);
         if (result !== null) {
-          this.cache.hits.memory++;
+          this.getCache().hits.memory++;
           this.recordPerformanceMetric('cache_hit', Date.now() - startTime, 'memory');
           return result;
         }
-        this.cache.misses.memory++;
+        this.getCache().misses.memory++;
       }
 
       // Try script properties (medium speed)
       if (tier >= 2) {
         result = this.getFromScript(key);
         if (result !== null) {
-          this.cache.hits.script++;
+          this.getCache().hits.script++;
           // Promote to memory cache
-          this.setInMemory(key, result, this.cache.config.memoryTTL);
+          this.setInMemory(key, result, this.getCache().config.memoryTTL);
           this.recordPerformanceMetric('cache_hit', Date.now() - startTime, 'script');
           return result;
         }
-        this.cache.misses.script++;
+        this.getCache().misses.script++;
       }
 
       // Try document properties (slowest)
       if (tier >= 3) {
         result = this.getFromDocument(key);
         if (result !== null) {
-          this.cache.hits.document++;
+          this.getCache().hits.document++;
           // Promote to higher tiers
-          this.setInScript(key, result, this.cache.config.scriptTTL);
-          this.setInMemory(key, result, this.cache.config.memoryTTL);
+          this.setInScript(key, result, this.getCache().config.scriptTTL);
+          this.setInMemory(key, result, this.getCache().config.memoryTTL);
           this.recordPerformanceMetric('cache_hit', Date.now() - startTime, 'document');
           return result;
         }
-        this.cache.misses.document++;
+        this.getCache().misses.document++;
       }
 
       this.recordPerformanceMetric('cache_miss', Date.now() - startTime);
@@ -101,15 +106,15 @@ class PerformanceOptimizer {
 
       // Set in appropriate tiers based on data characteristics
       if (tier >= 1 && size < 10000) { // Small data goes to memory
-        this.setInMemory(key, value, ttl || this.cache.config.memoryTTL);
+        this.setInMemory(key, value, ttl || this.getCache().config.memoryTTL);
       }
 
       if (tier >= 2 && size < 100000) { // Medium data goes to script
-        this.setInScript(key, value, ttl || this.cache.config.scriptTTL);
+        this.setInScript(key, value, ttl || this.getCache().config.scriptTTL);
       }
 
       if (tier >= 3) { // Large or persistent data goes to document
-        this.setInDocument(key, value, ttl || this.cache.config.documentTTL);
+        this.setInDocument(key, value, ttl || this.getCache().config.documentTTL);
       }
 
       this.recordPerformanceMetric('cache_set', Date.now() - startTime);
@@ -143,11 +148,11 @@ class PerformanceOptimizer {
    * Memory cache operations
    */
   static getFromMemory(key) {
-    const item = this.cache.memory.get(key);
+    const item = this.getCache().memory.get(key);
     if (!item) return null;
 
     if (Date.now() > item.expires) {
-      this.cache.memory.delete(key);
+      this.getCache().memory.delete(key);
       return null;
     }
 
@@ -156,12 +161,12 @@ class PerformanceOptimizer {
 
   static setInMemory(key, value, ttl) {
     // Implement LRU eviction if cache is full
-    if (this.cache.memory.size >= this.cache.config.maxMemorySize) {
-      const oldestKey = this.cache.memory.keys().next().value;
-      this.cache.memory.delete(oldestKey);
+    if (this.getCache().memory.size >= this.getCache().config.maxMemorySize) {
+      const oldestKey = this.getCache().memory.keys().next().value;
+      this.getCache().memory.delete(oldestKey);
     }
 
-    this.cache.memory.set(key, {
+    this.getCache().memory.set(key, {
       value: value,
       expires: Date.now() + ttl,
       created: Date.now()
@@ -173,12 +178,12 @@ class PerformanceOptimizer {
    */
   static getFromScript(key) {
     try {
-      const cached = this.cache.script.getProperty(`cache_${key}`);
+      const cached = this.getCache().script.getProperty(`cache_${key}`);
       if (!cached) return null;
 
       const item = JSON.parse(cached);
       if (Date.now() > item.expires) {
-        this.cache.script.deleteProperty(`cache_${key}`);
+        this.getCache().script.deleteProperty(`cache_${key}`);
         return null;
       }
 
@@ -196,7 +201,7 @@ class PerformanceOptimizer {
         created: Date.now()
       };
 
-      this.cache.script.setProperty(`cache_${key}`, JSON.stringify(item));
+      this.getCache().script.setProperty(`cache_${key}`, JSON.stringify(item));
     } catch (error) {
       console.error('Script cache set failed:', error);
     }
@@ -207,12 +212,12 @@ class PerformanceOptimizer {
    */
   static getFromDocument(key) {
     try {
-      const cached = this.cache.document.getProperty(`cache_${key}`);
+      const cached = this.getCache().document.getProperty(`cache_${key}`);
       if (!cached) return null;
 
       const item = JSON.parse(cached);
       if (Date.now() > item.expires) {
-        this.cache.document.deleteProperty(`cache_${key}`);
+        this.getCache().document.deleteProperty(`cache_${key}`);
         return null;
       }
 
@@ -230,7 +235,7 @@ class PerformanceOptimizer {
         created: Date.now()
       };
 
-      this.cache.document.setProperty(`cache_${key}`, JSON.stringify(item));
+      this.getCache().document.setProperty(`cache_${key}`, JSON.stringify(item));
     } catch (error) {
       console.error('Document cache set failed:', error);
     }
@@ -239,11 +244,16 @@ class PerformanceOptimizer {
   /**
    * Optimized sheet operations with batching
    */
-  static optimizedSheetOperations = {
+  static getOptimizedSheetOperations() {
+    if (!this._optimizedSheetOperations) {
+      this._optimizedSheetOperations = {
     pendingReads: new Map(),
     pendingWrites: new Map(),
     batchDelay: 100 // milliseconds
-  };
+      };
+    }
+    return this._optimizedSheetOperations;
+  }
 
   /**
    * Batch sheet reads for optimal performance
@@ -253,8 +263,8 @@ class PerformanceOptimizer {
       const key = `${sheetName}:${range}`;
 
       // Check if already pending
-      if (this.optimizedSheetOperations.pendingReads.has(key)) {
-        this.optimizedSheetOperations.pendingReads.get(key).callbacks.push({resolve, reject});
+      if (this.getOptimizedSheetOperations().pendingReads.has(key)) {
+        this.getOptimizedSheetOperations().pendingReads.get(key).callbacks.push({resolve, reject});
         return;
       }
 
@@ -269,9 +279,9 @@ class PerformanceOptimizer {
       // Schedule batch execution
       batch.timeout = setTimeout(() => {
         this.executeBatchRead(key, batch);
-      }, this.optimizedSheetOperations.batchDelay);
+      }, this.getOptimizedSheetOperations().batchDelay);
 
-      this.optimizedSheetOperations.pendingReads.set(key, batch);
+      this.getOptimizedSheetOperations().pendingReads.set(key, batch);
     });
   }
 
@@ -286,7 +296,7 @@ class PerformanceOptimizer {
       const cached = this.get(`sheet_${key}`);
       if (cached) {
         batch.callbacks.forEach(cb => cb.resolve(cached));
-        this.optimizedSheetOperations.pendingReads.delete(key);
+        this.getOptimizedSheetOperations().pendingReads.delete(key);
         return;
       }
 
@@ -297,7 +307,7 @@ class PerformanceOptimizer {
       if (!sheet) {
         const error = new Error(`Sheet not found: ${batch.sheetName}`);
         batch.callbacks.forEach(cb => cb.reject(error));
-        this.optimizedSheetOperations.pendingReads.delete(key);
+        this.getOptimizedSheetOperations().pendingReads.delete(key);
         return;
       }
 
@@ -308,14 +318,14 @@ class PerformanceOptimizer {
 
       // Resolve all callbacks
       batch.callbacks.forEach(cb => cb.resolve(data));
-      this.optimizedSheetOperations.pendingReads.delete(key);
+      this.getOptimizedSheetOperations().pendingReads.delete(key);
 
       this.recordPerformanceMetric('sheet_read', Date.now() - startTime);
 
     } catch (error) {
       console.error('Batch read failed:', error);
       batch.callbacks.forEach(cb => cb.reject(error));
-      this.optimizedSheetOperations.pendingReads.delete(key);
+      this.getOptimizedSheetOperations().pendingReads.delete(key);
     }
   }
 
@@ -327,9 +337,9 @@ class PerformanceOptimizer {
       const key = `${sheetName}:${range}`;
 
       // Check if already pending
-      if (this.optimizedSheetOperations.pendingWrites.has(key)) {
+      if (this.getOptimizedSheetOperations().pendingWrites.has(key)) {
         // Merge with existing write
-        const existing = this.optimizedSheetOperations.pendingWrites.get(key);
+        const existing = this.getOptimizedSheetOperations().pendingWrites.get(key);
         existing.values = values; // Overwrite with latest values
         existing.callbacks.push({resolve, reject});
         return;
@@ -347,9 +357,9 @@ class PerformanceOptimizer {
       // Schedule batch execution
       batch.timeout = setTimeout(() => {
         this.executeBatchWrite(key, batch);
-      }, this.optimizedSheetOperations.batchDelay);
+      }, this.getOptimizedSheetOperations().batchDelay);
 
-      this.optimizedSheetOperations.pendingWrites.set(key, batch);
+      this.getOptimizedSheetOperations().pendingWrites.set(key, batch);
     });
   }
 
@@ -366,7 +376,7 @@ class PerformanceOptimizer {
       if (!sheet) {
         const error = new Error(`Sheet not found: ${batch.sheetName}`);
         batch.callbacks.forEach(cb => cb.reject(error));
-        this.optimizedSheetOperations.pendingWrites.delete(key);
+        this.getOptimizedSheetOperations().pendingWrites.delete(key);
         return;
       }
 
@@ -378,24 +388,29 @@ class PerformanceOptimizer {
 
       // Resolve all callbacks
       batch.callbacks.forEach(cb => cb.resolve(true));
-      this.optimizedSheetOperations.pendingWrites.delete(key);
+      this.getOptimizedSheetOperations().pendingWrites.delete(key);
 
       this.recordPerformanceMetric('sheet_write', Date.now() - startTime);
 
     } catch (error) {
       console.error('Batch write failed:', error);
       batch.callbacks.forEach(cb => cb.reject(error));
-      this.optimizedSheetOperations.pendingWrites.delete(key);
+      this.getOptimizedSheetOperations().pendingWrites.delete(key);
     }
   }
 
   /**
    * Performance metrics collection
    */
-  static performanceMetrics = {
-    operations: [],
-    maxHistory: 1000
-  };
+  static getPerformanceMetrics() {
+    if (!this._performanceMetrics) {
+      this._performanceMetrics = {
+        operations: [],
+        maxHistory: 1000
+      };
+    }
+    return this._performanceMetrics;
+  }
 
   /**
    * Record performance metric
@@ -408,11 +423,11 @@ class PerformanceOptimizer {
       details: details
     };
 
-    this.performanceMetrics.operations.push(metric);
+    this.getPerformanceMetrics().operations.push(metric);
 
     // Maintain max history
-    if (this.performanceMetrics.operations.length > this.performanceMetrics.maxHistory) {
-      this.performanceMetrics.operations.shift();
+    if (this.getPerformanceMetrics().operations.length > this.getPerformanceMetrics().maxHistory) {
+      this.getPerformanceMetrics().operations.shift();
     }
 
     // Log slow operations
@@ -425,16 +440,16 @@ class PerformanceOptimizer {
    * Get performance analytics
    */
   static getPerformanceAnalytics() {
-    const operations = this.performanceMetrics.operations;
+    const operations = this.getPerformanceMetrics().operations;
     const now = Date.now();
     const lastHour = operations.filter(op => now - op.timestamp < 3600000);
 
     const analytics = {
       cache: {
         hitRate: this.calculateHitRate(),
-        totalHits: this.cache.hits.memory + this.cache.hits.script + this.cache.hits.document,
-        totalMisses: this.cache.misses.memory + this.cache.misses.script + this.cache.misses.document,
-        memorySize: this.cache.memory.size
+        totalHits: this.getCache().hits.memory + this.getCache().hits.script + this.getCache().hits.document,
+        totalMisses: this.getCache().misses.memory + this.getCache().misses.script + this.getCache().misses.document,
+        memorySize: this.getCache().memory.size
       },
       operations: {
         total: operations.length,
@@ -457,8 +472,8 @@ class PerformanceOptimizer {
    * Calculate cache hit rate
    */
   static calculateHitRate() {
-    const totalHits = this.cache.hits.memory + this.cache.hits.script + this.cache.hits.document;
-    const totalMisses = this.cache.misses.memory + this.cache.misses.script + this.cache.misses.document;
+    const totalHits = this.getCache().hits.memory + this.getCache().hits.script + this.getCache().hits.document;
+    const totalMisses = this.getCache().misses.memory + this.getCache().misses.script + this.getCache().misses.document;
     const total = totalHits + totalMisses;
 
     return total > 0 ? (totalHits / total * 100).toFixed(2) : 0;
@@ -479,9 +494,9 @@ class PerformanceOptimizer {
    */
   static invalidateCache(pattern) {
     // Memory cache
-    for (const key of this.cache.memory.keys()) {
+    for (const key of this.getCache().memory.keys()) {
       if (key.includes(pattern)) {
-        this.cache.memory.delete(key);
+        this.getCache().memory.delete(key);
       }
     }
 
@@ -525,9 +540,9 @@ class PerformanceOptimizer {
     let cleaned = 0;
 
     // Clean memory cache
-    for (const [key, item] of this.cache.memory.entries()) {
+    for (const [key, item] of this.getCache().memory.entries()) {
       if (now > item.expires) {
-        this.cache.memory.delete(key);
+        this.getCache().memory.delete(key);
         cleaned++;
       }
     }
