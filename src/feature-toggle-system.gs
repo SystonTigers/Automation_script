@@ -6,28 +6,34 @@
  */
 
 class FeatureToggleSystem {
-  static TOGGLE_TYPES = {
-    BOOLEAN: 'boolean',           // Simple on/off
-    PERCENTAGE: 'percentage',     // Rollout percentage (0-100)
-    USER_LIST: 'user_list',      // Specific user allowlist
-    TIME_WINDOW: 'time_window',   // Active during specific times
-    AB_TEST: 'ab_test',          // A/B testing variant
-    CONDITIONAL: 'conditional'    // Complex condition-based
-  };
+  static getToggleTypes() {
+    return {
+      BOOLEAN: 'boolean',           // Simple on/off
+      PERCENTAGE: 'percentage',     // Rollout percentage (0-100)
+      USER_LIST: 'user_list',      // Specific user allowlist
+      TIME_WINDOW: 'time_window',   // Active during specific times
+      AB_TEST: 'ab_test',          // A/B testing variant
+      CONDITIONAL: 'conditional'    // Complex condition-based
+    };
+  }
 
-  static ROLLOUT_STRATEGIES = {
-    INSTANT: 'instant',           // Immediate activation
-    GRADUAL: 'gradual',          // Slow percentage increase
-    CANARY: 'canary',            // Test with small group first
-    BLUE_GREEN: 'blue_green',    // Switch between versions
-    SCHEDULED: 'scheduled'        // Activate at specific time
-  };
+  static getRolloutStrategies() {
+    return {
+      INSTANT: 'instant',           // Immediate activation
+      GRADUAL: 'gradual',          // Slow percentage increase
+      CANARY: 'canary',            // Test with small group first
+      BLUE_GREEN: 'blue_green',    // Switch between versions
+      SCHEDULED: 'scheduled'        // Activate at specific time
+    };
+  }
 
-  static ENVIRONMENTS = {
-    DEVELOPMENT: 'development',
-    STAGING: 'staging',
-    PRODUCTION: 'production'
-  };
+  static getEnvironments() {
+    return {
+      DEVELOPMENT: 'development',
+      STAGING: 'staging',
+      PRODUCTION: 'production'
+    };
+  }
 
   /**
    * Initialize feature toggle system with default features
@@ -55,10 +61,10 @@ class FeatureToggleSystem {
         key: 'live_match_processing',
         name: 'Live Match Event Processing',
         description: 'Real-time processing of goals, cards, substitutions during matches',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'core',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'match_official'],
         dependencies: [],
         killSwitch: true
@@ -69,10 +75,10 @@ class FeatureToggleSystem {
         key: 'make_webhooks',
         name: 'Make.com Webhook Integration',
         description: 'Send events to Make.com for social media automation',
-        type: this.TOGGLE_TYPES.PERCENTAGE,
+        type: this.getToggleTypes().PERCENTAGE,
         category: 'integration',
         defaultValue: 100,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin'],
         dependencies: ['live_match_processing'],
         killSwitch: true
@@ -82,10 +88,10 @@ class FeatureToggleSystem {
         key: 'social_media_posting',
         name: 'Automated Social Media Posts',
         description: 'Automatic posting to Facebook, Twitter, Instagram',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'social',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'social_manager'],
         dependencies: ['make_webhooks'],
         killSwitch: true
@@ -96,10 +102,10 @@ class FeatureToggleSystem {
         key: 'video_clip_generation',
         name: 'Video Clip Generation',
         description: 'Create highlight clips from match events',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'video',
         defaultValue: false,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'video_manager'],
         dependencies: ['live_match_processing'],
         killSwitch: false
@@ -109,10 +115,10 @@ class FeatureToggleSystem {
         key: 'highlights_bot_integration',
         name: 'Highlights Bot Integration',
         description: 'External Python highlights bot for professional video editing',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'video',
         defaultValue: false,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin'],
         dependencies: ['video_clip_generation'],
         killSwitch: false
@@ -123,10 +129,10 @@ class FeatureToggleSystem {
         key: 'player_statistics_tracking',
         name: 'Player Statistics Tracking',
         description: 'Track goals, assists, minutes, cards for all players',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'analytics',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'coach', 'match_official'],
         dependencies: [],
         killSwitch: false
@@ -136,10 +142,10 @@ class FeatureToggleSystem {
         key: 'advanced_analytics',
         name: 'Advanced Analytics',
         description: 'Heat maps, possession data, xG calculations',
-        type: this.TOGGLE_TYPES.PERCENTAGE,
+        type: this.getToggleTypes().PERCENTAGE,
         category: 'analytics',
         defaultValue: 0,
-        environment: this.ENVIRONMENTS.DEVELOPMENT,
+        environment: this.getEnvironments().DEVELOPMENT,
         permissions: ['admin'],
         dependencies: ['player_statistics_tracking'],
         killSwitch: false
@@ -150,10 +156,10 @@ class FeatureToggleSystem {
         key: 'consent_gate_active',
         name: 'ConsentGate Privacy System',
         description: 'GDPR compliance system blocking posts for minors without consent',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'privacy',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin'],
         dependencies: [],
         killSwitch: true
@@ -163,10 +169,10 @@ class FeatureToggleSystem {
         key: 'gdpr_audit_logging',
         name: 'GDPR Audit Logging',
         description: 'Comprehensive audit trail for data processing activities',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'privacy',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'data_protection'],
         dependencies: ['consent_gate_active'],
         killSwitch: false
@@ -177,10 +183,10 @@ class FeatureToggleSystem {
         key: 'multi_tier_caching',
         name: 'Multi-Tier Caching System',
         description: 'Advanced caching for improved performance',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'performance',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin'],
         dependencies: [],
         killSwitch: false
@@ -190,10 +196,10 @@ class FeatureToggleSystem {
         key: 'performance_monitoring',
         name: 'Performance Monitoring',
         description: 'Real-time monitoring of system performance and alerts',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'monitoring',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin'],
         dependencies: [],
         killSwitch: false
@@ -204,10 +210,10 @@ class FeatureToggleSystem {
         key: 'ai_content_generation',
         name: 'AI Content Generation',
         description: 'GPT-powered match reports and social content',
-        type: this.TOGGLE_TYPES.PERCENTAGE,
+        type: this.getToggleTypes().PERCENTAGE,
         category: 'experimental',
         defaultValue: 0,
-        environment: this.ENVIRONMENTS.DEVELOPMENT,
+        environment: this.getEnvironments().DEVELOPMENT,
         permissions: ['admin'],
         dependencies: ['social_media_posting'],
         killSwitch: true
@@ -217,10 +223,10 @@ class FeatureToggleSystem {
         key: 'xbotgo_scoreboard',
         name: 'XbotGo Scoreboard Integration',
         description: 'Live scoreboard updates via XbotGo API',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'hardware',
         defaultValue: false,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'match_official'],
         dependencies: ['live_match_processing'],
         killSwitch: false
@@ -231,10 +237,10 @@ class FeatureToggleSystem {
         key: 'weekly_content_scheduler',
         name: 'Weekly Content Scheduler',
         description: 'Automated Monday-Sunday content calendar',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'content',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'content_manager'],
         dependencies: ['make_webhooks'],
         killSwitch: false
@@ -244,10 +250,10 @@ class FeatureToggleSystem {
         key: 'batch_fixture_posting',
         name: 'Batch Fixture Posting',
         description: 'Weekly and monthly fixture/result summaries',
-        type: this.TOGGLE_TYPES.BOOLEAN,
+        type: this.getToggleTypes().BOOLEAN,
         category: 'content',
         defaultValue: true,
-        environment: this.ENVIRONMENTS.PRODUCTION,
+        environment: this.getEnvironments().PRODUCTION,
         permissions: ['admin', 'content_manager'],
         dependencies: ['weekly_content_scheduler'],
         killSwitch: false
@@ -268,7 +274,7 @@ class FeatureToggleSystem {
         createdBy: Session.getActiveUser().getEmail(),
         version: 1,
         status: 'active',
-        rolloutStrategy: featureConfig.rolloutStrategy || this.ROLLOUT_STRATEGIES.INSTANT,
+        rolloutStrategy: featureConfig.rolloutStrategy || this.getRolloutStrategies().INSTANT,
         rolloutStarted: null,
         rolloutCompleted: null,
         metrics: {
@@ -330,22 +336,22 @@ class FeatureToggleSystem {
    */
   static evaluateFeature(feature, context) {
     switch (feature.type) {
-      case this.TOGGLE_TYPES.BOOLEAN:
+      case this.getToggleTypes().BOOLEAN:
         return this.evaluateBooleanToggle(feature, context);
 
-      case this.TOGGLE_TYPES.PERCENTAGE:
+      case this.getToggleTypes().PERCENTAGE:
         return this.evaluatePercentageToggle(feature, context);
 
-      case this.TOGGLE_TYPES.USER_LIST:
+      case this.getToggleTypes().USER_LIST:
         return this.evaluateUserListToggle(feature, context);
 
-      case this.TOGGLE_TYPES.TIME_WINDOW:
+      case this.getToggleTypes().TIME_WINDOW:
         return this.evaluateTimeWindowToggle(feature, context);
 
-      case this.TOGGLE_TYPES.AB_TEST:
+      case this.getToggleTypes().AB_TEST:
         return this.evaluateABTestToggle(feature, context);
 
-      case this.TOGGLE_TYPES.CONDITIONAL:
+      case this.getToggleTypes().CONDITIONAL:
         return this.evaluateConditionalToggle(feature, context);
 
       default:
@@ -491,9 +497,9 @@ class FeatureToggleSystem {
 
       // Update feature for gradual rollout
       const rolloutConfig = {
-        type: this.TOGGLE_TYPES.PERCENTAGE,
+        type: this.getToggleTypes().PERCENTAGE,
         defaultValue: startPercentage,
-        rolloutStrategy: this.ROLLOUT_STRATEGIES.GRADUAL,
+        rolloutStrategy: this.getRolloutStrategies().GRADUAL,
         rolloutConfig: {
           startPercentage,
           endPercentage,

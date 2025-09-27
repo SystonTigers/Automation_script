@@ -6,28 +6,34 @@
  */
 
 class ConsentManager {
-  static CONSENT_TYPES = {
-    SOCIAL_MEDIA: 'social_media_posting',
-    VIDEO_RECORDING: 'video_recording',
-    PHOTOGRAPHY: 'photography',
-    DATA_PROCESSING: 'data_processing',
-    PERFORMANCE_TRACKING: 'performance_tracking',
-    COMMUNICATIONS: 'email_communications'
-  };
+  static getConsentTypes() {
+    return {
+      SOCIAL_MEDIA: 'social_media_posting',
+      VIDEO_RECORDING: 'video_recording',
+      PHOTOGRAPHY: 'photography',
+      DATA_PROCESSING: 'data_processing',
+      PERFORMANCE_TRACKING: 'performance_tracking',
+      COMMUNICATIONS: 'email_communications'
+    };
+  }
 
-  static CONSENT_STATUS = {
-    PENDING: 'pending',
-    GRANTED: 'granted',
-    REFUSED: 'refused',
-    EXPIRED: 'expired',
-    WITHDRAWN: 'withdrawn'
-  };
+  static getConsentStatus() {
+    return {
+      PENDING: 'pending',
+      GRANTED: 'granted',
+      REFUSED: 'refused',
+      EXPIRED: 'expired',
+      WITHDRAWN: 'withdrawn'
+    };
+  }
 
-  static AGE_CATEGORIES = {
-    ADULT: 'adult',           // 18+
-    YOUNG_ADULT: 'young_adult', // 16-17
-    MINOR: 'minor'            // Under 16
-  };
+  static getAgeCategories() {
+    return {
+      ADULT: 'adult',           // 18+
+      YOUNG_ADULT: 'young_adult', // 16-17
+      MINOR: 'minor'            // Under 16
+    };
+  }
 
   /**
    * Creates comprehensive consent form for new players/parents
@@ -50,7 +56,7 @@ class ConsentManager {
         legalBasis: this.generateLegalBasis(),
         createdAt: new Date().toISOString(),
         expiryDate: this.calculateExpiryDate(),
-        status: this.CONSENT_STATUS.PENDING,
+        status: this.getConsentStatus().PENDING,
         template: template,
         submissionUrl: this.generateSubmissionUrl(),
         teamName: config.TEAM_NAME,
@@ -92,8 +98,8 @@ class ConsentManager {
    */
   static buildConsentFormTemplate(playerData, config) {
     const ageCategory = this.determineAgeCategory(playerData.dateOfBirth);
-    const isMinor = ageCategory === this.AGE_CATEGORIES.MINOR;
-    const isYoungAdult = ageCategory === this.AGE_CATEGORIES.YOUNG_ADULT;
+    const isMinor = ageCategory === this.getAgeCategories().MINOR;
+    const isYoungAdult = ageCategory === this.getAgeCategories().YOUNG_ADULT;
 
     return renderHtml_('consent-form', {
       playerName: playerData.name,
@@ -126,43 +132,43 @@ class ConsentManager {
 
     // Social Media Posting (Required for match content)
     items.push({
-      type: this.CONSENT_TYPES.SOCIAL_MEDIA,
+      type: this.getConsentTypes().SOCIAL_MEDIA,
       title: 'Social Media Content',
       description: `Consent for ${playerData.name}'s name, performance data, and likeness to be included in social media posts about matches, goals, achievements, and team updates.`,
       required: false,
       consequences: 'Without this consent, the player will not be featured in social media content.',
       dataTypes: ['Name', 'Match statistics', 'Goal/assist information', 'Photos during matches'],
       retention: '2 years from end of season or until consent withdrawn',
-      ageRestricted: ageCategory !== this.AGE_CATEGORIES.ADULT
+      ageRestricted: ageCategory !== this.getAgeCategories().ADULT
     });
 
     // Video Recording (For highlights and analysis)
     items.push({
-      type: this.CONSENT_TYPES.VIDEO_RECORDING,
+      type: this.getConsentTypes().VIDEO_RECORDING,
       title: 'Video Recording',
       description: 'Consent for video recording during matches for highlights, analysis, and promotional content.',
       required: false,
       consequences: 'Video recording may still occur but your image will be blurred/anonymized.',
       dataTypes: ['Match footage', 'Training videos', 'Interview recordings'],
       retention: '3 years for highlights, 1 year for analysis footage',
-      ageRestricted: ageCategory === this.AGE_CATEGORIES.MINOR
+      ageRestricted: ageCategory === this.getAgeCategories().MINOR
     });
 
     // Photography
     items.push({
-      type: this.CONSENT_TYPES.PHOTOGRAPHY,
+      type: this.getConsentTypes().PHOTOGRAPHY,
       title: 'Photography',
       description: 'Consent for photographs during matches, training, and team events.',
       required: false,
       consequences: 'Photos may still be taken but your image will be excluded or anonymized.',
       dataTypes: ['Match photos', 'Team photos', 'Event photography'],
       retention: '2 years from capture date',
-      ageRestricted: ageCategory === this.AGE_CATEGORIES.MINOR
+      ageRestricted: ageCategory === this.getAgeCategories().MINOR
     });
 
     // Performance Data Processing
     items.push({
-      type: this.CONSENT_TYPES.PERFORMANCE_TRACKING,
+      type: this.getConsentTypes().PERFORMANCE_TRACKING,
       title: 'Performance Tracking',
       description: 'Collection and processing of match statistics, training data, and performance analytics.',
       required: true,
@@ -174,7 +180,7 @@ class ConsentManager {
 
     // Communications
     items.push({
-      type: this.CONSENT_TYPES.COMMUNICATIONS,
+      type: this.getConsentTypes().COMMUNICATIONS,
       title: 'Club Communications',
       description: 'Receiving emails about fixtures, results, training updates, and club news.',
       required: false,
@@ -231,15 +237,15 @@ class ConsentManager {
    * Determines age category from date of birth
    */
   static determineAgeCategory(dateOfBirth) {
-    if (!dateOfBirth) return this.AGE_CATEGORIES.ADULT;
+    if (!dateOfBirth) return this.getAgeCategories().ADULT;
 
     const birthDate = new Date(dateOfBirth);
     const today = new Date();
     const age = today.getFullYear() - birthDate.getFullYear();
 
-    if (age < 16) return this.AGE_CATEGORIES.MINOR;
-    if (age < 18) return this.AGE_CATEGORIES.YOUNG_ADULT;
-    return this.AGE_CATEGORIES.ADULT;
+    if (age < 16) return this.getAgeCategories().MINOR;
+    if (age < 18) return this.getAgeCategories().YOUNG_ADULT;
+    return this.getAgeCategories().ADULT;
   }
 
   /**
@@ -273,11 +279,11 @@ class ConsentManager {
       form.ageCategory,
       form.contactEmail,
       form.parentEmail,
-      consentValues[this.CONSENT_TYPES.SOCIAL_MEDIA] || 'n/a',
-      consentValues[this.CONSENT_TYPES.VIDEO_RECORDING] || 'n/a',
-      consentValues[this.CONSENT_TYPES.PHOTOGRAPHY] || 'n/a',
-      consentValues[this.CONSENT_TYPES.PERFORMANCE_TRACKING] || 'n/a',
-      consentValues[this.CONSENT_TYPES.COMMUNICATIONS] || 'n/a',
+      consentValues[this.getConsentTypes().SOCIAL_MEDIA] || 'n/a',
+      consentValues[this.getConsentTypes().VIDEO_RECORDING] || 'n/a',
+      consentValues[this.getConsentTypes().PHOTOGRAPHY] || 'n/a',
+      consentValues[this.getConsentTypes().PERFORMANCE_TRACKING] || 'n/a',
+      consentValues[this.getConsentTypes().COMMUNICATIONS] || 'n/a',
       form.status,
       form.createdAt,
       form.expiryDate.toISOString(),
@@ -374,11 +380,11 @@ class ConsentManager {
    */
   static getConsentColumnName(consentType) {
     const mapping = {
-      [this.CONSENT_TYPES.SOCIAL_MEDIA]: 'Social Media',
-      [this.CONSENT_TYPES.VIDEO_RECORDING]: 'Video',
-      [this.CONSENT_TYPES.PHOTOGRAPHY]: 'Photography',
-      [this.CONSENT_TYPES.PERFORMANCE_TRACKING]: 'Performance',
-      [this.CONSENT_TYPES.COMMUNICATIONS]: 'Communications'
+      [this.getConsentTypes().SOCIAL_MEDIA]: 'Social Media',
+      [this.getConsentTypes().VIDEO_RECORDING]: 'Video',
+      [this.getConsentTypes().PHOTOGRAPHY]: 'Photography',
+      [this.getConsentTypes().PERFORMANCE_TRACKING]: 'Performance',
+      [this.getConsentTypes().COMMUNICATIONS]: 'Communications'
     };
     return mapping[consentType] || consentType;
   }
@@ -396,7 +402,7 @@ class ConsentManager {
     }
 
     // Check required consents
-    const requiredConsents = [this.CONSENT_TYPES.PERFORMANCE_TRACKING];
+    const requiredConsents = [this.getConsentTypes().PERFORMANCE_TRACKING];
     for (const required of requiredConsents) {
       if (!formData.consents[required] || formData.consents[required] !== 'granted') {
         return {
@@ -505,14 +511,14 @@ class ConsentManager {
    */
   static sendConsentFormEmail(form, pdfUrl) {
     const config = getConfig();
-    const recipient = form.ageCategory === this.AGE_CATEGORIES.MINOR ?
+    const recipient = form.ageCategory === this.getAgeCategories().MINOR ?
       form.parentEmail : form.contactEmail;
 
     if (!recipient) return;
 
     const subject = `${config.TEAM_NAME} - GDPR Consent Form Required`;
     const body = `
-      Dear ${form.ageCategory === this.AGE_CATEGORIES.MINOR ? 'Parent/Guardian' : form.playerName},
+      Dear ${form.ageCategory === this.getAgeCategories().MINOR ? 'Parent/Guardian' : form.playerName},
 
       Please complete the attached GDPR consent form for ${form.playerName}'s participation with ${config.TEAM_NAME}.
 

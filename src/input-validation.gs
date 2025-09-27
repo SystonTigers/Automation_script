@@ -182,19 +182,22 @@ function createSecureResponse(data, success = true) {
  * Rate limiting helper (basic implementation)
  */
 class RateLimiter {
-  static limits = new Map();
+  static getLimits() {
+    if (!this._limits) this._limits = new Map();
+    return this._limits;
+  }
 
   static checkLimit(identifier, maxRequests = 10, windowMs = 60000) {
     const now = Date.now();
     const windowStart = now - windowMs;
 
     // Clean old entries
-    this.limits.forEach((requests, key) => {
-      this.limits.set(key, requests.filter(time => time > windowStart));
+    this.getLimits().forEach((requests, key) => {
+      this.getLimits().set(key, requests.filter(time => time > windowStart));
     });
 
     // Check current identifier
-    const requests = this.limits.get(identifier) || [];
+    const requests = this.getLimits().get(identifier) || [];
 
     if (requests.length >= maxRequests) {
       return { allowed: false, remaining: 0, resetTime: requests[0] + windowMs };
@@ -202,7 +205,7 @@ class RateLimiter {
 
     // Add current request
     requests.push(now);
-    this.limits.set(identifier, requests);
+    this.getLimits().set(identifier, requests);
 
     return {
       allowed: true,
