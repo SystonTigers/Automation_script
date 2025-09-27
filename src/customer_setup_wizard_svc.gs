@@ -79,7 +79,7 @@ const SETUP_WIZARD_CONFIG = {
  * @returns {GoogleAppsScript.HTML.HtmlOutput} Setup wizard HTML
  */
 function createCustomerSetupWizard() {
-  return renderHtml_('customer-setup-wizard', {
+  return renderHtml_('customer_setup_wizard_ui', {
     titlePrefix: 'Setup Wizard',
     data: {
       steps: SETUP_WIZARD_CONFIG.STEPS,
