@@ -397,30 +397,85 @@ function getPerformanceDashboard() {
  */
 function setupSystemTriggers() {
   try {
-    // Delete existing triggers to avoid duplicates
-    ScriptApp.getProjectTriggers().forEach(trigger => {
-      if (trigger.getHandlerFunction().startsWith('scheduled')) {
-        ScriptApp.deleteTrigger(trigger);
+    const requiredTriggers = [
+      {
+        functionName: 'scheduledHealthCheck',
+        schedule: { everyHours: 1 },
+        description: 'Hourly system health check'
+      },
+      {
+        functionName: 'cleanupExpiredCache',
+        schedule: { everyMinutes: 30 },
+        description: 'Cache cleanup every 30 minutes'
       }
+    ];
+
+    const results = requiredTriggers.map(triggerConfig => {
+      const ensureResult = ensureTimeTrigger(
+        triggerConfig.functionName,
+        triggerConfig.schedule,
+        triggerConfig.description
+      );
+
+      return {
+        functionName: triggerConfig.functionName,
+        created: ensureResult.created,
+        existed: ensureResult.existing,
+        schedule: triggerConfig.schedule,
+        description: triggerConfig.description
+      };
     });
 
-    // Health check every hour
-    ScriptApp.newTrigger('scheduledHealthCheck')
-      .timeBased()
-      .everyHours(1)
-      .create();
+    const response = {
+      success: true,
+      ensured: results,
+      timestamp: new Date().toISOString()
+    };
 
-    // Performance cleanup every 30 minutes
-    ScriptApp.newTrigger('cleanupExpiredCache')
-      .timeBased()
-      .everyMinutes(30)
-      .create();
-
-    console.log('✅ System triggers installed');
-    return { success: true, triggers: ['scheduledHealthCheck', 'cleanupExpiredCache'] };
+    console.log('✅ System triggers verified', response);
+    return response;
 
   } catch (error) {
     console.error('Trigger setup failed:', error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+function verifyScheduledTriggerIntegrity() {
+  try {
+    const functionsToVerify = [
+      { functionName: 'scheduledHealthCheck', required: true },
+      { functionName: 'cleanupExpiredCache', required: true },
+      { functionName: 'scheduledSystemMonitoring', required: true },
+      { functionName: 'scheduledLogCleanup', required: true }
+    ];
+
+    const triggers = ScriptApp.getProjectTriggers();
+    const details = functionsToVerify.map(entry => {
+      const matchingTriggers = triggers.filter(trigger =>
+        trigger.getHandlerFunction() === entry.functionName &&
+        trigger.getTriggerSource() === ScriptApp.TriggerSource.CLOCK
+      );
+
+      return {
+        functionName: entry.functionName,
+        required: entry.required,
+        exists: matchingTriggers.length > 0,
+        triggerCount: matchingTriggers.length
+      };
+    });
+
+    const response = {
+      success: details.every(detail => !detail.required || detail.exists),
+      details: details,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('ℹ️ Scheduled trigger integrity check', response);
+    return response;
+
+  } catch (error) {
+    console.error('Trigger integrity verification failed:', error);
     return { success: false, error: error.toString() };
   }
 }
