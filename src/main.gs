@@ -183,6 +183,7 @@ function doPost(e) {
  * GOAL PROCESSING - With full privacy and security integration
  */
 function processGoal(player, minute, assist = null) {
+  let sanitizedMinute = null;
   try {
     // 1. SECURITY - Validate inputs
     const playerValidation = AdvancedSecurity.validateInput(player, 'player_name', { source: 'goal_processing' });
@@ -190,10 +191,7 @@ function processGoal(player, minute, assist = null) {
       throw new Error('Invalid player name');
     }
 
-    const minuteValidation = AdvancedSecurity.validateInput(minute, 'match_event');
-    if (!minuteValidation.valid) {
-      throw new Error('Invalid minute');
-    }
+    sanitizedMinute = AdvancedSecurity.validateMinute(minute);
 
     // 2. PRIVACY - Check consent
     const consent = SimplePrivacy.checkPlayerConsent(playerValidation.sanitized);
@@ -203,13 +201,13 @@ function processGoal(player, minute, assist = null) {
     }
 
     // 3. PERFORMANCE - Use caching for repeated operations
-    const cacheKey = `goal_${player}_${minute}_${Date.now()}`;
-    PerformanceOptimizer.set(cacheKey, { player, minute, assist }, 300000); // 5 min cache
+    const cacheKey = `goal_${player}_${sanitizedMinute}_${Date.now()}`;
+    PerformanceOptimizer.set(cacheKey, { player, minute: sanitizedMinute, assist }, 300000); // 5 min cache
 
     // 4. MONITORING - Track goal processing
     ProductionMonitoringManager.collectMetric('goals', 'processed', 1, {
       player: player,
-      minute: minute,
+      minute: sanitizedMinute,
       hasAssist: !!assist
     });
 
@@ -217,7 +215,7 @@ function processGoal(player, minute, assist = null) {
     const result = processMatchEvent({
       eventType: 'goal',
       player: playerValidation.sanitized,
-      minute: minute,
+      minute: sanitizedMinute,
       additionalData: { assist: assist }
     });
 
@@ -226,7 +224,7 @@ function processGoal(player, minute, assist = null) {
   } catch (error) {
     console.error('Goal processing failed:', error);
     ProductionMonitoringManager.triggerAlert('goal_processing_error', 'warning',
-      `Goal processing failed: ${error.toString()}`, { player, minute, assist });
+      `Goal processing failed: ${error.toString()}`, { player, minute: sanitizedMinute !== null ? sanitizedMinute : minute, assist });
 
     return { success: false, error: error.toString() };
   }

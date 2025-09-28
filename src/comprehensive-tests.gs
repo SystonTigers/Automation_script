@@ -572,6 +572,12 @@ function runIntegrationTests() {
       AdvancedTestFramework.assertTrue(validation.valid, 'Event validation should work');
     },
 
+    testGoalProcessingHandlesValidMinute: () => {
+      const result = processGoal('Integration Test Scorer', 45);
+      AdvancedTestFramework.assertNotNull(result, 'processGoal should return a result for a valid minute');
+      AdvancedTestFramework.assertFalse(!!result.error, 'processGoal should not report an error for a valid minute');
+    },
+
     testEndToEndWorkflow: () => {
       // Test a complete workflow from input validation to processing
       const testEvent = AdvancedTestFramework.generateTestEvent();
