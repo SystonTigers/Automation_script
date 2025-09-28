@@ -1,4 +1,3 @@
-
 /**
  * Comprehensive Web App - Full Admin Interface
  * Complete management system for football clubs via web interface
