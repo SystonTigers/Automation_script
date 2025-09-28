@@ -14,12 +14,12 @@ class XbotGoIntegration {
   constructor() {
     this.loggerName = 'XbotGo';
     this._logger = null;
-    this.apiBaseUrl = getSecureProperty(getConfig('XBOTGO.API_BASE_URL_PROPERTY', ''));
-    this.apiKey = getSecureProperty(getConfig('XBOTGO.API_KEY_PROPERTY', ''));
-    this.deviceId = getSecureProperty(getConfig('XBOTGO.DEVICE_ID_PROPERTY', ''));
-    this.enabled = getConfig('XBOTGO.ENABLED', false);
-    this.maxRetries = getConfig('XBOTGO.MAX_RETRIES', 3);
-    this.retryDelay = getConfig('XBOTGO.RETRY_DELAY_MS', 1000);
+    this.apiBaseUrl = getSecureProperty(getConfigValue('XBOTGO.API_BASE_URL_PROPERTY', ''));
+    this.apiKey = getSecureProperty(getConfigValue('XBOTGO.API_KEY_PROPERTY', ''));
+    this.deviceId = getSecureProperty(getConfigValue('XBOTGO.DEVICE_ID_PROPERTY', ''));
+    this.enabled = getConfigValue('XBOTGO.ENABLED', false);
+    this.maxRetries = getConfigValue('XBOTGO.MAX_RETRIES', 3);
+    this.retryDelay = getConfigValue('XBOTGO.RETRY_DELAY_MS', 1000);
   }
 
   get logger() {
@@ -74,7 +74,7 @@ class XbotGoIntegration {
         home_score: parseInt(homeScore) || 0,
         away_score: parseInt(awayScore) || 0,
         timestamp: DateUtils.formatISO(DateUtils.now()),
-        club_name: getConfig('SYSTEM.CLUB_NAME'),
+        club_name: getConfigValue('SYSTEM.CLUB_NAME'),
         opponent: matchInfo.opponent || 'Unknown',
         minute: matchInfo.minute || '0',
         status: matchInfo.status || 'live'
@@ -189,7 +189,7 @@ class XbotGoIntegration {
       const initData = {
         device_id: this.deviceId,
         match_id: matchId,
-        home_team: getConfig('SYSTEM.CLUB_NAME'),
+        home_team: getConfigValue('SYSTEM.CLUB_NAME'),
         away_team: matchDetails.opponent || 'Unknown',
         competition: matchDetails.competition || 'League',
         venue: matchDetails.venue || 'Home',
@@ -243,7 +243,7 @@ class XbotGoIntegration {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.apiKey}`,
             'X-Device-ID': this.deviceId,
-            'User-Agent': `${getConfig('SYSTEM.NAME')} v${getConfig('SYSTEM.VERSION')}`
+            'User-Agent': `${getConfigValue('SYSTEM.NAME')} v${getConfigValue('SYSTEM.VERSION')}`
           },
           payload: JSON.stringify(data)
         };

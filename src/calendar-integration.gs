@@ -47,7 +47,7 @@ const CALENDAR_CONFIG = {
  */
 function getClubCalendar() {
   try {
-    const config = getConfig();
+    const config = getDynamicConfig();
     const calendarName = `${config.TEAM_NAME} - Fixtures & Events`;
 
     // Try to find existing calendar
@@ -84,7 +84,7 @@ function getClubCalendar() {
  */
 function addFixtureToCalendar(fixtureData) {
   try {
-    const config = getConfig();
+    const config = getDynamicConfig();
     const calendar = getClubCalendar();
 
     // Parse fixture date and time
@@ -247,7 +247,7 @@ function determineEventLocation(fixtureData, config) {
 function updateCalendarEvent(fixtureData, opposition) {
   try {
     const calendar = getClubCalendar();
-    const config = getConfig();
+    const config = getDynamicConfig();
 
     // Find existing event
     const startDate = parseUKDate(fixtureData.date);
@@ -309,7 +309,7 @@ function updateCalendarEvent(fixtureData, opposition) {
 function cancelCalendarEvent(opposition, originalDate) {
   try {
     const calendar = getClubCalendar();
-    const config = getConfig();
+    const config = getDynamicConfig();
 
     // Find event to cancel
     const startDate = parseUKDate(originalDate);
@@ -538,7 +538,7 @@ function findCalendarEvent(opposition, date) {
  */
 function exportCalendarAsICS() {
   try {
-    const config = getConfig();
+    const config = getDynamicConfig();
     const calendar = getClubCalendar();
 
     // Get current season events

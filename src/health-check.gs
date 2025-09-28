@@ -127,21 +127,22 @@ class HealthCheck {
    */
   static checkConfiguration() {
     try {
-      const config = getConfig();
-      const requiredKeys = ['SYSTEM.CLUB_NAME', 'SYSTEM.VERSION'];
+      const dynamicConfig = getDynamicConfig();
+      const staticSystem = getConfigValue('SYSTEM', {});
+      const missingKeys = [];
 
-      const missingKeys = requiredKeys.filter(key => {
-        const value = this.getNestedValue(config, key);
-        return !value || value === '';
-      });
+      if (!staticSystem.CLUB_NAME) missingKeys.push('SYSTEM.CLUB_NAME');
+      if (!staticSystem.VERSION) missingKeys.push('SYSTEM.VERSION');
+      if (!dynamicConfig || !dynamicConfig.TEAM_NAME) missingKeys.push('DYNAMIC.TEAM_NAME');
 
       if (missingKeys.length === 0) {
         return {
           status: 'healthy',
           message: 'Configuration loaded successfully',
           details: {
-            version: config.SYSTEM?.VERSION,
-            clubName: config.SYSTEM?.CLUB_NAME
+            version: staticSystem.VERSION,
+            clubName: staticSystem.CLUB_NAME,
+            dynamicTeamName: dynamicConfig.TEAM_NAME
           }
         };
       } else {
@@ -164,7 +165,7 @@ class HealthCheck {
    */
   static checkWebhookConfig() {
     try {
-      const webhookUrl = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+      const webhookUrl = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
 
       if (webhookUrl && webhookUrl.startsWith('https://')) {
         return {
@@ -227,12 +228,16 @@ class HealthCheck {
   static quickHealthCheck() {
     try {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-      const config = getConfig();
+      const dynamicConfig = getDynamicConfig();
+      const version = getConfigValue('SYSTEM.VERSION', 'unknown');
 
       return {
         status: 'healthy',
-        version: config.SYSTEM?.VERSION || 'unknown',
-        timestamp: new Date().toISOString()
+        version: version,
+        timestamp: new Date().toISOString(),
+        config: {
+          teamName: dynamicConfig?.TEAM_NAME || null
+        }
       };
     } catch (error) {
       return {

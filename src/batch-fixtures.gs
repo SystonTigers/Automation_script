@@ -339,10 +339,10 @@ class BatchFixturesManager {
    */
   getFixturesSheet() {
     try {
-      const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
+      const ssId = getConfigValue('SHEETS.SPREADSHEET_ID', '');
       if (!ssId) return null;
       const ss = SpreadsheetApp.openById(ssId);
-      return ss.getSheetByName(getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures'));
+      return ss.getSheetByName(getConfigValue('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures'));
     } catch (e) {
       this.logger.error('Failed to open Fixtures sheet', { error: e.toString() });
       return null;
@@ -351,10 +351,10 @@ class BatchFixturesManager {
 
   getResultsSheet() {
     try {
-      const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
+      const ssId = getConfigValue('SHEETS.SPREADSHEET_ID', '');
       if (!ssId) return null;
       const ss = SpreadsheetApp.openById(ssId);
-      return ss.getSheetByName(getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results'));
+      return ss.getSheetByName(getConfigValue('SHEETS.TAB_NAMES.RESULTS', 'Results'));
     } catch (e) {
       this.logger.error('Failed to open Results sheet', { error: e.toString() });
       return null;
@@ -464,14 +464,14 @@ class BatchFixturesManager {
     const primaryFixture = fixturesList.length > 0 ? fixturesList[0] : null;
 
     return {
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       fixture_count: fixturesList.length,
       fixtures_list: fixturesList,
       primary_fixture: primaryFixture,
       next_fixture: primaryFixture,
       round_id: roundId,
       week_description: weekDescription,
-      season: getConfig('SYSTEM.SEASON')
+      season: getConfigValue('SYSTEM.SEASON')
     };
   }
 
@@ -487,14 +487,14 @@ class BatchFixturesManager {
     const primaryResult = resultsList.length > 0 ? resultsList[0] : null;
 
     return {
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       results_list: resultsList,
       primary_result: primaryResult,
       summary_text: weekDescription,
       statistics: stats,
       round_id: roundId,
       results_count: resultsList.length,
-      season: getConfig('SYSTEM.SEASON')
+      season: getConfigValue('SYSTEM.SEASON')
     };
   }
 
@@ -520,8 +520,8 @@ class BatchFixturesManager {
 
     return {
       event_type: eventType,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Batch data
       fixture_count: fixtures.length,
@@ -530,7 +530,7 @@ class BatchFixturesManager {
       // Metadata
       round_id: roundId,
       week_description: weekDescription,
-      season: getConfig('SYSTEM.SEASON'),
+      season: getConfigValue('SYSTEM.SEASON'),
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
@@ -564,8 +564,8 @@ class BatchFixturesManager {
 
     return {
       event_type: eventType,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Batch data
       result_count: results.length,
@@ -581,7 +581,7 @@ class BatchFixturesManager {
       // Metadata
       round_id: roundId,
       week_description: weekDescription,
-      season: getConfig('SYSTEM.SEASON'),
+      season: getConfigValue('SYSTEM.SEASON'),
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
@@ -606,8 +606,8 @@ class BatchFixturesManager {
 
     return {
       event_type: eventType,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Data
       opponent,
@@ -727,7 +727,7 @@ class BatchFixturesManager {
       };
 
       // Escalate alert if configured
-      if (getConfig('ERROR_HANDLING.ALERT_ON_CRITICAL', false) || getConfig('ERROR_HANDLING.ALERT_ON_CRITICAL_ERROR', true)) {
+      if (getConfigValue('ERROR_HANDLING.ALERT_ON_CRITICAL', false) || getConfigValue('ERROR_HANDLING.ALERT_ON_CRITICAL_ERROR', true)) {
         try {
           if (typeof sendCriticalAlert === 'function') {
             sendCriticalAlert('[BatchFixtures] Webhook permanently failed', JSON.stringify(payload));
@@ -933,8 +933,8 @@ function runBatchFixtures() {
  */
 function initBatchFixtures() {
   try {
-    const ssId = getConfig('SHEETS.SPREADSHEET_ID', '');
-    const tabs = getConfig('SHEETS.TAB_NAMES', {});
+    const ssId = getConfigValue('SHEETS.SPREADSHEET_ID', '');
+    const tabs = getConfigValue('SHEETS.TAB_NAMES', {});
 
     const results = {
       fixtures: !!SpreadsheetApp.openById(ssId).getSheetByName(tabs.FIXTURES),

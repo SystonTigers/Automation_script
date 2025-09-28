@@ -668,7 +668,7 @@ class FeatureToggleSystem {
    */
   static sendKillSwitchAlert(featureKey, reason) {
     try {
-      const config = getConfig();
+      const config = getDynamicConfig();
       const alertEmail = config.ADMIN_EMAIL || config.CONTACT_EMAIL;
 
       if (alertEmail) {

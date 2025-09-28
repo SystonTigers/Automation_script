@@ -45,13 +45,13 @@ function testGOTMConfig() {
 
   try {
     // Test config access
-    const gotmConfig = getConfig('MONTHLY.GOTM', {});
+    const gotmConfig = getConfigValue('MONTHLY.GOTM', {});
     console.log('✅ GOTM Config:', gotmConfig);
 
     const isGOTMEnabled = isFeatureEnabled('GOTM');
     console.log('✅ GOTM Feature Enabled:', isGOTMEnabled);
 
-    const eventTypes = getConfig('MAKE.EVENT_TYPES', {});
+    const eventTypes = getConfigValue('MAKE.EVENT_TYPES', {});
     console.log('✅ GOTM Event Types:', {
       voting: eventTypes.gotm_voting_open,
       winner: eventTypes.gotm_winner
@@ -174,13 +174,13 @@ function testGOTSConfig() {
 
   try {
     // Test config access
-    const gotsConfig = getConfig('MONTHLY.GOTS', {});
+    const gotsConfig = getConfigValue('MONTHLY.GOTS', {});
     console.log('✅ GOTS Config:', gotsConfig);
 
     const isGOTSEnabled = isFeatureEnabled('GOTS');
     console.log('✅ GOTS Feature Enabled:', isGOTSEnabled);
 
-    const eventTypes = getConfig('MAKE.EVENT_TYPES', {});
+    const eventTypes = getConfigValue('MAKE.EVENT_TYPES', {});
     console.log('✅ GOTS Event Types:', {
       voting: eventTypes.gots_voting_open,
       winner: eventTypes.gots_winner

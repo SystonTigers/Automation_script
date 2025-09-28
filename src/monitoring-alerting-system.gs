@@ -326,7 +326,7 @@ class MonitoringAlertingSystem {
     const startTime = Date.now();
 
     try {
-      const webhookUrl = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+      const webhookUrl = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
       if (!webhookUrl) {
         return {
           name: 'Webhook Connectivity',
@@ -500,7 +500,7 @@ class MonitoringAlertingSystem {
    */
   sendAlertNotification(alert) {
     try {
-      const criticalOnly = getConfig('MONITORING.ALERT_CRITICAL_ONLY', true);
+      const criticalOnly = getConfigValue('MONITORING.ALERT_CRITICAL_ONLY', true);
       const severity = (alert.severity || '').toLowerCase();
       const isCritical = severity === 'critical';
 
@@ -674,7 +674,7 @@ class MonitoringAlertingSystem {
    */
   generateWeeklyHealthSummary() {
     const currentMetrics = this.getCurrentMetrics();
-    const features = getConfig('FEATURES', {});
+    const features = getConfigValue('FEATURES', {});
     const disabledFeatures = Object.keys(features || {})
       .filter(featureKey => !features[featureKey]);
 
@@ -739,7 +739,7 @@ class MonitoringAlertingSystem {
     return {
       email: {
         enabled: true,
-        recipients: getConfig('MONITORING.EMAIL_RECIPIENTS', '').split(',').filter(e => e.trim())
+        recipients: getConfigValue('MONITORING.EMAIL_RECIPIENTS', '').split(',').filter(e => e.trim())
       },
       webhook: {
         enabled: false,

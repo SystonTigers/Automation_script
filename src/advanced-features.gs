@@ -697,7 +697,7 @@ class AdvancedFeaturesManager {
       tasks.push('monthly_fixtures', 'gotm_voting');
     }
     
-    if (dayOfMonth === getConfig('MONTHLY.GOTM.WINNER_ANNOUNCE_DAY', 6)) {
+    if (dayOfMonth === getConfigValue('MONTHLY.GOTM.WINNER_ANNOUNCE_DAY', 6)) {
       tasks.push('gotm_winner');
     }
     

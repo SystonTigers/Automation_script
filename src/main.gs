@@ -85,7 +85,7 @@ function doGet(e) {
       default:
         result = {
           message: 'Football Automation System API',
-          version: getConfig('SYSTEM.VERSION', '6.3.0'),
+          version: getConfigValue('SYSTEM.VERSION', '6.3.0'),
           available_actions: ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard']
         };
     }
@@ -430,18 +430,22 @@ function setupSystemTriggers() {
  */
 function getQuickStatus() {
   try {
-    const config = getConfig();
+    const dynamicConfig = getDynamicConfig();
+    const version = getConfigValue('SYSTEM.VERSION', '6.3.0');
     const health = HealthCheck.quickHealthCheck();
 
     return {
       status: health.status,
-      version: config.SYSTEM?.VERSION || '6.3.0',
+      version: version,
       timestamp: new Date().toISOString(),
       components: {
         security: typeof AdvancedSecurity !== 'undefined',
         performance: typeof PerformanceOptimizer !== 'undefined',
         monitoring: typeof ProductionMonitoringManager !== 'undefined',
         privacy: typeof SimplePrivacy !== 'undefined'
+      },
+      config: {
+        teamName: dynamicConfig?.TEAM_NAME || null
       }
     };
 

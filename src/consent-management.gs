@@ -40,7 +40,7 @@ class ConsentManager {
    */
   static createConsentForm(playerData) {
     try {
-      const config = getConfig();
+      const config = getDynamicConfig();
       const template = this.buildConsentFormTemplate(playerData, config);
 
       const form = {
@@ -218,7 +218,7 @@ class ConsentManager {
    * Generates GDPR rights information
    */
   static generateRightsInformation() {
-    const config = getConfig();
+    const config = getDynamicConfig();
 
     return {
       rightToAccess: 'You can request a copy of your personal data we hold.',
@@ -510,7 +510,7 @@ class ConsentManager {
    * Sends consent form email to player/parent
    */
   static sendConsentFormEmail(form, pdfUrl) {
-    const config = getConfig();
+    const config = getDynamicConfig();
     const recipient = form.ageCategory === this.getAgeCategories().MINOR ?
       form.parentEmail : form.contactEmail;
 
@@ -567,7 +567,7 @@ class ConsentManager {
    * Generates submission URL for online form completion
    */
   static generateSubmissionUrl() {
-    const config = getConfig();
+    const config = getDynamicConfig();
     return `${config.WEB_APP_URL}?action=consent_form`;
   }
 

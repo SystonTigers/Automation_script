@@ -20,11 +20,11 @@ class Logger {
     this.initTime = Date.now();
     
     this.config = {
-      enabled: getConfig('LOGGING.ENABLED', true),
-      level: getConfig('LOGGING.LOG_LEVEL', 'INFO'),
-      sheetName: getConfig('LOGGING.LOG_SHEET_NAME', 'Logs'),
-      maxEntries: getConfig('LOGGING.MAX_LOG_ENTRIES', 10000),
-      retentionDays: getConfig('LOGGING.LOG_RETENTION_DAYS', 30),
+      enabled: getConfigValue('LOGGING.ENABLED', true),
+      level: getConfigValue('LOGGING.LOG_LEVEL', 'INFO'),
+      sheetName: getConfigValue('LOGGING.LOG_SHEET_NAME', 'Logs'),
+      maxEntries: getConfigValue('LOGGING.MAX_LOG_ENTRIES', 10000),
+      retentionDays: getConfigValue('LOGGING.LOG_RETENTION_DAYS', 30),
       
       levels: {
         DEBUG: 0,
@@ -36,9 +36,9 @@ class Logger {
       currentLevel: 1, // INFO by default
       
       // Enhanced features
-      performanceTracking: getConfig('LOGGING.PERFORMANCE_TIMING', true),
-      auditTrail: getConfig('LOGGING.AUDIT_TRAIL', true),
-      functionTracking: getConfig('LOGGING.FUNCTION_ENTRY_EXIT', true)
+      performanceTracking: getConfigValue('LOGGING.PERFORMANCE_TIMING', true),
+      auditTrail: getConfigValue('LOGGING.AUDIT_TRAIL', true),
+      functionTracking: getConfigValue('LOGGING.FUNCTION_ENTRY_EXIT', true)
     };
     
     this.config.currentLevel = this.config.levels[this.config.level] || 1;
@@ -689,10 +689,10 @@ const logger = {
 function logSystemStartup() {
   logger.info('System startup', {
     type: 'system_startup',
-    version: getConfig('SYSTEM.VERSION'),
-    environment: getConfig('SYSTEM.ENVIRONMENT'),
-    timezone: getConfig('SYSTEM.TIMEZONE'),
-    features_enabled: Object.entries(getConfig('FEATURES', {}))
+    version: getConfigValue('SYSTEM.VERSION'),
+    environment: getConfigValue('SYSTEM.ENVIRONMENT'),
+    timezone: getConfigValue('SYSTEM.TIMEZONE'),
+    features_enabled: Object.entries(getConfigValue('FEATURES', {}))
       .filter(([key, value]) => value === true)
       .map(([key]) => key)
   });

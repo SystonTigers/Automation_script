@@ -240,20 +240,27 @@ class ProductionMonitoringManager {
 
   static checkConfigurationHealth() {
     try {
-      const config = getConfig();
+      const dynamicConfig = getDynamicConfig();
+      const staticConfigSections = {
+        SYSTEM: getConfigValue('SYSTEM', null),
+        MAKE: getConfigValue('MAKE', null),
+        SHEETS: getConfigValue('SHEETS', null)
+      };
       const check = {
         name: 'Configuration System',
         status: 'healthy',
         score: 10,
         details: {
-          configLoaded: !!config,
-          keyCount: Object.keys(config || {}).length
+          configLoaded: !!dynamicConfig,
+          dynamicKeyCount: Object.keys(dynamicConfig || {}).length,
+          staticSections: Object.keys(staticConfigSections).filter(key => !!staticConfigSections[key])
         }
       };
 
       // Check required config sections
-      const requiredSections = ['SYSTEM', 'MAKE', 'SHEETS'];
-      const missingSections = requiredSections.filter(section => !config[section]);
+      const missingSections = Object.entries(staticConfigSections)
+        .filter(([, value]) => !value)
+        .map(([key]) => key);
 
       if (missingSections.length > 0) {
         check.status = 'warning';
@@ -262,7 +269,8 @@ class ProductionMonitoringManager {
       }
 
       // Check critical values
-      if (!config.SYSTEM?.CLUB_NAME) {
+      const clubName = getConfigValue('SYSTEM.CLUB_NAME', dynamicConfig?.TEAM_NAME || null);
+      if (!clubName) {
         check.status = 'warning';
         check.score = Math.max(5, check.score - 2);
         check.warnings = check.warnings || [];
@@ -442,7 +450,7 @@ class ProductionMonitoringManager {
       };
 
       // Check Make.com webhook configuration
-      const webhookUrl = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+      const webhookUrl = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
       if (webhookUrl && webhookUrl.startsWith('https://')) {
         check.details.makeWebhookConfigured = true;
       } else {

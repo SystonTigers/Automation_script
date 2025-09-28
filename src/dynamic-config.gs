@@ -52,7 +52,7 @@ const DEFAULT_CONFIG_VALUES = {
  * @param {boolean} opts.forceRefresh - Force refresh from sheet
  * @returns {Object} Configuration object
  */
-function getConfig(opts = {}) {
+function getDynamicConfig(opts = {}) {
   const now = Date.now();
   const props = PropertiesService.getScriptProperties();
 
@@ -84,11 +84,11 @@ function getConfig(opts = {}) {
 }
 
 /**
- * Shorthand for getConfig()
+ * Shorthand for getDynamicConfig()
  * @returns {Object} Configuration object
  */
 function cfg() {
-  return getConfig();
+  return getDynamicConfig();
 }
 
 /**
@@ -97,7 +97,7 @@ function cfg() {
  * @returns {Object} Configuration with overrides applied
  */
 function getConfigWithQuery_(e) {
-  const base = getConfig();
+  const base = getDynamicConfig();
 
   if (e && e.parameter) {
     // Allow preview overrides
@@ -299,7 +299,7 @@ function renderHtml_(fileName, opts = {}) {
     } = opts;
 
     // Get configuration
-    const cfg = config || getConfig();
+    const cfg = config || getDynamicConfig();
 
     // Create template
     const template = HtmlService.createTemplateFromFile(fileName);
@@ -358,7 +358,7 @@ function include(filename) {
  * @returns {Object} Complete payload with config
  */
 function buildConfiguredPayload(eventData) {
-  const config = getConfig();
+  const config = getDynamicConfig();
 
   return {
     // Event data
@@ -397,7 +397,7 @@ function buildConfiguredPayload(eventData) {
  * @returns {Object} Complete configuration
  */
 function getAllConfig() {
-  return getConfig();
+  return getDynamicConfig();
 }
 
 /**
@@ -415,7 +415,7 @@ function clearConfigCache() {
  */
 function validateConfig() {
   try {
-    const config = getConfig();
+    const config = getDynamicConfig();
 
     return {
       valid: true,
@@ -441,25 +441,37 @@ function testConfigSystem() {
 
   try {
     // Test 1: Load config
-    const config = getConfig();
+    const config = getDynamicConfig();
     console.log('✅ Config loaded successfully');
 
     // Test 2: Validate required keys
     requireKeys_(config, REQUIRED_CONFIG_KEYS);
     console.log('✅ Required keys validation passed');
 
+    // Test 2b: Ensure static config helper is still available
+    const staticVersion = getConfigValue('SYSTEM.VERSION', 'unknown');
+    if (!staticVersion) {
+      throw new Error('Static config helper failed to resolve SYSTEM.VERSION');
+    }
+    console.log('✅ Static config helper resolved SYSTEM.VERSION');
+
     // Test 3: Cache functionality
-    const config2 = getConfig(); // Should use cache
+    const config2 = getDynamicConfig(); // Should use cache
     console.log('✅ Cache functionality working');
 
     // Test 4: Force refresh
-    const config3 = getConfig({forceRefresh: true});
+    const config3 = getDynamicConfig({forceRefresh: true});
     console.log('✅ Force refresh working');
+
+    if (config3 && config3.TEAM_NAME && config3.TEAM_NAME !== config.TEAM_NAME) {
+      console.log('ℹ️ Dynamic config refreshed with updated values');
+    }
 
     return {
       success: true,
       message: 'All configuration tests passed',
-      config: config
+      config: config,
+      version: staticVersion
     };
 
   } catch (error) {

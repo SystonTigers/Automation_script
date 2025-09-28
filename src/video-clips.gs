@@ -76,10 +76,10 @@ class VideoClipsManager {
         throw new Error('Player name is required');
       }
 
-      const buffers = getConfig('VIDEO.CLIP_BUFFERS.GOAL', { preSeconds: 10, postSeconds: 20 });
+      const buffers = getConfigValue('VIDEO.CLIP_BUFFERS.GOAL', { preSeconds: 10, postSeconds: 20 });
       const preBuffer = Number(buffers.preSeconds) || 0;
       const postBuffer = Number(buffers.postSeconds) || 0;
-      const defaultDuration = getConfig('VIDEO.DEFAULT_CLIP_DURATION', 30);
+      const defaultDuration = getConfigValue('VIDEO.DEFAULT_CLIP_DURATION', 30);
       const startSeconds = Math.max(0, (goalMinute * 60) - preBuffer);
       const durationSeconds = Math.max(preBuffer + postBuffer, defaultDuration);
 
@@ -113,7 +113,7 @@ class VideoClipsManager {
 
         // Processing status
         status: 'pending_processing',
-        processing_service: getConfig('VIDEO.PROCESSING_METHOD', 'cloudconvert'),
+        processing_service: getConfigValue('VIDEO.PROCESSING_METHOD', 'cloudconvert'),
 
         // Timestamps
         created_at: DateUtils.formatISO(DateUtils.now()),
@@ -144,7 +144,7 @@ class VideoClipsManager {
       // @testHook(goal_clip_metadata_created)
 
       // Send to Make.com for video processing
-      if (getConfig('VIDEO.PROCESSING_SERVICE') === 'cloudconvert') {
+      if (getConfigValue('VIDEO.PROCESSING_SERVICE') === 'cloudconvert') {
         const processingResult = this.requestCloudConvertProcessing(clipMetadata);
         clipMetadata.processing_request = processingResult;
       }
@@ -202,7 +202,7 @@ class VideoClipsManager {
         throw new Error(`Invalid minute: ${minute}`);
       }
 
-      const allowedTypes = getConfig('VIDEO.NOTE_TYPES', ['big_chance', 'goal', 'skill', 'good_play', 'card', 'other']);
+      const allowedTypes = getConfigValue('VIDEO.NOTE_TYPES', ['big_chance', 'goal', 'skill', 'good_play', 'card', 'other']);
       const normalizedEventType = (eventType || '').toLowerCase();
 
       if (!allowedTypes.includes(normalizedEventType)) {
@@ -413,7 +413,7 @@ class VideoClipsManager {
         title: clipData.title,
         description: clipData.description,
         tags: clipData.tags,
-        privacy: getConfig('VIDEO.YOUTUBE_DEFAULT_PRIVACY', 'unlisted'),
+        privacy: getConfigValue('VIDEO.YOUTUBE_DEFAULT_PRIVACY', 'unlisted'),
         category: 'Sports'
       };
       
@@ -459,8 +459,8 @@ class VideoClipsManager {
   saveClipMetadata(clipMetadata) {
     try {
       const videoClipsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.VIDEO_CLIPS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.VIDEO_CLIPS')
+        getConfigValue('SHEETS.TAB_NAMES.VIDEO_CLIPS'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.VIDEO_CLIPS')
       );
       
       if (!videoClipsSheet) {
@@ -546,7 +546,7 @@ class VideoClipsManager {
    * @returns {string} Generated title
    */
   generateClipTitle(player, opponent, minute) {
-    const clubName = getConfig('SYSTEM.CLUB_SHORT_NAME', 'FC');
+    const clubName = getConfigValue('SYSTEM.CLUB_SHORT_NAME', 'FC');
     
     if (opponent) {
       return `${player} Goal vs ${opponent} (${minute}')`;
@@ -564,8 +564,8 @@ class VideoClipsManager {
    * @returns {string} Generated description
    */
   generateClipDescription(player, assist, opponent, minute) {
-    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
-    const season = getConfig('SYSTEM.SEASON', '2024/25');
+    const clubName = getConfigValue('SYSTEM.CLUB_NAME', 'Football Club');
+    const season = getConfigValue('SYSTEM.SEASON', '2024/25');
     
     let description = `${player} scores in the ${minute}' for ${clubName}`;
     
@@ -590,7 +590,7 @@ class VideoClipsManager {
    * @returns {Array} Generated tags
    */
   generateClipTags(player, opponent) {
-    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
+    const clubName = getConfigValue('SYSTEM.CLUB_NAME', 'Football Club');
     const tags = [
       clubName,
       'Football',
@@ -613,7 +613,7 @@ class VideoClipsManager {
    */
   ensurePlayerFolder(player) {
     try {
-      const mainFolderId = getConfig('VIDEO.DRIVE_FOLDER_ID');
+      const mainFolderId = getConfigValue('VIDEO.DRIVE_FOLDER_ID');
       if (!mainFolderId) {
         return { success: false, error: 'Main video folder not configured' };
       }
@@ -644,7 +644,7 @@ class VideoClipsManager {
    */
   getOrCreatePlayerFolder(player) {
     try {
-      const mainFolderId = getConfig('VIDEO.DRIVE_FOLDER_ID');
+      const mainFolderId = getConfigValue('VIDEO.DRIVE_FOLDER_ID');
       if (!mainFolderId) return null;
 
       const mainFolder = DriveApp.getFolderById(mainFolderId);
@@ -677,13 +677,13 @@ class VideoClipsManager {
    */
   ensureMatchFolder(matchId, matchInfo = {}) {
     try {
-      const mainFolderId = getConfig('VIDEO.DRIVE_FOLDER_ID');
+      const mainFolderId = getConfigValue('VIDEO.DRIVE_FOLDER_ID');
       if (!mainFolderId) {
         return { success: false, error: 'Main video folder not configured' };
       }
 
       const mainFolder = DriveApp.getFolderById(mainFolderId);
-      const prefix = getConfig('VIDEO.MATCH_FOLDER_PREFIX', 'Match Highlights');
+      const prefix = getConfigValue('VIDEO.MATCH_FOLDER_PREFIX', 'Match Highlights');
       const matchRoot = this.getOrCreateChildFolder(mainFolder, prefix);
 
       if (!matchRoot) {
@@ -827,10 +827,10 @@ class VideoClipsManager {
    */
   buildClipProcessingPayload(clipMetadata) {
     return {
-      event_type: getConfig('MAKE.EVENT_TYPES.VIDEO_CLIP_PROCESSING', 'video_clip_processing'),
+      event_type: getConfigValue('MAKE.EVENT_TYPES.VIDEO_CLIP_PROCESSING', 'video_clip_processing'),
       media_type: 'video_highlights',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       clip_id: clipMetadata.clip_id,
       match_id: clipMetadata.match_id,
       player: clipMetadata.player,
@@ -867,7 +867,7 @@ class VideoClipsManager {
     try {
       // Try to get from Results sheet first
       const resultsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.RESULTS')
+        getConfigValue('SHEETS.TAB_NAMES.RESULTS')
       );
       
       if (resultsSheet) {
@@ -886,7 +886,7 @@ class VideoClipsManager {
       
       // Try Fixtures sheet
       const fixturesSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES')
+        getConfigValue('SHEETS.TAB_NAMES.FIXTURES')
       );
       
       if (fixturesSheet) {
@@ -936,7 +936,7 @@ class VideoClipsManager {
       type: 'match_clock',
       template: 'standard_clock',
       data: {
-        club_name: getConfig('SYSTEM.CLUB_SHORT_NAME'),
+        club_name: getConfigValue('SYSTEM.CLUB_SHORT_NAME'),
         opponent: matchInfo.opponent,
         date: matchInfo.date,
         venue: matchInfo.venue
@@ -1046,7 +1046,7 @@ function uploadClipToYouTube(clipId, filePath) {
 function getAllVideoClips() {
   try {
     const videoSheet = SheetUtils.getOrCreateSheet(
-      getConfig('SHEETS.TAB_NAMES.VIDEO_CLIPS')
+      getConfigValue('SHEETS.TAB_NAMES.VIDEO_CLIPS')
     );
     
     if (!videoSheet) {
@@ -1095,8 +1095,8 @@ function initializeVideoClips() {
     const results = {};
     
     requiredSheets.forEach(sheetKey => {
-      const tabName = getConfig(`SHEETS.TAB_NAMES.${sheetKey}`);
-      const columns = getConfig(`SHEETS.REQUIRED_COLUMNS.${sheetKey}`);
+      const tabName = getConfigValue(`SHEETS.TAB_NAMES.${sheetKey}`);
+      const columns = getConfigValue(`SHEETS.REQUIRED_COLUMNS.${sheetKey}`);
       
       if (tabName && columns) {
         const sheet = SheetUtils.getOrCreateSheet(tabName, columns);
@@ -1105,7 +1105,7 @@ function initializeVideoClips() {
     });
     
     // Check Drive folder configuration
-    const driveFolderId = getConfig('VIDEO.DRIVE_FOLDER_ID');
+    const driveFolderId = getConfigValue('VIDEO.DRIVE_FOLDER_ID');
     const driveConfigured = !!driveFolderId;
     
     logger.exitFunction('VideoClips.initialize', { success: true });
