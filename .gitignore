@@ -20,6 +20,10 @@ tmp_remote/
 *.backup
 *.old
 *.bak
+*~
+*.tmp
+*.orig
+*.rej
 
 # IDE files
 .vscode/settings.json
@@ -27,3 +31,69 @@ tmp_remote/
 
 # Logs
 *.log
+
+# Security hardening additions
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+client_secret*.json
+
+# Development and testing
+coverage/
+.nyc_output
+junit.xml
+test-results/
+.test-output/
+
+# Platform-specific
+*.dmg
+*.pkg
+*.msi
+*.exe
+*.zip
+*.tar.gz
+*.rar
+
+# Version control noise
+.git/
+.gitconfig
+.gitignore_global
+
+# Cache directories
+.cache/
+.npm/
+.yarn/
+.pnpm-store/
+.sass-cache/
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+.#*
+\#*#
+
+# OS generated files
+Icon?
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini

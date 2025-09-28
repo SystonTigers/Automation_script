@@ -1,0 +1,124 @@
+name: Push to Apps Script
+
+on:
+  push:
+    branches: [ "main" ]
+
+concurrency:
+  group: apps-script-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Configure clasp auth
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          echo "🔐 Configuring clasp authentication..."
+
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "❌ ERROR: CLASPRC_JSON secret is missing"
+            exit 1
+          fi
+
+          echo "✅ CLASPRC_JSON secret found (${#CLASPRC_JSON} chars)"
+
+          echo "$CLASPRC_JSON" > ~/.clasprc.json
+
+          if [ ! -f ~/.clasprc.json ]; then
+            echo "❌ ERROR: Failed to create .clasprc.json"
+            exit 1
+          fi
+
+          echo "📋 File size: $(wc -c < ~/.clasprc.json) bytes"
+          echo "📋 File lines: $(wc -l < ~/.clasprc.json) lines"
+
+          # Validate JSON without showing content
+          if ! jq empty ~/.clasprc.json 2>/dev/null; then
+            echo "❌ ERROR: Invalid JSON in .clasprc.json"
+            echo "First few characters:"
+            head -c 100 ~/.clasprc.json
+            exit 1
+          fi
+
+          # Check if this is the new format (tokens.default) or old format (token)
+          if jq -e '.tokens.default' ~/.clasprc.json >/dev/null 2>&1; then
+            echo "✅ Detected new clasp format (tokens.default)"
+
+            # Verify required fields in new format
+            if ! jq -e '.tokens.default.refresh_token' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "❌ ERROR: Missing refresh_token in new format"
+              exit 1
+            fi
+
+            if ! jq -e '.tokens.default.client_id' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "❌ ERROR: Missing client_id in new format"
+              exit 1
+            fi
+
+          elif jq -e '.token' ~/.clasprc.json >/dev/null 2>&1; then
+            echo "✅ Detected old clasp format (token)"
+
+            # Verify required fields in old format
+            if ! jq -e '.token.refresh_token' ~/.clasprc.json >/dev/null 2>&1; then
+              echo "❌ ERROR: Missing refresh_token in old format"
+              exit 1
+            fi
+
+          else
+            echo "❌ ERROR: Unknown .clasprc.json format"
+            echo "Expected either 'tokens.default' or 'token' object"
+            exit 1
+          fi
+
+          echo "✅ Auth file created and validated successfully"
+
+      - name: Verify clasp login
+        run: |
+          echo "🔍 Verifying clasp authentication..."
+
+          # Try clasp login status with detailed error output
+          if ! clasp login --status 2>&1; then
+            echo "❌ Clasp login --status failed"
+            echo "Checking if we can get user info instead..."
+
+            # Try alternative verification
+            if ! clasp me 2>&1; then
+              echo "❌ Clasp 'me' command also failed"
+              echo "🔧 Trying to check .clasprc.json file permissions..."
+              ls -la ~/.clasprc.json
+              echo "🔧 Checking clasp version..."
+              clasp --version
+              exit 1
+            fi
+          fi
+
+          echo "✅ Clasp authentication verified"
+
+      - name: Deploy to Apps Script
+        run: |
+          echo "🚀 Deploying to Google Apps Script..."
+
+          echo "📋 Checking clasp status..."
+          clasp status
+
+          echo "📤 Pushing files..."
+          clasp push --force
+
+          echo "✅ Deployment completed successfully!"
