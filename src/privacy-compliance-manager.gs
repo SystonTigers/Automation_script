@@ -39,10 +39,10 @@ class PrivacyComplianceManager {
     this.dataProcessingLog = [];
 
     // Consent persistence
-    this.privacyConfig = getConfig('PRIVACY', {});
-    this.playersSheetName = getConfig('SHEETS.TAB_NAMES.PRIVACY_PLAYERS');
-    this.consentsSheetName = getConfig('SHEETS.TAB_NAMES.PRIVACY_CONSENTS');
-    this.auditSheetName = getConfig('SHEETS.TAB_NAMES.PRIVACY_AUDIT');
+    this.privacyConfig = getConfigValue('PRIVACY', {});
+    this.playersSheetName = getConfigValue('SHEETS.TAB_NAMES.PRIVACY_PLAYERS');
+    this.consentsSheetName = getConfigValue('SHEETS.TAB_NAMES.PRIVACY_CONSENTS');
+    this.auditSheetName = getConfigValue('SHEETS.TAB_NAMES.PRIVACY_AUDIT');
     this.cacheTtlMs = this.privacyConfig.CACHE_TTL_MS || (5 * 60 * 1000);
     this.failClosed = this.privacyConfig.FAIL_CLOSED !== false;
     this.minorAgeThreshold = this.privacyConfig.MINOR_AGE_THRESHOLD || 16;
@@ -391,8 +391,8 @@ class PrivacyComplianceManager {
     this.logger.enterFunction('hydrateConsentData');
 
     try {
-      const playerColumns = getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_PLAYERS', []);
-      const consentColumns = getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_CONSENTS', []);
+      const playerColumns = getConfigValue('SHEETS.REQUIRED_COLUMNS.PRIVACY_PLAYERS', []);
+      const consentColumns = getConfigValue('SHEETS.REQUIRED_COLUMNS.PRIVACY_CONSENTS', []);
 
       const playersSheet = SheetUtils.getOrCreateSheet(this.playersSheetName, playerColumns);
       if (!playersSheet) {
@@ -944,7 +944,7 @@ class PrivacyComplianceManager {
     }
 
     try {
-      const columns = getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', []);
+      const columns = getConfigValue('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', []);
       const sheet = SheetUtils.getOrCreateSheet(this.auditSheetName, columns);
       if (!sheet) {
         return;
@@ -1087,7 +1087,7 @@ class PrivacyComplianceManager {
     try {
       const sheet = SheetUtils.getOrCreateSheet(
         this.auditSheetName,
-        getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', [])
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', [])
       );
 
       if (!sheet) {
@@ -1255,7 +1255,7 @@ class PrivacyComplianceManager {
     try {
       const sheet = SheetUtils.getOrCreateSheet(
         this.auditSheetName,
-        getConfig('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', [])
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.PRIVACY_AUDIT', [])
       );
 
       if (!sheet) {

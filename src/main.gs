@@ -22,12 +22,29 @@ function SA_Version() {
 }
 
 /**
+ * Enumerates the whitelisted actions the webapp endpoint supports.
+ * Declared at file scope so both security validation and default
+ * responses reference the same canonical list during conflict
+ * resolution merges.
+ * @const {!Array<string>}
+ */
+const WEBAPP_ALLOWED_ACTIONS = Object.freeze([
+  'health',
+  'advanced_health',
+  'dashboard',
+  'monitoring',
+  'test',
+  'gdpr_init',
+  'gdpr_dashboard'
+]);
+
+/**
  * WEBAPP ENTRY POINT - Main webapp handler with full integration
  */
 function doGet(e) {
   try {
     // 1. SECURITY CHECK - Use advanced security
-    const allowedActions = ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard'];
+    const allowedActions = WEBAPP_ALLOWED_ACTIONS;
     const securityCheck = AdvancedSecurity.validateInput(e.parameter || {}, 'webhook_data', {
       source: 'webapp',
       allowQueryParameters: true,
@@ -91,7 +108,7 @@ function doGet(e) {
       default:
         result = {
           message: 'Football Automation System API',
-          version: getConfig('SYSTEM.VERSION', '6.3.0'),
+          version: getConfigValue('SYSTEM.VERSION', '6.3.0'),
           available_actions: allowedActions
         };
     }
@@ -489,18 +506,22 @@ function verifyScheduledTriggerIntegrity() {
  */
 function getQuickStatus() {
   try {
-    const config = getRuntimeConfig();
+    const dynamicConfig = getDynamicConfig();
+    const version = getConfigValue('SYSTEM.VERSION', '6.3.0');
     const health = HealthCheck.quickHealthCheck();
 
     return {
       status: health.status,
-      version: config.SYSTEM?.VERSION || '6.3.0',
+      version: version,
       timestamp: new Date().toISOString(),
       components: {
         security: typeof AdvancedSecurity !== 'undefined',
         performance: typeof PerformanceOptimizer !== 'undefined',
         monitoring: typeof ProductionMonitoringManager !== 'undefined',
         privacy: typeof SimplePrivacy !== 'undefined'
+      },
+      config: {
+        teamName: dynamicConfig?.TEAM_NAME || null
       }
     };
 

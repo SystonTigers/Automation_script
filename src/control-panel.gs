@@ -1196,11 +1196,11 @@ class SystemControlPanel {
       
       return {
         // Integration settings
-        make_integration_enabled: getConfig('MAKE.ENABLED') !== false,
-        make_webhook_configured: !!getConfig('MAKE.WEBHOOK_URL_PROPERTY'),
-        xbotgo_integration_enabled: getConfig('XBOTGO.ENABLED') === true,
-        xbotgo_configured: !!getConfig('XBOTGO.API_KEY_PROPERTY'),
-        youtube_configured: !!getConfig('VIDEO.YOUTUBE_CHANNEL_PROPERTY'),
+        make_integration_enabled: getConfigValue('MAKE.ENABLED') !== false,
+        make_webhook_configured: !!getConfigValue('MAKE.WEBHOOK_URL_PROPERTY'),
+        xbotgo_integration_enabled: getConfigValue('XBOTGO.ENABLED') === true,
+        xbotgo_configured: !!getConfigValue('XBOTGO.API_KEY_PROPERTY'),
+        youtube_configured: !!getConfigValue('VIDEO.YOUTUBE_CHANNEL_PROPERTY'),
         
         // Feature settings
         auto_goal_posts: properties.FEATURE_AUTO_GOAL_POSTS !== 'false',
@@ -1373,7 +1373,7 @@ const ControlPanel = new SystemControlPanel();
 function showControlPanel() {
   var html = HtmlService
     .createHtmlOutputFromFile('controlPanel')
-    .setTitle(`⚙️ ${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} – Control Panel`)
+    .setTitle(`⚙️ ${getConfigValue('SYSTEM.CLUB_NAME', 'Football Club')} – Control Panel`)
     .setWidth(400);
   SpreadsheetApp.getUi().showSidebar(html);
   return { success: true };
@@ -1435,24 +1435,24 @@ function controlPanelTriggerAction(actionType) {
 function doGet() {
   return HtmlService
     .createHtmlOutputFromFile('controlPanel')
-    .setTitle(`${getConfig('SYSTEM.CLUB_NAME', 'Football Club')} – Control Panel`);
+    .setTitle(`${getConfigValue('SYSTEM.CLUB_NAME', 'Football Club')} – Control Panel`);
 }
 
 /** State for ControlPanel.html on load */
 function getControlPanelState() {
-  var features = getConfig('FEATURES', {});
+  var features = getConfigValue('FEATURES', {});
   var info = {
-    version: getConfig('SYSTEM.VERSION', ''),
-    club: getConfig('SYSTEM.CLUB_NAME', ''),
-    season: getConfig('SYSTEM.SEASON', ''),
-    tz: getConfig('SYSTEM.TIMEZONE', ''),
+    version: getConfigValue('SYSTEM.VERSION', ''),
+    club: getConfigValue('SYSTEM.CLUB_NAME', ''),
+    season: getConfigValue('SYSTEM.SEASON', ''),
+    tz: getConfigValue('SYSTEM.TIMEZONE', ''),
     webhook: !!getWebhookUrl()
   };
   var validation = validateConfiguration();
   var privacySummary = getConsentDashboardSummary();
   var privacyFlags = {
-    anonymiseFaces: getConfig('PRIVACY.GLOBAL_FLAGS.ANONYMISE_FACES', false),
-    useInitialsOnly: getConfig('PRIVACY.GLOBAL_FLAGS.USE_INITIALS_ONLY', false)
+    anonymiseFaces: getConfigValue('PRIVACY.GLOBAL_FLAGS.ANONYMISE_FACES', false),
+    useInitialsOnly: getConfigValue('PRIVACY.GLOBAL_FLAGS.USE_INITIALS_ONLY', false)
   };
   return {
     features: features,
@@ -1534,14 +1534,14 @@ function getLiveMatchConsoleState() {
   consoleLogger.enterFunction('getLiveMatchConsoleState');
 
   try {
-    const statusOptions = getConfig('LIVE_MATCH_CONSOLE.STATUS_OPTIONS', []);
-    const cardTypes = getConfig('LIVE_MATCH_CONSOLE.CARD_TYPES', []);
-    const noteMarkers = getConfig('LIVE_MATCH_CONSOLE.NOTE_MARKERS', []);
-    const recentLimit = getConfig('LIVE_MATCH_CONSOLE.RECENT_EVENT_LIMIT', 8);
-    const defaultMatchIdProperty = getConfig('LIVE_MATCH_CONSOLE.DEFAULT_MATCH_ID_PROPERTY', '');
+    const statusOptions = getConfigValue('LIVE_MATCH_CONSOLE.STATUS_OPTIONS', []);
+    const cardTypes = getConfigValue('LIVE_MATCH_CONSOLE.CARD_TYPES', []);
+    const noteMarkers = getConfigValue('LIVE_MATCH_CONSOLE.NOTE_MARKERS', []);
+    const recentLimit = getConfigValue('LIVE_MATCH_CONSOLE.RECENT_EVENT_LIMIT', 8);
+    const defaultMatchIdProperty = getConfigValue('LIVE_MATCH_CONSOLE.DEFAULT_MATCH_ID_PROPERTY', '');
 
-    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
-    const clubShortName = getConfig('SYSTEM.CLUB_SHORT_NAME', clubName);
+    const clubName = getConfigValue('SYSTEM.CLUB_NAME', 'Football Club');
+    const clubShortName = getConfigValue('SYSTEM.CLUB_SHORT_NAME', clubName);
 
     let defaultMatchId = '';
     if (defaultMatchIdProperty) {
@@ -1552,8 +1552,8 @@ function getLiveMatchConsoleState() {
 
     // Player list from Player Stats sheet
     const playerSheet = SheetUtils.getOrCreateSheet(
-      getConfig('SHEETS.TAB_NAMES.PLAYER_STATS'),
-      getConfig('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
+      getConfigValue('SHEETS.TAB_NAMES.PLAYER_STATS'),
+      getConfigValue('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
     );
 
     let players = [];
@@ -1568,8 +1568,8 @@ function getLiveMatchConsoleState() {
 
     // Live match sheet for scoreboard + recent events
     const liveMatchSheet = SheetUtils.getOrCreateSheet(
-      getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES'),
-      getConfig('SHEETS.REQUIRED_COLUMNS.LIVE_MATCH_UPDATES')
+      getConfigValue('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES'),
+      getConfigValue('SHEETS.REQUIRED_COLUMNS.LIVE_MATCH_UPDATES')
     );
 
     const toScore = value => {
@@ -1991,8 +1991,8 @@ function writeLiveConsoleNote(matchId, minute, eventName, player, details) {
 
   try {
     const liveMatchSheet = SheetUtils.getOrCreateSheet(
-      getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES'),
-      getConfig('SHEETS.REQUIRED_COLUMNS.LIVE_MATCH_UPDATES')
+      getConfigValue('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES'),
+      getConfigValue('SHEETS.REQUIRED_COLUMNS.LIVE_MATCH_UPDATES')
     );
 
     if (!liveMatchSheet) {

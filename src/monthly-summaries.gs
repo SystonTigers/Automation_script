@@ -16,9 +16,9 @@ class MonthlySummariesManager {
     this.loggerName = 'MonthlySummaries';
     this._logger = null;
     this.makeIntegration = new MakeIntegration();
-    this.summaryConfig = getConfig('MONTHLY_SUMMARIES', {});
-    this.monthlyContentSheetName = getConfig('SHEETS.TAB_NAMES.MONTHLY_CONTENT');
-    this.monthlyContentColumns = getConfig('SHEETS.REQUIRED_COLUMNS.MONTHLY_CONTENT', []);
+    this.summaryConfig = getConfigValue('MONTHLY_SUMMARIES', {});
+    this.monthlyContentSheetName = getConfigValue('SHEETS.TAB_NAMES.MONTHLY_CONTENT');
+    this.monthlyContentColumns = getConfigValue('SHEETS.REQUIRED_COLUMNS.MONTHLY_CONTENT', []);
     this.properties = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties)
       ? PropertiesService.getScriptProperties()
       : null;
@@ -71,7 +71,7 @@ class MonthlySummariesManager {
         return disabled;
       }
 
-      const fixturesConfig = getConfig('MONTHLY_CONTENT.FIXTURES_SUMMARY', {});
+      const fixturesConfig = getConfigValue('MONTHLY_CONTENT.FIXTURES_SUMMARY', {});
       if (fixturesConfig && fixturesConfig.enabled === false) {
         const disabled = {
           success: true,
@@ -206,7 +206,7 @@ class MonthlySummariesManager {
         return disabled;
       }
 
-      const resultsConfig = getConfig('MONTHLY_CONTENT.RESULTS_SUMMARY', {});
+      const resultsConfig = getConfigValue('MONTHLY_CONTENT.RESULTS_SUMMARY', {});
       if (resultsConfig && resultsConfig.enabled === false) {
         const disabled = {
           success: true,
@@ -343,7 +343,7 @@ class MonthlySummariesManager {
         return disabled;
       }
 
-      const gotmConfig = getConfig('MONTHLY.GOTM', {});
+      const gotmConfig = getConfigValue('MONTHLY.GOTM', {});
       if (!gotmConfig.ENABLED) {
         const disabled = {
           success: true,
@@ -491,7 +491,7 @@ class MonthlySummariesManager {
         return disabled;
       }
 
-      const gotmConfig = getConfig('MONTHLY.GOTM', {});
+      const gotmConfig = getConfigValue('MONTHLY.GOTM', {});
       if (!gotmConfig.ENABLED) {
         const disabled = {
           success: true,
@@ -623,7 +623,7 @@ class MonthlySummariesManager {
       const today = DateUtils.now();
       const triggers = [];
 
-      const fixturesConfig = getConfig('MONTHLY_CONTENT.FIXTURES_SUMMARY', {});
+      const fixturesConfig = getConfigValue('MONTHLY_CONTENT.FIXTURES_SUMMARY', {});
       if (fixturesConfig && fixturesConfig.enabled !== false && this.shouldTriggerOnDay(today, fixturesConfig.post_date || 1)) {
         triggers.push({
           type: 'fixtures',
@@ -631,7 +631,7 @@ class MonthlySummariesManager {
         });
       }
 
-      const resultsConfig = getConfig('MONTHLY_CONTENT.RESULTS_SUMMARY', {});
+      const resultsConfig = getConfigValue('MONTHLY_CONTENT.RESULTS_SUMMARY', {});
       if (resultsConfig && resultsConfig.enabled !== false && this.shouldTriggerOnDay(today, resultsConfig.post_date || 'last_day')) {
         triggers.push({
           type: 'results',
@@ -640,7 +640,7 @@ class MonthlySummariesManager {
       }
 
       // GOTM scheduling
-      const gotmConfig = getConfig('MONTHLY.GOTM', {});
+      const gotmConfig = getConfigValue('MONTHLY.GOTM', {});
       if (gotmConfig && gotmConfig.ENABLED && isFeatureEnabled('GOTM')) {
         // 1st of month: Start GOTM voting for previous month
         if (this.shouldTriggerOnDay(today, 1)) {
@@ -776,7 +776,7 @@ class MonthlySummariesManager {
     try {
       // @testHook(monthly_goals_sheet_prepare_start)
       const sheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES')
+        getConfigValue('SHEETS.TAB_NAMES.LIVE_MATCH_UPDATES')
       );
       // @testHook(monthly_goals_sheet_prepare_complete)
 
@@ -962,16 +962,16 @@ class MonthlySummariesManager {
     const monthName = DateUtils.getMonthName(month);
 
     return {
-      event_type: getConfig('MAKE.EVENT_TYPES.GOTM_VOTING_OPEN', 'gotm_voting_start'),
+      event_type: getConfigValue('MAKE.EVENT_TYPES.GOTM_VOTING_OPEN', 'gotm_voting_start'),
       idempotency_key: idempotencyKey,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       month: month,
       year: year,
       month_name: monthName,
       goal_count: goals.length,
       goals: goals,
-      voting_period_days: getConfig('MONTHLY.GOTM.VOTING_PERIOD_DAYS', 5),
+      voting_period_days: getConfigValue('MONTHLY.GOTM.VOTING_PERIOD_DAYS', 5),
       content_title: `${monthName} Goal of the Month - Voting Open`,
       voting_instructions: 'Vote for your favourite goal using the poll in our social media posts',
       metadata: {
@@ -994,10 +994,10 @@ class MonthlySummariesManager {
     const monthName = DateUtils.getMonthName(month);
 
     return {
-      event_type: getConfig('MAKE.EVENT_TYPES.GOTM_WINNER', 'gotm_winner_announcement'),
+      event_type: getConfigValue('MAKE.EVENT_TYPES.GOTM_WINNER', 'gotm_winner_announcement'),
       idempotency_key: idempotencyKey,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       month: month,
       year: year,
       month_name: monthName,
@@ -1057,7 +1057,7 @@ class MonthlySummariesManager {
    * @returns {Object} Payload object
    */
   buildMonthlyFixturesPayload(fixturesData, statistics, monthKey, idempotencyKey) {
-    const eventType = getConfig('MAKE.EVENT_TYPES.FIXTURES_THIS_MONTH', 'fixtures_this_month');
+    const eventType = getConfigValue('MAKE.EVENT_TYPES.FIXTURES_THIS_MONTH', 'fixtures_this_month');
     const [yearString, monthString] = monthKey.split('-');
     const monthNumber = parseInt(monthString, 10);
     const yearNumber = parseInt(yearString, 10);
@@ -1084,8 +1084,8 @@ class MonthlySummariesManager {
     return {
       event_type: eventType,
       idempotency_key: idempotencyKey,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       month_key: monthKey,
       month_name: DateUtils.getMonthName(monthNumber),
       month_number: monthNumber,
@@ -1112,7 +1112,7 @@ class MonthlySummariesManager {
    * @returns {Object} Payload object
    */
   buildMonthlyResultsPayload(resultsData, statistics, monthKey, idempotencyKey) {
-    const eventType = getConfig('MAKE.EVENT_TYPES.RESULTS_THIS_MONTH', 'results_this_month');
+    const eventType = getConfigValue('MAKE.EVENT_TYPES.RESULTS_THIS_MONTH', 'results_this_month');
     const [yearString, monthString] = monthKey.split('-');
     const monthNumber = parseInt(monthString, 10);
     const yearNumber = parseInt(yearString, 10);
@@ -1142,8 +1142,8 @@ class MonthlySummariesManager {
     return {
       event_type: eventType,
       idempotency_key: idempotencyKey,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       month_key: monthKey,
       month_name: DateUtils.getMonthName(monthNumber),
       month_number: monthNumber,
@@ -1432,8 +1432,8 @@ class MonthlySummariesManager {
    * @returns {boolean} True if key match
    */
   isKeyMatch(fixture) {
-    const importantCompetitions = getConfig('MONTHLY_SUMMARIES.IMPORTANT_COMPETITIONS', []);
-    const localRivals = getConfig('MONTHLY_SUMMARIES.LOCAL_RIVALS', []);
+    const importantCompetitions = getConfigValue('MONTHLY_SUMMARIES.IMPORTANT_COMPETITIONS', []);
+    const localRivals = getConfigValue('MONTHLY_SUMMARIES.LOCAL_RIVALS', []);
 
     const competition = (fixture.competition || '').toLowerCase();
     const opponent = (fixture.opponent || '').toLowerCase();
@@ -1488,8 +1488,8 @@ class MonthlySummariesManager {
    */
   getFixturesSheet() {
     return SheetUtils.getOrCreateSheet(
-      getConfig('SHEETS.TAB_NAMES.FIXTURES'),
-      getConfig('SHEETS.REQUIRED_COLUMNS.FIXTURES', [])
+      getConfigValue('SHEETS.TAB_NAMES.FIXTURES'),
+      getConfigValue('SHEETS.REQUIRED_COLUMNS.FIXTURES', [])
     );
   }
 
@@ -1499,8 +1499,8 @@ class MonthlySummariesManager {
    */
   getResultsSheet() {
     return SheetUtils.getOrCreateSheet(
-      getConfig('SHEETS.TAB_NAMES.RESULTS'),
-      getConfig('SHEETS.REQUIRED_COLUMNS.RESULTS', [])
+      getConfigValue('SHEETS.TAB_NAMES.RESULTS'),
+      getConfigValue('SHEETS.REQUIRED_COLUMNS.RESULTS', [])
     );
   }
 
@@ -1531,7 +1531,7 @@ class MonthlySummariesManager {
   storeGOTMVotingData(goals, month, year) {
     try {
       const monthlyStatsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.MONTHLY_STATS', 'Monthly Stats'),
+        getConfigValue('SHEETS.TAB_NAMES.MONTHLY_STATS', 'Monthly Stats'),
         ['Month', 'Year', 'Type', 'Data', 'Created']
       );
 
@@ -1547,7 +1547,7 @@ class MonthlySummariesManager {
         'Data': JSON.stringify({
           goals: goals,
           voting_started: DateUtils.formatISO(DateUtils.now()),
-          voting_period_days: getConfig('MONTHLY.GOTM.VOTING_PERIOD_DAYS', 5)
+          voting_period_days: getConfigValue('MONTHLY.GOTM.VOTING_PERIOD_DAYS', 5)
         }),
         'Created': DateUtils.formatISO(DateUtils.now())
       };
@@ -1570,7 +1570,7 @@ class MonthlySummariesManager {
   getStoredGOTMVotingData(month, year) {
     try {
       const monthlyStatsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.MONTHLY_STATS', 'Monthly Stats')
+        getConfigValue('SHEETS.TAB_NAMES.MONTHLY_STATS', 'Monthly Stats')
       );
 
       if (!monthlyStatsSheet) {
@@ -1652,7 +1652,7 @@ class MonthlySummariesManager {
       if (!gotsData) {
         gotsData = {
           year: year,
-          season: getConfig('SYSTEM.SEASON'),
+          season: getConfigValue('SYSTEM.SEASON'),
           goals: [],
           created: DateUtils.formatISO(DateUtils.now())
         };
@@ -1933,13 +1933,13 @@ class MonthlySummariesManager {
    * @returns {Object} Payload
    */
   createGOTSVotingPayload(goals, year, idempotencyKey) {
-    const seasonName = getConfig('SYSTEM.SEASON');
+    const seasonName = getConfigValue('SYSTEM.SEASON');
 
     return {
-      event_type: getConfig('MAKE.EVENT_TYPES.GOTS_VOTING', 'gots_voting_start'),
+      event_type: getConfigValue('MAKE.EVENT_TYPES.GOTS_VOTING', 'gots_voting_start'),
       idempotency_key: idempotencyKey,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       year: year,
       season: seasonName,
       goal_count: goals.length,
@@ -1951,7 +1951,7 @@ class MonthlySummariesManager {
         place: goal.place,
         goal_id: goal.goal_id
       })),
-      voting_duration: getConfig('GOTS.VOTING_DURATION_DAYS', 14),
+      voting_duration: getConfigValue('GOTS.VOTING_DURATION_DAYS', 14),
       timestamp: DateUtils.formatISO(DateUtils.now())
     };
   }
@@ -1965,13 +1965,13 @@ class MonthlySummariesManager {
    * @returns {Object} Payload
    */
   createGOTSWinnerPayload(winner, allGoals, year, idempotencyKey) {
-    const seasonName = getConfig('SYSTEM.SEASON');
+    const seasonName = getConfigValue('SYSTEM.SEASON');
 
     return {
-      event_type: getConfig('MAKE.EVENT_TYPES.GOTS_WINNER', 'gots_winner_announcement'),
+      event_type: getConfigValue('MAKE.EVENT_TYPES.GOTS_WINNER', 'gots_winner_announcement'),
       idempotency_key: idempotencyKey,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       year: year,
       season: seasonName,
       winner_player: winner.player,
@@ -2203,7 +2203,7 @@ function runMonthlyScheduledTasks() {
     }
 
     // 6th of month: GOTM winner announcement
-    const gotmConfig = getConfig('MONTHLY.GOTM', {});
+    const gotmConfig = getConfigValue('MONTHLY.GOTM', {});
     const winnerDay = gotmConfig.WINNER_ANNOUNCE_DAY || 6;
     if (dayOfMonth === winnerDay && isFeatureEnabled('GOTM')) {
       results.gotm_winner = announceGOTMWinner();
@@ -2277,13 +2277,13 @@ function postPostponed(matchData) {
       opposition: matchData.opposition || 'Unknown',
       original_date: matchData.date || null,
       venue: matchData.venue || null,
-      competition: matchData.competition || getConfig('SYSTEM.LEAGUE'),
+      competition: matchData.competition || getConfigValue('SYSTEM.LEAGUE'),
       club_info: {
-        name: getConfig('SYSTEM.CLUB_NAME'),
-        season: getConfig('SYSTEM.SEASON')
+        name: getConfigValue('SYSTEM.CLUB_NAME'),
+        season: getConfigValue('SYSTEM.SEASON')
       },
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      system_version: getConfig('SYSTEM.VERSION')
+      system_version: getConfigValue('SYSTEM.VERSION')
     };
 
     // @testHook(postponed_webhook)
@@ -2322,13 +2322,13 @@ function postSecondHalfKickoff(matchData) {
       opposition: matchData.opposition || 'Unknown',
       current_score: matchData.halftimeScore || { home: 0, away: 0 },
       venue: matchData.venue || null,
-      competition: matchData.competition || getConfig('SYSTEM.LEAGUE'),
+      competition: matchData.competition || getConfigValue('SYSTEM.LEAGUE'),
       club_info: {
-        name: getConfig('SYSTEM.CLUB_NAME'),
-        season: getConfig('SYSTEM.SEASON')
+        name: getConfigValue('SYSTEM.CLUB_NAME'),
+        season: getConfigValue('SYSTEM.SEASON')
       },
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      system_version: getConfig('SYSTEM.VERSION')
+      system_version: getConfigValue('SYSTEM.VERSION')
     };
 
     // @testHook(second_half_webhook)

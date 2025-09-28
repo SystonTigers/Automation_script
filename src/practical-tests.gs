@@ -93,19 +93,24 @@ class SimpleTestFramework {
  */
 function testConfigLoading() {
   SimpleTestFramework.runTest('Config Loading', () => {
-    // Test config can be loaded
-    const config = getRuntimeConfig();
-    SimpleTestFramework.assertNotNull(config, 'Config should load successfully');
+    // Test dynamic config can be loaded from sheet cache
+    const dynamicConfig = getDynamicConfig();
+    SimpleTestFramework.assertNotNull(dynamicConfig, 'Dynamic config should load successfully');
 
-    // Test required keys are present
-    const requiredKeys = ['SYSTEM', 'MAKE'];
-    requiredKeys.forEach(key => {
-      SimpleTestFramework.assertNotNull(config[key], `Config should have ${key} section`);
+    const dynamicRequiredKeys = ['TEAM_NAME', 'TEAM_SHORT', 'LEAGUE_NAME'];
+    dynamicRequiredKeys.forEach(key => {
+      SimpleTestFramework.assertTrue(!!dynamicConfig[key], `Dynamic config should include ${key}`);
     });
 
-    // Test system values
-    SimpleTestFramework.assertNotNull(config.SYSTEM.VERSION, 'System version should be set');
-    SimpleTestFramework.assertNotNull(config.SYSTEM.CLUB_NAME, 'Club name should be set');
+    // Test static config helper for nested values
+    const systemVersion = getConfigValue('SYSTEM.VERSION', null);
+    SimpleTestFramework.assertNotNull(systemVersion, 'System version should be available from static config');
+
+    const clubName = getConfigValue('SYSTEM.CLUB_NAME', null);
+    SimpleTestFramework.assertNotNull(clubName, 'Club name should be available from static config');
+
+    const featureFlags = getConfigValue('FEATURES', {});
+    SimpleTestFramework.assertTrue(typeof featureFlags === 'object', 'Feature flags should resolve to an object');
   });
 }
 
@@ -317,7 +322,7 @@ function runSingleTest(testName) {
 function smokeTest() {
   try {
     // Test 1: Config loads
-    const config = getRuntimeConfig();
+    const config = getDynamicConfig();
     if (!config) throw new Error('Config failed to load');
 
     // Test 2: Health check runs

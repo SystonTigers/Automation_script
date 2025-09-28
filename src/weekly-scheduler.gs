@@ -65,7 +65,7 @@ class WeeklyScheduler {
       // @testHook(weekly_schedule_start)
       
       // Check if weekly schedule is enabled
-      if (!getConfig('WEEKLY_SCHEDULE.ENABLED', true)) {
+      if (!getConfigValue('WEEKLY_SCHEDULE.ENABLED', true)) {
         return { success: true, message: 'Weekly schedule disabled', skipped: true };
       }
       
@@ -482,7 +482,7 @@ class WeeklyScheduler {
   getThisWeekFixtures() {
     try {
       const fixturesSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES')
+        getConfigValue('SHEETS.TAB_NAMES.FIXTURES')
       );
       
       if (!fixturesSheet) return [];
@@ -535,7 +535,7 @@ class WeeklyScheduler {
   getUpcomingFixturesWithin(lookAheadDays) {
     try {
       const fixturesSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES')
+        getConfigValue('SHEETS.TAB_NAMES.FIXTURES')
       );
 
       if (!fixturesSheet) return [];
@@ -577,7 +577,7 @@ class WeeklyScheduler {
    */
   getCountdownState(daysBefore) {
     try {
-      const countdownConfig = getConfig('WEEKLY_SCHEDULE.COUNTDOWN', {});
+      const countdownConfig = getConfigValue('WEEKLY_SCHEDULE.COUNTDOWN', {});
       const lookAhead = countdownConfig.LOOKAHEAD_DAYS || 10;
       const fixtures = this.getUpcomingFixturesWithin(lookAhead);
       const today = this.normalizeDate(this.today);
@@ -833,7 +833,7 @@ class WeeklyScheduler {
    * @returns {string|null} Property key
    */
   getRotationPropertyKey(type) {
-    const rotationConfig = getConfig('WEEKLY_SCHEDULE.ROTATION', {});
+    const rotationConfig = getConfigValue('WEEKLY_SCHEDULE.ROTATION', {});
 
     if (type === 'quotes') {
       return rotationConfig.QUOTES_PROPERTY_KEY || 'WEEKLY_QUOTES_ROTATION';
@@ -955,7 +955,7 @@ class WeeklyScheduler {
     const weekDescription = this.generateWeekDescription(fixtures);
     const weekStart = DateUtils.formatUK(DateUtils.getWeekStart(this.today));
     const variantContext = {
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       fixture_count: fixtures.length,
       fixtures_list: fixturesList,
       primary_fixture: fixturesList[0] || null,
@@ -968,8 +968,8 @@ class WeeklyScheduler {
 
     return {
       event_type: 'weekly_fixtures',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Weekly fixtures data
       week_start_date: weekStart,
@@ -979,7 +979,7 @@ class WeeklyScheduler {
       // Content metadata
       content_title: `This Week's Fixtures`,
       week_description: weekDescription,
-      season: getConfig('SYSTEM.SEASON'),
+      season: getConfigValue('SYSTEM.SEASON'),
 
       // Timestamps
       timestamp: DateUtils.formatISO(DateUtils.now()),
@@ -1015,8 +1015,8 @@ class WeeklyScheduler {
 
     return {
       event_type: 'weekly_no_match',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // No match data
       week_start_date: DateUtils.formatUK(DateUtils.getWeekStart(this.today)),
@@ -1055,8 +1055,8 @@ class WeeklyScheduler {
 
     return {
       event_type: 'weekly_quotes',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Quote data
       quote_text: quote.text,
@@ -1093,8 +1093,8 @@ class WeeklyScheduler {
 
     return {
       event_type: 'weekly_stats',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Stats data
       stats_type: 'monthly_summary',
@@ -1131,7 +1131,7 @@ class WeeklyScheduler {
     }
 
     const variantContext = {
-      content_title: `Head-to-Head: ${getConfig('SYSTEM.CLUB_NAME')} vs ${match.Opposition}`,
+      content_title: `Head-to-Head: ${getConfigValue('SYSTEM.CLUB_NAME')} vs ${match.Opposition}`,
       opponent_name: match.Opposition,
       match_date: match.Date,
       previous_meetings: previousMeetings,
@@ -1147,8 +1147,8 @@ class WeeklyScheduler {
 
     return {
       event_type: 'historical_comparison',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Opposition analysis with historical data
       stats_type: 'opposition_analysis_historical',
@@ -1186,10 +1186,10 @@ class WeeklyScheduler {
       opposition_form: 'Recent form analysis',
       key_players: keyPlayers,
       is_first_meeting: historicalData.stats.totalMatches === 0,
-      dominant_team: this.getDominantTeam(historicalData.stats, getConfig('SYSTEM.CLUB_NAME')),
+      dominant_team: this.getDominantTeam(historicalData.stats, getConfigValue('SYSTEM.CLUB_NAME')),
 
       // Canva placeholders for historical posts
-      fixture_preview_title: `${getConfig('SYSTEM.CLUB_NAME')} vs ${match.Opposition}`,
+      fixture_preview_title: `${getConfigValue('SYSTEM.CLUB_NAME')} vs ${match.Opposition}`,
       historical_stats_text: `Played ${historicalData.stats.totalMatches}: Won ${historicalData.stats.wins}, Drew ${historicalData.stats.draws}, Lost ${historicalData.stats.losses}`,
       recent_form_text: historicalData.matches.slice(0, 3).map(m => `${m.Result || 'Unknown'}`).join(' | '),
       next_match_text: `Next: ${new Date(match.Date).toLocaleDateString('en-GB')} at ${match.Venue || 'TBC'}`,
@@ -1219,8 +1219,8 @@ class WeeklyScheduler {
 
     return {
       event_type: 'weekly_stats',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // General stats
       stats_type: 'general_update',
@@ -1256,8 +1256,8 @@ class WeeklyScheduler {
 
     return {
       event_type: 'weekly_throwback',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
 
       // Throwback data
       throwback_title: throwback.title,
@@ -1305,8 +1305,8 @@ class WeeklyScheduler {
 
     return {
       event_type: eventType,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       
       // Countdown data
       countdown_days: daysToGo,
@@ -1426,7 +1426,7 @@ class WeeklyScheduler {
   getNextFixture() {
     try {
       const fixturesSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES')
+        getConfigValue('SHEETS.TAB_NAMES.FIXTURES')
       );
       
       if (!fixturesSheet) return null;
@@ -1514,7 +1514,7 @@ class WeeklyScheduler {
   getPreviousMeetings(opponent) {
     try {
       const resultsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.RESULTS')
+        getConfigValue('SHEETS.TAB_NAMES.RESULTS')
       );
       
       if (!resultsSheet) return 'No previous meeting data available';
@@ -1629,7 +1629,7 @@ function getWeeklyScheduleStatus() {
   try {
     const today = DateUtils.now();
     const dayOfWeek = DateUtils.getDayOfWeek(today);
-    const schedule = getConfig('WEEKLY_SCHEDULE.SCHEDULE', {});
+    const schedule = getConfigValue('WEEKLY_SCHEDULE.SCHEDULE', {});
     const todaySchedule = schedule[dayOfWeek];
     
     return {
@@ -1639,7 +1639,7 @@ function getWeeklyScheduleStatus() {
       today_schedule: todaySchedule,
       content_enabled: todaySchedule?.enabled || false,
       content_type: todaySchedule?.type || 'none',
-      bible_compliant: getConfig('WEEKLY_SCHEDULE.ENABLED', true)
+      bible_compliant: getConfigValue('WEEKLY_SCHEDULE.ENABLED', true)
     };
     
   } catch (error) {

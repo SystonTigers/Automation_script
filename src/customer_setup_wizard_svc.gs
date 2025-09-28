@@ -483,7 +483,7 @@ function buildDeploymentResult(success, results, message) {
  */
 function validateSystemConfiguration() {
   try {
-    const config = getRuntimeConfig();
+    const config = getDynamicConfig();
 
     // Check required configuration
     const requiredKeys = ['TEAM_NAME', 'TEAM_SHORT', 'LEAGUE_NAME', 'PRIMARY_COLOR'];
@@ -700,7 +700,7 @@ function testAutomationPipeline() {
  */
 function generateCustomerDashboard() {
   try {
-    const config = getRuntimeConfig();
+    const config = getDynamicConfig();
 
     // Create dashboard URL
     const dashboardUrl = getWebAppUrl() + '?dashboard=true';

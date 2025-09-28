@@ -101,7 +101,7 @@ class EnhancedEventsManager {
    * @returns {boolean} True if opposition goal
    */
   detectOppositionGoal(player) {
-    const goalKeywords = getConfig('OPPOSITION_HANDLING.GOAL_KEYWORDS', ['Goal']);
+    const goalKeywords = getConfigValue('OPPOSITION_HANDLING.GOAL_KEYWORDS', ['Goal']);
     return goalKeywords.includes(player);
   }
 
@@ -275,7 +275,7 @@ class EnhancedEventsManager {
    * @returns {boolean} True if opposition card
    */
   detectOppositionCard(player) {
-    const oppositionKeywords = getConfig('OPPOSITION_HANDLING.OPPOSITION_KEYWORDS', ['Opposition']);
+    const oppositionKeywords = getConfigValue('OPPOSITION_HANDLING.OPPOSITION_KEYWORDS', ['Opposition']);
     return oppositionKeywords.includes(player);
   }
 
@@ -782,7 +782,7 @@ class EnhancedEventsManager {
     try {
       // Get from Results sheet or Live Match sheet
       const resultsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.RESULTS')
+        getConfigValue('SHEETS.TAB_NAMES.RESULTS')
       );
       
       if (resultsSheet) {
@@ -812,7 +812,7 @@ class EnhancedEventsManager {
   isHomeTeam(matchId) {
     try {
       const fixturesSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES')
+        getConfigValue('SHEETS.TAB_NAMES.FIXTURES')
       );
       
       if (fixturesSheet) {
@@ -845,8 +845,8 @@ class EnhancedEventsManager {
     
     return {
       event_type: eventType,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       
       // Goal-specific data
       player_name: player,
@@ -882,8 +882,8 @@ class EnhancedEventsManager {
     
     return {
       event_type: eventType,
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       
       // Card-specific data
       player_name: player,
@@ -1013,8 +1013,8 @@ class EnhancedEventsManager {
   logPlayerEvent(matchId, player, eventType, minute, details = {}) {
     try {
       const playerEventsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.PLAYER_EVENTS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.PLAYER_EVENTS')
+        getConfigValue('SHEETS.TAB_NAMES.PLAYER_EVENTS'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.PLAYER_EVENTS')
       );
       
       if (playerEventsSheet) {
@@ -1047,8 +1047,8 @@ class EnhancedEventsManager {
   logOppositionEvent(matchId, eventType, minute, details = {}) {
     try {
       const oppositionEventsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.OPPOSITION_EVENTS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.OPPOSITION_EVENTS')
+        getConfigValue('SHEETS.TAB_NAMES.OPPOSITION_EVENTS'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.OPPOSITION_EVENTS')
       );
       
       if (oppositionEventsSheet) {
@@ -1169,8 +1169,8 @@ function initializeEnhancedEvents() {
     const results = {};
     
     requiredSheets.forEach(sheetKey => {
-      const tabName = getConfig(`SHEETS.TAB_NAMES.${sheetKey}`);
-      const columns = getConfig(`SHEETS.REQUIRED_COLUMNS.${sheetKey}`);
+      const tabName = getConfigValue(`SHEETS.TAB_NAMES.${sheetKey}`);
+      const columns = getConfigValue(`SHEETS.REQUIRED_COLUMNS.${sheetKey}`);
       
       if (tabName && columns) {
         const sheet = SheetUtils.getOrCreateSheet(tabName, columns);

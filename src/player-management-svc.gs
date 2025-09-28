@@ -60,8 +60,8 @@ class PlayerManagementManager {
       // @testHook(goal_stats_update_start)
       
       const playerStatsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.PLAYER_STATS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
+        getConfigValue('SHEETS.TAB_NAMES.PLAYER_STATS'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
       );
       
       if (!playerStatsSheet) {
@@ -116,8 +116,8 @@ class PlayerManagementManager {
       // @testHook(card_stats_update_start)
       
       const playerStatsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.PLAYER_STATS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
+        getConfigValue('SHEETS.TAB_NAMES.PLAYER_STATS'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
       );
       
       if (!playerStatsSheet) {
@@ -173,8 +173,8 @@ class PlayerManagementManager {
       // @testHook(sub_stats_update_start)
       
       const playerStatsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.PLAYER_STATS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
+        getConfigValue('SHEETS.TAB_NAMES.PLAYER_STATS'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
       );
       
       if (!playerStatsSheet) {
@@ -270,8 +270,8 @@ class PlayerManagementManager {
       // @testHook(minutes_sheet_update_start)
       
       const playerStatsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.PLAYER_STATS'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
+        getConfigValue('SHEETS.TAB_NAMES.PLAYER_STATS'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.PLAYER_STATS')
       );
       
       if (!playerStatsSheet) {
@@ -332,8 +332,8 @@ class PlayerManagementManager {
       // @testHook(sub_logging_start)
       
       const subsLogSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.SUBS_LOG'),
-        getConfig('SHEETS.REQUIRED_COLUMNS.SUBS_LOG')
+        getConfigValue('SHEETS.TAB_NAMES.SUBS_LOG'),
+        getConfigValue('SHEETS.REQUIRED_COLUMNS.SUBS_LOG')
       );
       
       if (!subsLogSheet) {
@@ -488,7 +488,7 @@ class PlayerManagementManager {
   getAllPlayerStats() {
     try {
       const playerStatsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.PLAYER_STATS')
+        getConfigValue('SHEETS.TAB_NAMES.PLAYER_STATS')
       );
       
       if (!playerStatsSheet) return [];
@@ -496,7 +496,7 @@ class PlayerManagementManager {
       const allStats = SheetUtils.getAllDataAsObjects(playerStatsSheet);
       
       // Filter out players with minimum appearances
-      const minAppearances = getConfig('MONTHLY_CONTENT.PLAYER_STATS.minimum_appearances', 1);
+      const minAppearances = getConfigValue('MONTHLY_CONTENT.PLAYER_STATS.minimum_appearances', 1);
       
       return allStats.filter(player => {
         const appearances = parseInt(player.Appearances) || 0;
@@ -518,7 +518,7 @@ class PlayerManagementManager {
   getPlayerSubstitutions(player, matchId) {
     try {
       const subsLogSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.SUBS_LOG')
+        getConfigValue('SHEETS.TAB_NAMES.SUBS_LOG')
       );
       
       if (!subsLogSheet) return [];
@@ -545,7 +545,7 @@ class PlayerManagementManager {
     try {
       // Try Results sheet first
       const resultsSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.RESULTS')
+        getConfigValue('SHEETS.TAB_NAMES.RESULTS')
       );
       
       if (resultsSheet) {
@@ -562,7 +562,7 @@ class PlayerManagementManager {
       
       // Try Fixtures sheet
       const fixturesSheet = SheetUtils.getOrCreateSheet(
-        getConfig('SHEETS.TAB_NAMES.FIXTURES')
+        getConfigValue('SHEETS.TAB_NAMES.FIXTURES')
       );
       
       if (fixturesSheet) {
@@ -705,12 +705,12 @@ class PlayerManagementManager {
   createPlayerStatsPayload(playerStats, summaryStats, reportingPeriod) {
     return {
       event_type: 'player_stats_summary',
-      system_version: getConfig('SYSTEM.VERSION'),
-      club_name: getConfig('SYSTEM.CLUB_NAME'),
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
       
       // Reporting period
       reporting_period: reportingPeriod,
-      season: getConfig('SYSTEM.SEASON'),
+      season: getConfigValue('SYSTEM.SEASON'),
       
       // Summary statistics
       total_players: summaryStats.total_players,
@@ -905,7 +905,7 @@ class PlayerManagementManager {
       }
       
       // Rate limiting
-      const rateLimitMs = getConfig('PERFORMANCE.WEBHOOK_RATE_LIMIT_MS', 1000);
+      const rateLimitMs = getConfigValue('PERFORMANCE.WEBHOOK_RATE_LIMIT_MS', 1000);
       Utilities.sleep(rateLimitMs);
       
       const response = UrlFetchApp.fetch(webhookUrl, {
@@ -1090,8 +1090,8 @@ function initializePlayerManagement() {
     const results = {};
     
     requiredSheets.forEach(sheetKey => {
-      const tabName = getConfig(`SHEETS.TAB_NAMES.${sheetKey}`);
-      const columns = getConfig(`SHEETS.REQUIRED_COLUMNS.${sheetKey}`);
+      const tabName = getConfigValue(`SHEETS.TAB_NAMES.${sheetKey}`);
+      const columns = getConfigValue(`SHEETS.REQUIRED_COLUMNS.${sheetKey}`);
       
       if (tabName && columns) {
         const sheet = SheetUtils.getOrCreateSheet(tabName, columns);
@@ -1100,8 +1100,8 @@ function initializePlayerManagement() {
     });
     
     // Validate player management configuration
-    const autoCalculateMinutes = getConfig('PLAYER_MANAGEMENT.AUTO_CALCULATE_MINUTES');
-    const autoUpdateStats = getConfig('PLAYER_MANAGEMENT.AUTO_UPDATE_STATS');
+    const autoCalculateMinutes = getConfigValue('PLAYER_MANAGEMENT.AUTO_CALCULATE_MINUTES');
+    const autoUpdateStats = getConfigValue('PLAYER_MANAGEMENT.AUTO_UPDATE_STATS');
     
     logger.exitFunction('PlayerManagement.initialize', { success: true });
     
@@ -1114,7 +1114,7 @@ function initializePlayerManagement() {
         sub_swapping: isFeatureEnabled('SUB_SWAPPING_SYSTEM'),
         player_minutes_tracking: isFeatureEnabled('PLAYER_MINUTES_TRACKING')
       },
-      bi_monthly_stats_enabled: getConfig('MONTHLY_CONTENT.PLAYER_STATS.enabled', true)
+      bi_monthly_stats_enabled: getConfigValue('MONTHLY_CONTENT.PLAYER_STATS.enabled', true)
     };
     
   } catch (error) {

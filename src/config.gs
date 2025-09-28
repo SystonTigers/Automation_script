@@ -1602,7 +1602,7 @@ const SYSTEM_CONFIG = {
  * @param {*} defaultValue - Default value if not found
  * @returns {*} Configuration value
  */
-function getConfig(path, defaultValue = null) {
+function getConfigValue(path, defaultValue = null) {
   try {
     const parts = path.split('.');
     let value = SYSTEM_CONFIG;
@@ -1620,6 +1620,16 @@ function getConfig(path, defaultValue = null) {
     console.error(`Failed to get config for path: ${path}`, error);
     return defaultValue;
   }
+}
+
+/**
+ * @deprecated Use getConfigValue instead. Maintained for backward compatibility.
+ * @param {string} path
+ * @param {*} defaultValue
+ * @returns {*} Configuration value
+ */
+function getConfig(path, defaultValue = null) {
+  return getConfigValue(path, defaultValue);
 }
 
 /**
@@ -1657,7 +1667,7 @@ function setConfig(path, value) {
  * @returns {boolean} Feature enabled status
  */
 function isFeatureEnabled(featureName) {
-  return getConfig(`FEATURES.${featureName}`, false) === true;
+  return getConfigValue(`FEATURES.${featureName}`, false) === true;
 }
 
 /**
@@ -1666,7 +1676,7 @@ function isFeatureEnabled(featureName) {
  */
 function getWebhookUrl() {
   try {
-    const propertyName = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+    const propertyName = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
     return PropertiesService.getScriptProperties().getProperty(propertyName);
   } catch (error) {
     console.error('Failed to get webhook URL:', error);
@@ -1688,16 +1698,16 @@ function validateConfiguration() {
   }
   
   // Check feature dependencies
-  if (isFeatureEnabled('VIDEO_INTEGRATION') && !getConfig('VIDEO.DRIVE_FOLDER_ID')) {
+  if (isFeatureEnabled('VIDEO_INTEGRATION') && !getConfigValue('VIDEO.DRIVE_FOLDER_ID')) {
     warnings.push('Video integration enabled but no Drive folder configured');
   }
   
-  if (isFeatureEnabled('XBOTGO_INTEGRATION') && !getConfig('XBOTGO.API_URL')) {
+  if (isFeatureEnabled('XBOTGO_INTEGRATION') && !getConfigValue('XBOTGO.API_URL')) {
     warnings.push('XbotGo integration enabled but no API URL configured');
   }
   
   // Check Bible compliance
-  if (!getConfig('SYSTEM.BIBLE_COMPLIANT')) {
+  if (!getConfigValue('SYSTEM.BIBLE_COMPLIANT')) {
     issues.push('System not configured for Bible compliance');
   }
   
@@ -1718,10 +1728,10 @@ function validateConfiguration() {
 function ensureBuyerProfileId() {
   try {
     if (typeof PropertiesService === 'undefined' || !PropertiesService.getScriptProperties) {
-      return getConfig('CUSTOMER.DEFAULT_PROFILE').buyerId;
+      return getConfigValue('CUSTOMER.DEFAULT_PROFILE').buyerId;
     }
 
-    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+    const propertyKeys = getConfigValue('CUSTOMER.PROPERTY_KEYS');
     const scriptProperties = PropertiesService.getScriptProperties();
 
     // @testHook(buyer_profile_id_read_start)
@@ -1741,7 +1751,7 @@ function ensureBuyerProfileId() {
     return buyerId;
   } catch (error) {
     console.error('Failed to ensure buyer profile ID:', error);
-    return getConfig('CUSTOMER.DEFAULT_PROFILE').buyerId;
+    return getConfigValue('CUSTOMER.DEFAULT_PROFILE').buyerId;
   }
 }
 
@@ -1752,13 +1762,13 @@ function ensureBuyerProfileId() {
  */
 function getBuyerProfile(useDefaults = true) {
   try {
-    const defaults = JSON.parse(JSON.stringify(getConfig('CUSTOMER.DEFAULT_PROFILE')));
+    const defaults = JSON.parse(JSON.stringify(getConfigValue('CUSTOMER.DEFAULT_PROFILE')));
 
     if (typeof PropertiesService === 'undefined' || !PropertiesService.getScriptProperties) {
       return useDefaults ? defaults : null;
     }
 
-    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+    const propertyKeys = getConfigValue('CUSTOMER.PROPERTY_KEYS');
     const scriptProperties = PropertiesService.getScriptProperties();
 
     // @testHook(buyer_profile_properties_read_start)
@@ -1783,7 +1793,7 @@ function getBuyerProfile(useDefaults = true) {
     return Object.assign({}, defaults, parsedProfile);
   } catch (error) {
     console.error('Failed to load buyer profile:', error);
-    return useDefaults ? JSON.parse(JSON.stringify(getConfig('CUSTOMER.DEFAULT_PROFILE'))) : null;
+    return useDefaults ? JSON.parse(JSON.stringify(getConfigValue('CUSTOMER.DEFAULT_PROFILE'))) : null;
   }
 }
 
@@ -1797,12 +1807,12 @@ function applyBuyerProfileToSystem(profile) {
     return { success: false, reason: 'invalid_profile' };
   }
 
-  const resolvedProfile = Object.assign({}, getConfig('CUSTOMER.DEFAULT_PROFILE'), profile);
+  const resolvedProfile = Object.assign({}, getConfigValue('CUSTOMER.DEFAULT_PROFILE'), profile);
 
-  setConfig('SYSTEM.CLUB_NAME', resolvedProfile.clubName || getConfig('SYSTEM.CLUB_NAME'));
-  setConfig('SYSTEM.CLUB_SHORT_NAME', resolvedProfile.clubShortName || resolvedProfile.clubName || getConfig('SYSTEM.CLUB_SHORT_NAME'));
-  setConfig('SYSTEM.LEAGUE', resolvedProfile.league || getConfig('SYSTEM.LEAGUE'));
-  setConfig('SYSTEM.AGE_GROUP', resolvedProfile.ageGroup || getConfig('SYSTEM.AGE_GROUP'));
+  setConfig('SYSTEM.CLUB_NAME', resolvedProfile.clubName || getConfigValue('SYSTEM.CLUB_NAME'));
+  setConfig('SYSTEM.CLUB_SHORT_NAME', resolvedProfile.clubShortName || resolvedProfile.clubName || getConfigValue('SYSTEM.CLUB_SHORT_NAME'));
+  setConfig('SYSTEM.LEAGUE', resolvedProfile.league || getConfigValue('SYSTEM.LEAGUE'));
+  setConfig('SYSTEM.AGE_GROUP', resolvedProfile.ageGroup || getConfigValue('SYSTEM.AGE_GROUP'));
   setConfig('SYSTEM.LAST_UPDATED', new Date().toISOString());
 
   if (resolvedProfile.primaryColor) {
@@ -1837,12 +1847,12 @@ function syncBuyerProfileToSheets(profile) {
       return { success: false, skipped: true };
     }
 
-    const profileTabKey = getConfig('CUSTOMER.SHEETS.PROFILE_TAB_KEY');
-    const rosterTabKey = getConfig('CUSTOMER.SHEETS.ROSTER_TAB_KEY');
-    const profileSheetName = getConfig(`SHEETS.TAB_NAMES.${profileTabKey}`) || 'Buyer Profiles';
-    const rosterSheetName = getConfig(`SHEETS.TAB_NAMES.${rosterTabKey}`) || 'Buyer Rosters';
-    const profileColumns = getConfig(`SHEETS.REQUIRED_COLUMNS.${profileTabKey}`, []);
-    const rosterColumns = getConfig(`SHEETS.REQUIRED_COLUMNS.${rosterTabKey}`, []);
+    const profileTabKey = getConfigValue('CUSTOMER.SHEETS.PROFILE_TAB_KEY');
+    const rosterTabKey = getConfigValue('CUSTOMER.SHEETS.ROSTER_TAB_KEY');
+    const profileSheetName = getConfigValue(`SHEETS.TAB_NAMES.${profileTabKey}`) || 'Buyer Profiles';
+    const rosterSheetName = getConfigValue(`SHEETS.TAB_NAMES.${rosterTabKey}`) || 'Buyer Rosters';
+    const profileColumns = getConfigValue(`SHEETS.REQUIRED_COLUMNS.${profileTabKey}`, []);
+    const rosterColumns = getConfigValue(`SHEETS.REQUIRED_COLUMNS.${rosterTabKey}`, []);
 
     const profileSheet = SheetUtils.getOrCreateSheet(profileSheetName, profileColumns);
     const rosterSheet = SheetUtils.getOrCreateSheet(rosterSheetName, rosterColumns);
@@ -1908,11 +1918,11 @@ function saveBuyerProfile(profile) {
       throw new Error('Invalid buyer profile payload');
     }
 
-    const resolvedProfile = Object.assign({}, getConfig('CUSTOMER.DEFAULT_PROFILE'), profile);
+    const resolvedProfile = Object.assign({}, getConfigValue('CUSTOMER.DEFAULT_PROFILE'), profile);
     resolvedProfile.buyerId = resolvedProfile.buyerId || ensureBuyerProfileId();
     resolvedProfile.updatedAt = new Date().toISOString();
 
-    const propertyKeys = getConfig('CUSTOMER.PROPERTY_KEYS');
+    const propertyKeys = getConfigValue('CUSTOMER.PROPERTY_KEYS');
 
     if (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) {
       const scriptProperties = PropertiesService.getScriptProperties();
@@ -1994,11 +2004,11 @@ function initializeConfig() {
     
     return {
       success: true,
-      version: getConfig('SYSTEM.VERSION'),
+      version: getConfigValue('SYSTEM.VERSION'),
       validation: validation,
-      bible_compliant: getConfig('SYSTEM.BIBLE_COMPLIANT'),
+      bible_compliant: getConfigValue('SYSTEM.BIBLE_COMPLIANT'),
       buyer_profile: overrides,
-      features_enabled: Object.entries(getConfig('FEATURES', {}))
+      features_enabled: Object.entries(getConfigValue('FEATURES', {}))
         .filter(([key, value]) => value === true)
         .map(([key]) => key)
     };

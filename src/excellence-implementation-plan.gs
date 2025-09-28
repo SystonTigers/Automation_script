@@ -154,7 +154,7 @@ class ExcellenceImplementationPlan {
       const health = {
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        version: getConfig('SYSTEM.VERSION'),
+        version: getConfigValue('SYSTEM.VERSION'),
         uptime: this.calculateUptime(),
         checks: {
           database: this.checkDatabaseConnection(),
@@ -201,7 +201,7 @@ class ExcellenceImplementationPlan {
           correlationId: context.correlationId || Utilities.getUuid(),
           userId: Session.getActiveUser().getEmail(),
           source: context.source || 'system',
-          environment: getConfig('SYSTEM.ENVIRONMENT') || 'production'
+          environment: getConfigValue('SYSTEM.ENVIRONMENT') || 'production'
         };
 
         // Store in structured log

@@ -25,9 +25,9 @@ class TemplateVariantBuilder {
   constructor() {
     this.loggerName = 'TemplateVariantBuilder';
     this._logger = null;
-    this.templateConfig = getConfig('CANVA.TEMPLATE_VARIANTS', {});
-    this.variantSettings = getConfig('CANVA.VARIANT_SETTINGS', {});
-    this.buyerProfile = getConfig('BUYER_INTAKE', {});
+    this.templateConfig = getConfigValue('CANVA.TEMPLATE_VARIANTS', {});
+    this.variantSettings = getConfigValue('CANVA.VARIANT_SETTINGS', {});
+    this.buyerProfile = getConfigValue('BUYER_INTAKE', {});
   }
 
   get logger() {
@@ -129,7 +129,7 @@ class TemplateVariantBuilder {
       return null;
     }
 
-    const mapping = getConfig('MAKE.CONTENT_SLOTS', {});
+    const mapping = getConfigValue('MAKE.CONTENT_SLOTS', {});
     if (mapping && typeof mapping === 'object') {
       if (mapping[eventType]) {
         return mapping[eventType];
@@ -386,7 +386,7 @@ class MakeIntegration {
     this.retryQueue = [];
     this.rateLimiter = {
       lastCall: 0,
-      minInterval: getConfig('PERFORMANCE.WEBHOOK_RATE_LIMIT_MS', 1000)
+      minInterval: getConfigValue('PERFORMANCE.WEBHOOK_RATE_LIMIT_MS', 1000)
     };
     this.metrics = {
       totalCalls: 0,
@@ -395,9 +395,9 @@ class MakeIntegration {
       retriedCalls: 0
     };
     this.idempotency = {
-      enabled: getConfig('MAKE.IDEMPOTENCY.ENABLED', true),
-      ttlSeconds: getConfig('MAKE.IDEMPOTENCY.TTL_SECONDS', 86400),
-      cachePrefix: getConfig('MAKE.IDEMPOTENCY.CACHE_PREFIX', 'MAKE_IDEMPOTENCY_'),
+      enabled: getConfigValue('MAKE.IDEMPOTENCY.ENABLED', true),
+      ttlSeconds: getConfigValue('MAKE.IDEMPOTENCY.TTL_SECONDS', 86400),
+      cachePrefix: getConfigValue('MAKE.IDEMPOTENCY.CACHE_PREFIX', 'MAKE_IDEMPOTENCY_'),
       cache: (typeof CacheService !== 'undefined' && CacheService.getScriptCache)
         ? CacheService.getScriptCache()
         : null
@@ -535,7 +535,7 @@ class MakeIntegration {
         throw new Error('Invalid payloads array');
       }
       
-      const batchSize = options.batchSize || getConfig('PERFORMANCE.BATCH_SIZE', 5);
+      const batchSize = options.batchSize || getConfigValue('PERFORMANCE.BATCH_SIZE', 5);
       const results = [];
       
       // Process payloads in batches
@@ -593,8 +593,8 @@ class MakeIntegration {
    * @returns {Object} Execution result
    */
   executeWebhookCall(webhookUrl, payload, options = {}) {
-    const maxRetries = options.maxRetries || getConfig('MAKE.WEBHOOK_RETRY_ATTEMPTS', 3);
-    const retryDelay = options.retryDelay || getConfig('MAKE.WEBHOOK_RETRY_DELAY_MS', 2000);
+    const maxRetries = options.maxRetries || getConfigValue('MAKE.WEBHOOK_RETRY_ATTEMPTS', 3);
+    const retryDelay = options.retryDelay || getConfigValue('MAKE.WEBHOOK_RETRY_DELAY_MS', 2000);
     
     let lastError = null;
     
@@ -606,7 +606,7 @@ class MakeIntegration {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': `SystonTigersAutomation/${getConfig('SYSTEM.VERSION')}`,
+            'User-Agent': `SystonTigersAutomation/${getConfigValue('SYSTEM.VERSION')}`,
             'X-Attempt': attempt.toString(),
             'X-Event-Type': payload.event_type
           },
@@ -699,8 +699,8 @@ class MakeIntegration {
 
       // System metadata
       system: {
-        version: getConfig('SYSTEM.VERSION'),
-        environment: getConfig('SYSTEM.ENVIRONMENT'),
+        version: getConfigValue('SYSTEM.VERSION'),
+        environment: getConfigValue('SYSTEM.ENVIRONMENT'),
         timestamp: DateUtils.formatISO(DateUtils.now()),
         session_id: logger.sessionId
       },
@@ -715,9 +715,9 @@ class MakeIntegration {
       
       // Club metadata
       club: {
-        name: getConfig('SYSTEM.CLUB_NAME'),
-        short_name: getConfig('SYSTEM.CLUB_SHORT_NAME'),
-        season: getConfig('SYSTEM.SEASON')
+        name: getConfigValue('SYSTEM.CLUB_NAME'),
+        short_name: getConfigValue('SYSTEM.CLUB_SHORT_NAME'),
+        season: getConfigValue('SYSTEM.SEASON')
       }
     };
 
@@ -755,7 +755,7 @@ class MakeIntegration {
     }
     
     // Validate event type
-    const validEventTypes = Object.values(getConfig('MAKE.EVENT_TYPES', {}));
+    const validEventTypes = Object.values(getConfigValue('MAKE.EVENT_TYPES', {}));
     if (payload.event_type && !validEventTypes.includes(payload.event_type)) {
       errors.push(`Invalid event_type: ${payload.event_type}`);
     }
@@ -837,7 +837,7 @@ class MakeIntegration {
    */
   validateRouterConfiguration() {
     try {
-      const eventTypes = getConfig('MAKE.EVENT_TYPES', {});
+      const eventTypes = getConfigValue('MAKE.EVENT_TYPES', {});
       const missingRoutes = [];
 
       Object.values(eventTypes).forEach(eventType => {
@@ -874,7 +874,7 @@ class MakeIntegration {
     try {
       // @testHook(router_documentation_start)
 
-      const eventTypes = getConfig('MAKE.EVENT_TYPES', {});
+      const eventTypes = getConfigValue('MAKE.EVENT_TYPES', {});
       const documentation = [];
 
       Object.entries(eventTypes).forEach(([configKey, eventType]) => {
@@ -898,7 +898,7 @@ class MakeIntegration {
 
       const payload = {
         generated_at: DateUtils.formatISO(DateUtils.now()),
-        version: getConfig('SYSTEM.VERSION'),
+        version: getConfigValue('SYSTEM.VERSION'),
         total_routes: documentation.length,
         routes: documentation
       };
@@ -918,7 +918,7 @@ class MakeIntegration {
       return {
         error: error.toString(),
         generated_at: DateUtils.formatISO(DateUtils.now()),
-        version: getConfig('SYSTEM.VERSION'),
+        version: getConfigValue('SYSTEM.VERSION'),
         routes: []
       };
     }
@@ -1195,7 +1195,7 @@ class MakeIntegration {
         test: true,
         test_data: {
           message: 'Connectivity test from Syston Tigers automation',
-          system_version: getConfig('SYSTEM.VERSION'),
+          system_version: getConfigValue('SYSTEM.VERSION'),
           test_id: StringUtils.generateId('test')
         }
       };

@@ -487,7 +487,7 @@ class ExcellenceConfigManager {
       'PRODUCTION.PERFORMANCE_MONITORING'
     ];
 
-    const missingConfigs = requiredConfigs.filter(config => !getConfig(config));
+    const missingConfigs = requiredConfigs.filter(config => !getConfigValue(config));
 
     return {
       valid: missingConfigs.length === 0,

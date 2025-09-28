@@ -262,7 +262,7 @@ class HistoricalFixturesManager {
       // @testHook(make_webhook_start)
       const payload = this.buildHistoricalPayload(fixture, historicalData);
 
-      const webhookUrl = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+      const webhookUrl = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
       if (!webhookUrl) {
         this.logger.warn('Make.com webhook URL not configured');
         return { success: false, error: 'Webhook URL not configured' };
@@ -302,7 +302,7 @@ class HistoricalFixturesManager {
    * Build payload for Make.com with historical data
    */
   buildHistoricalPayload(fixture, historicalData) {
-    const clubName = getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers');
+    const clubName = getConfigValue('SYSTEM.CLUB_NAME', 'Syston Tigers');
     const stats = historicalData.stats;
     const lastMeeting = historicalData.lastMeeting;
 

@@ -32,7 +32,7 @@ function trackPlayerMinutes(matchId, startingPlayers = [], substitutions = []) {
     }
 
     const matchStartTime = 0; // Match starts at minute 0
-    const fullTimeMinute = getConfig('MATCH.FULL_TIME_MINUTES', 90);
+    const fullTimeMinute = getConfigValue('MATCH.FULL_TIME_MINUTES', 90);
     const playerMinutesData = [];
 
     // Track starting players
@@ -130,7 +130,7 @@ function handleSubstitution(subData) {
       player_on: playerOn,
       minute: minute,
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      system_version: getConfig('SYSTEM.VERSION')
+      system_version: getConfigValue('SYSTEM.VERSION')
     };
 
     // @testHook(substitution_webhook)
@@ -163,7 +163,7 @@ function swapPlayersInTeamSheets(matchId, playerOff, playerOn) {
   try {
     // @testHook(team_sheets_swap_start)
 
-    const teamSheetsTabName = getConfig('SHEETS.TAB_NAMES.TEAM_SHEETS', 'Team Sheets');
+    const teamSheetsTabName = getConfigValue('SHEETS.TAB_NAMES.TEAM_SHEETS', 'Team Sheets');
     const teamSheet = SheetUtils.getSheet(teamSheetsTabName);
 
     if (!teamSheet) {
@@ -216,7 +216,7 @@ function updatePlayerTotalMinutes(playerMinutes) {
   logger.enterFunction('updatePlayerTotalMinutes', { player: playerMinutes.player });
 
   try {
-    const statsTabName = getConfig('SHEETS.TAB_NAMES.PLAYER_STATS', 'Player Stats');
+    const statsTabName = getConfigValue('SHEETS.TAB_NAMES.PLAYER_STATS', 'Player Stats');
     const statsSheet = SheetUtils.getSheet(statsTabName);
 
     if (!statsSheet) {

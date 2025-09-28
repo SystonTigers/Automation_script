@@ -109,8 +109,8 @@ function initializeProductionExcellence() {
         overall: overallHealth,
         checks: results,
         uptime: this.calculateUptime(),
-        version: getConfig('SYSTEM.VERSION'),
-        environment: getConfig('SYSTEM.ENVIRONMENT') || 'production'
+        version: getConfigValue('SYSTEM.VERSION'),
+        environment: getConfigValue('SYSTEM.ENVIRONMENT') || 'production'
       };
 
       // Store health data
@@ -129,7 +129,7 @@ function initializeProductionExcellence() {
         case 'system_responsiveness':
           const startTime = Date.now();
           // Perform a lightweight operation
-          const testResult = getConfig('SYSTEM.VERSION');
+          const testResult = getConfigValue('SYSTEM.VERSION');
           const responseTime = Date.now() - startTime;
           return {
             status: responseTime < 1000 ? 'healthy' : 'degraded',
@@ -150,7 +150,7 @@ function initializeProductionExcellence() {
 
         case 'external_api_health':
           // Test Make.com webhook connectivity
-          const webhookUrl = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+          const webhookUrl = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
           return {
             status: webhookUrl ? 'healthy' : 'degraded',
             configured: !!webhookUrl
@@ -184,7 +184,7 @@ function initializeProductionExcellence() {
     performSystemBackup() {
       const backupData = {
         timestamp: new Date().toISOString(),
-        version: getConfig('SYSTEM.VERSION'),
+        version: getConfigValue('SYSTEM.VERSION'),
         config: this.backupConfiguration(),
         sheets: this.backupSheetStructures(),
         features: this.backupFeatureToggles(),
@@ -249,7 +249,7 @@ function initializeProductionExcellence() {
     sendToChannel(channel, alert) {
       switch (channel) {
         case 'email':
-          const adminEmail = getConfig('ADMIN_EMAIL') || getConfig('CONTACT_EMAIL');
+          const adminEmail = getConfigValue('ADMIN_EMAIL') || getConfigValue('CONTACT_EMAIL');
           if (adminEmail) {
             MailApp.sendEmail({
               to: adminEmail,
@@ -260,7 +260,7 @@ function initializeProductionExcellence() {
           break;
 
         case 'webhook':
-          const webhookUrl = getConfig('ALERTS.WEBHOOK_URL');
+          const webhookUrl = getConfigValue('ALERTS.WEBHOOK_URL');
           if (webhookUrl) {
             UrlFetchApp.fetch(webhookUrl, {
               method: 'POST',
@@ -363,7 +363,7 @@ function initializeProductionExcellence() {
 
     simulateRequest() {
       // Simulate a typical system operation
-      const config = getConfig('SYSTEM.VERSION');
+      const config = getConfigValue('SYSTEM.VERSION');
       const sheet = SheetUtils.getSheet('Config');
       return { success: true, responseTime: Math.random() * 100 + 50 };
     }

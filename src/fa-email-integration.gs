@@ -52,7 +52,7 @@ function checkForNewFAEmails() {
   console.log('📧 Checking for new FA fixture emails...');
 
   try {
-    const config = getRuntimeConfig();
+    const config = getDynamicConfig();
     const results = {
       emailsChecked: 0,
       fixturesFound: 0,
@@ -119,7 +119,7 @@ function checkForNewFAEmails() {
  * @returns {string} Gmail search query
  */
 function buildFAEmailSearchQuery() {
-  const config = getRuntimeConfig();
+  const config = getDynamicConfig();
 
   // Get date range (last 30 days)
   const thirtyDaysAgo = new Date();
@@ -190,7 +190,7 @@ function parseFixtureFromEmail(message) {
  * @returns {string} Opposition team name
  */
 function extractOpposition(subject, body) {
-  const config = getRuntimeConfig();
+  const config = getDynamicConfig();
   const ourTeam = config.TEAM_NAME;
   const ourShortName = config.TEAM_SHORT;
 
@@ -318,7 +318,7 @@ function extractKickOffTime(subject, body) {
  * @returns {string} Venue information
  */
 function extractVenue(subject, body) {
-  const config = getRuntimeConfig();
+  const config = getDynamicConfig();
   const text = `${subject} ${body}`;
 
   // Venue patterns
@@ -542,7 +542,7 @@ function addFixtureToSheet(fixtureData) {
  */
 function addFixtureToCalendar(fixtureData) {
   try {
-    const config = getRuntimeConfig();
+    const config = getDynamicConfig();
 
     // Parse date and time
     const matchDate = parseUKDate(fixtureData.date);

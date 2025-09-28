@@ -76,7 +76,7 @@ function getOppositionTeam(matchData) {
     return matchData.opponent;
   }
   if (matchData.awayTeam && matchData.homeTeam) {
-    const ourTeam = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
+    const ourTeam = getConfigValue('SYSTEM.CLUB_NAME', 'Football Club');
     return matchData.homeTeam === ourTeam ? matchData.awayTeam : matchData.homeTeam;
   }
   if (matchData.versus) {
@@ -86,7 +86,7 @@ function getOppositionTeam(matchData) {
   // Try to get from fixtures sheet using match ID
   if (matchData.id) {
     try {
-      const fixturesTabName = getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures');
+      const fixturesTabName = getConfigValue('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures');
       const fixturesSheet = SheetUtils.getSheet(fixturesTabName);
 
       if (fixturesSheet) {
@@ -118,11 +118,11 @@ function getOppositionTeam(matchData) {
  */
 function isHomeTeam(matchData) {
   try {
-    const ourTeam = getConfig('SYSTEM.CLUB_NAME', 'Football Club');
+    const ourTeam = getConfigValue('SYSTEM.CLUB_NAME', 'Football Club');
 
     if (typeof matchData === 'string') {
       // matchData is just an ID, look up in fixtures
-      const fixturesTabName = getConfig('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures');
+      const fixturesTabName = getConfigValue('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures');
       const fixturesSheet = SheetUtils.getSheet(fixturesTabName);
 
       if (fixturesSheet) {
@@ -184,7 +184,7 @@ function getCurrentScores(matchId) {
     }
 
     // Try to get from results sheet first
-    const resultsTabName = getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results');
+    const resultsTabName = getConfigValue('SHEETS.TAB_NAMES.RESULTS', 'Results');
     const resultsSheet = SheetUtils.getSheet(resultsTabName);
 
     if (resultsSheet) {
@@ -222,7 +222,7 @@ function getCurrentScores(matchId) {
  */
 function updateMatchScores(matchId, scores) {
   try {
-    const resultsTabName = getConfig('SHEETS.TAB_NAMES.RESULTS', 'Results');
+    const resultsTabName = getConfigValue('SHEETS.TAB_NAMES.RESULTS', 'Results');
     const resultsSheet = SheetUtils.getSheet(resultsTabName);
 
     if (!resultsSheet) {
@@ -271,7 +271,7 @@ function updateMatchScores(matchId, scores) {
  */
 function isFeatureEnabled(featureName) {
   try {
-    return getConfig(`FEATURES.${featureName}`, false);
+    return getConfigValue(`FEATURES.${featureName}`, false);
   } catch (error) {
     return false;
   }
@@ -283,7 +283,7 @@ function isFeatureEnabled(featureName) {
  */
 function getWebhookUrl() {
   try {
-    return getConfig('WEBHOOKS.MAKE_URL', null);
+    return getConfigValue('WEBHOOKS.MAKE_URL', null);
   } catch (error) {
     return null;
   }
@@ -300,7 +300,7 @@ function getWebhookUrl() {
  */
 function logOppositionEvent(matchId, eventType, minute, details = {}) {
   try {
-    const oppositionLogTabName = getConfig('SHEETS.TAB_NAMES.OPPOSITION_LOG', 'Opposition Events');
+    const oppositionLogTabName = getConfigValue('SHEETS.TAB_NAMES.OPPOSITION_LOG', 'Opposition Events');
     const logColumns = ['Match ID', 'Event Type', 'Minute', 'Details', 'Timestamp'];
     const logSheet = SheetUtils.getOrCreateSheet(oppositionLogTabName, logColumns);
 

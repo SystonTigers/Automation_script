@@ -296,7 +296,7 @@ class EnhancedSystemCoordinator {
       };
 
       // Get webhook URL from config
-      const webhookUrl = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+      const webhookUrl = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
       if (!webhookUrl) {
         throw new Error('Make.com webhook URL not configured');
       }
@@ -437,7 +437,7 @@ class EnhancedSystemCoordinator {
   }
 
   getCurrentMatchId() {
-    return getConfig('CURRENT_MATCH_ID') || 'default_match';
+    return getConfigValue('CURRENT_MATCH_ID') || 'default_match';
   }
 
   generateSecurityToken() {

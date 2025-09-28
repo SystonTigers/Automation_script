@@ -132,7 +132,7 @@ class CodeQualityEnhancements {
        */
       generateAPIDocumentation(modules) {
         const documentation = {
-          version: getConfig('SYSTEM.VERSION'),
+          version: getConfigValue('SYSTEM.VERSION'),
           lastUpdated: new Date().toISOString(),
           modules: {}
         };
@@ -169,7 +169,7 @@ class CodeQualityEnhancements {
       generateChangelog() {
         // This would integrate with git to generate semantic changelog
         return {
-          version: getConfig('SYSTEM.VERSION'),
+          version: getConfigValue('SYSTEM.VERSION'),
           changes: {
             breaking: [],
             features: [],

@@ -115,13 +115,16 @@ class WorkingMonitoring {
       // Test 3: Can we load the config?
       healthResults.checks++;
       try {
-        const config = getRuntimeConfig();
-        if (config && config.SYSTEM && config.SYSTEM.CLUB_NAME) {
+        const dynamicConfig = getDynamicConfig();
+        const clubName = (dynamicConfig && dynamicConfig.TEAM_NAME)
+          || getConfigValue('SYSTEM.CLUB_NAME', 'Unknown Club');
+
+        if (clubName) {
           healthResults.passed++;
           healthResults.details.push({
             test: 'config_load',
             status: 'pass',
-            details: `Config loaded for ${config.SYSTEM.CLUB_NAME}`
+            details: `Config loaded for ${clubName}`
           });
         } else {
           healthResults.warnings++;
@@ -236,11 +239,11 @@ class WorkingMonitoring {
     try {
       // Test 1: Config loading speed
       const configStart = Date.now();
-      const config = getRuntimeConfig();
+      const config = getDynamicConfig();
       const configTime = Date.now() - configStart;
 
       performanceTests.push({
-        function: 'getRuntimeConfig',
+        function: 'getConfig',
         timeMs: configTime,
         status: configTime < 1000 ? 'fast' : configTime < 3000 ? 'acceptable' : 'slow'
       });
@@ -307,7 +310,7 @@ class WorkingMonitoring {
 
       // Simple error tracking - check if we can execute basic functions
       const testFunctions = [
-        () => getRuntimeConfig(),
+        () => getDynamicConfig(),
         () => SpreadsheetApp.getActiveSpreadsheet().getName(),
         () => new Date().toISOString()
       ];
@@ -430,7 +433,7 @@ class WorkingMonitoring {
           status: currentResults.overallStatus,
           lastCheck: currentResults.timestamp,
           uptime: 'Available', // Simple uptime indicator
-          version: getConfig('SYSTEM.VERSION', 'unknown')
+          version: getConfigValue('SYSTEM.VERSION', 'unknown')
         },
         health: currentResults.systemHealth,
         performance: currentResults.functionPerformance,

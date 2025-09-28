@@ -87,7 +87,7 @@ function createGoalVideoClip(goalData) {
       title: clipTitle,
       caption: clipCaption,
       timestamp: DateUtils.formatISO(DateUtils.now()),
-      system_version: getConfig('SYSTEM.VERSION')
+      system_version: getConfigValue('SYSTEM.VERSION')
     };
 
     // @testHook(goal_video_clip_webhook)

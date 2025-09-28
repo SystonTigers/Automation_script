@@ -294,7 +294,7 @@ class DomainModel {
 class MatchAggregate {
   constructor(matchId) {
     this.id = matchId;
-    this.homeTeam = getConfig('SYSTEM.CLUB_NAME', 'Home Team');
+    this.homeTeam = getConfigValue('SYSTEM.CLUB_NAME', 'Home Team');
     this.awayTeam = '';
     this.homeScore = 0;
     this.awayScore = 0;

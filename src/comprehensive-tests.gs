@@ -590,9 +590,13 @@ function runPrivacyTests() {
 function runIntegrationTests() {
   const tests = {
     testConfigSystemIntegration: () => {
-      const config = getRuntimeConfig();
-      AdvancedTestFramework.assertNotNull(config, 'Config should load');
-      AdvancedTestFramework.assertNotNull(config.SYSTEM, 'System config should exist');
+      const dynamicConfig = getDynamicConfig();
+      AdvancedTestFramework.assertNotNull(dynamicConfig, 'Dynamic config should load');
+      AdvancedTestFramework.assertTrue(!!dynamicConfig.TEAM_NAME, 'Dynamic config should include TEAM_NAME');
+
+      const systemConfig = getConfigValue('SYSTEM', {});
+      AdvancedTestFramework.assertNotNull(systemConfig, 'Static config should be available');
+      AdvancedTestFramework.assertNotNull(systemConfig.VERSION, 'Static config should include VERSION');
     },
 
     testHealthCheckIntegration: () => {
@@ -722,7 +726,7 @@ function runAllComprehensiveTests() {
 function quickComprehensiveTest() {
   try {
     // Quick validation of core systems
-    const config = getRuntimeConfig();
+    const config = getDynamicConfig();
     if (!config) throw new Error('Config system failed');
 
     const health = HealthCheck.quickHealthCheck();

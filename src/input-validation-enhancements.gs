@@ -495,7 +495,7 @@ class EnhancedMakeIntegration {
       }
 
       // Validate webhook URL configuration
-      const webhookUrl = getConfig('MAKE.WEBHOOK_URL_PROPERTY');
+      const webhookUrl = getConfigValue('MAKE.WEBHOOK_URL_PROPERTY');
       if (!webhookUrl) {
         return { success: false, error: 'Make.com webhook URL not configured' };
       }
@@ -514,7 +514,7 @@ class EnhancedMakeIntegration {
         ...validatedPayload.payload,
         timestamp: new Date().toISOString(),
         source: 'syston_tigers_automation',
-        version: getConfig('SYSTEM.VERSION'),
+        version: getConfigValue('SYSTEM.VERSION'),
         security_hash: this.generateSecurityHash(validatedPayload.payload)
       };
 

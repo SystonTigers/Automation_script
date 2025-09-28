@@ -575,7 +575,7 @@ const DateUtils = {
    */
   formatUK(date) {
     if (!(date instanceof Date)) return '';
-    return Utilities.formatDate(date, getConfig('SYSTEM.TIMEZONE'), 'dd/MM/yyyy');
+    return Utilities.formatDate(date, getConfigValue('SYSTEM.TIMEZONE'), 'dd/MM/yyyy');
   },
 
   /**
@@ -585,7 +585,7 @@ const DateUtils = {
    */
   formatTime(date) {
     if (!(date instanceof Date)) return '';
-    return Utilities.formatDate(date, getConfig('SYSTEM.TIMEZONE'), 'HH:mm');
+    return Utilities.formatDate(date, getConfigValue('SYSTEM.TIMEZONE'), 'HH:mm');
   },
 
   /**
@@ -595,7 +595,7 @@ const DateUtils = {
    */
   formatDateTime(date) {
     if (!(date instanceof Date)) return '';
-    return Utilities.formatDate(date, getConfig('SYSTEM.TIMEZONE'), 'dd/MM/yyyy HH:mm');
+    return Utilities.formatDate(date, getConfigValue('SYSTEM.TIMEZONE'), 'dd/MM/yyyy HH:mm');
   },
 
   /**

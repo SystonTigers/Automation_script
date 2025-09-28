@@ -478,12 +478,12 @@ class OptimizedPerformanceManager extends PerformanceCacheManager {
   preloadTeamData() {
     try {
       const teamData = {
-        clubName: getConfig('SYSTEM.CLUB_NAME', 'Syston Tigers'),
-        season: getConfig('SYSTEM.SEASON', '2024-25'),
-        league: getConfig('SYSTEM.LEAGUE', 'Local League'),
-        colors: getConfig('SYSTEM.TEAM_COLORS', { primary: '#blue', secondary: '#white' }),
-        venue: getConfig('SYSTEM.HOME_VENUE', 'Home Ground'),
-        founded: getConfig('SYSTEM.FOUNDED', '1990'),
+        clubName: getConfigValue('SYSTEM.CLUB_NAME', 'Syston Tigers'),
+        season: getConfigValue('SYSTEM.SEASON', '2024-25'),
+        league: getConfigValue('SYSTEM.LEAGUE', 'Local League'),
+        colors: getConfigValue('SYSTEM.TEAM_COLORS', { primary: '#blue', secondary: '#white' }),
+        venue: getConfigValue('SYSTEM.HOME_VENUE', 'Home Ground'),
+        founded: getConfigValue('SYSTEM.FOUNDED', '1990'),
         cacheExpiry: Date.now() + (60 * 60 * 1000) // 1 hour
       };
 
