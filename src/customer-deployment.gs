@@ -402,3 +402,245 @@ function completeCustomerSetup() {
     };
   }
 }
+
+/**
+ * AUTOMATIC CUSTOMER SETUP SYSTEM
+ * Triggers when customer edits their Config sheet
+ * Completely autonomous - no developer intervention needed
+ */
+
+/**
+ * Auto-setup trigger when customer edits Config sheet
+ * This function automatically runs when customers update their configuration
+ * @param {Object} e - The edit event object
+ */
+function onConfigSheetEdit(e) {
+  const setupLogger = logger.scope('AutoSetup');
+  setupLogger.enterFunction('onConfigSheetEdit');
+
+  try {
+    // Only respond to Config sheet edits
+    if (!e || e.source.getActiveSheet().getName() !== 'Config') {
+      return;
+    }
+
+    // Check if this is a setup trigger (customer added SETUP_TRIGGER = TRUE)
+    const range = e.range;
+    const value = range.getValue();
+
+    if (range.getColumn() === 2 && String(value).toUpperCase() === 'TRUE') {
+      const configKey = range.offset(0, -1).getValue();
+
+      if (configKey === 'SETUP_TRIGGER') {
+        console.log('🎯 Customer triggered automatic setup!');
+
+        // Mark setup as in progress
+        range.setValue('PROCESSING...');
+
+        // Run complete setup automatically
+        Utilities.sleep(1000); // Brief pause for UI feedback
+        const setupResult = completeCustomerSetup();
+
+        if (setupResult.success) {
+          // Update status to completed
+          range.setValue('COMPLETED');
+
+          // Add completion timestamp
+          const completedRow = findConfigRow('SETUP_COMPLETED');
+          if (completedRow) {
+            SpreadsheetApp.getActiveSheet().getRange(completedRow, 2).setValue(new Date().toISOString());
+          }
+
+          // Show success message
+          SpreadsheetApp.getUi().alert(
+            'Setup Complete!',
+            `🎉 Your football automation system is ready!\n\n` +
+            `🔗 Web App URL: ${setupResult.web_app_url}\n\n` +
+            `📋 Save this URL - this is what you'll use for live match updates.\n\n` +
+            `✅ Health Score: ${setupResult.health_score}/100`,
+            SpreadsheetApp.getUi().ButtonSet.OK
+          );
+
+        } else {
+          // Update status to failed
+          range.setValue('FAILED');
+
+          SpreadsheetApp.getUi().alert(
+            'Setup Failed',
+            `❌ Setup failed: ${setupResult.error}\n\n` +
+            `Please check your configuration and try again.`,
+            SpreadsheetApp.getUi().ButtonSet.OK
+          );
+        }
+
+        setupLogger.exitFunction('onConfigSheetEdit', { success: setupResult.success });
+      }
+    }
+
+  } catch (error) {
+    setupLogger.error('Auto-setup failed', { error: error.toString() });
+    console.error('❌ Auto-setup failed:', error.toString());
+
+    // Try to update the trigger cell to show error
+    try {
+      const configSheet = SpreadsheetApp.getActiveSheet();
+      const triggerRow = findConfigRow('SETUP_TRIGGER');
+      if (triggerRow) {
+        configSheet.getRange(triggerRow, 2).setValue('ERROR - Check logs');
+      }
+    } catch (updateError) {
+      console.error('Could not update error status:', updateError.toString());
+    }
+  }
+}
+
+/**
+ * Create the automatic setup trigger
+ * This installs the onEdit trigger that watches for customer setup requests
+ */
+function createAutoSetupTrigger() {
+  try {
+    console.log('🔧 Installing automatic setup trigger...');
+
+    // Delete any existing onEdit triggers
+    const triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'onConfigSheetEdit') {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+
+    // Create new onEdit trigger
+    ScriptApp.newTrigger('onConfigSheetEdit')
+      .onEdit()
+      .create();
+
+    console.log('✅ Auto-setup trigger installed');
+
+    return { success: true, message: 'Auto-setup trigger created' };
+
+  } catch (error) {
+    console.error('❌ Failed to create auto-setup trigger:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Enhanced customer setup with automatic trigger installation
+ * Customers can now setup completely autonomously
+ * @returns {Object} Setup result with instructions
+ */
+function setupCustomerAutomation() {
+  try {
+    console.log('🚀 Setting up customer automation system...');
+
+    // Step 1: Create the auto-setup trigger
+    const triggerResult = createAutoSetupTrigger();
+    if (!triggerResult.success) {
+      throw new Error(`Trigger setup failed: ${triggerResult.error}`);
+    }
+
+    // Step 2: Add setup instructions to Config sheet
+    const configSheet = SheetUtils.getOrCreateSheet('Config', [
+      ['Key', 'Value', 'Description'],
+      ['CLUB_NAME', 'Your Club Name', 'Enter your football club name'],
+      ['LEAGUE_NAME', 'Your League', 'Enter your league name'],
+      ['TEAM_AGE_GROUP', 'Senior', 'Team age group (Senior, U18, U16, etc.)'],
+      ['SETUP_TRIGGER', 'FALSE', '⚡ Set to TRUE to start automatic setup'],
+      ['SETUP_STATUS', 'Not Started', 'Setup progress status'],
+      ['SETUP_COMPLETED', '', 'Timestamp when setup completed'],
+      ['WEB_APP_URL', '', 'Your web app URL (generated automatically)']
+    ]);
+
+    if (!configSheet) {
+      throw new Error('Could not create Config sheet');
+    }
+
+    // Step 3: Add helpful instructions
+    const instructions = [
+      '',
+      '📋 CUSTOMER SETUP INSTRUCTIONS:',
+      '1. Update CLUB_NAME with your team name',
+      '2. Update LEAGUE_NAME with your league',
+      '3. Set SETUP_TRIGGER to TRUE to start',
+      '4. Wait for automatic setup to complete',
+      '5. Save your Web App URL when generated',
+      '',
+      '🎯 The system will automatically:',
+      '• Install all required components',
+      '• Create your web app for live updates',
+      '• Validate your configuration',
+      '• Generate your unique web app URL',
+      '',
+      '⚡ No developer intervention needed!'
+    ];
+
+    // Add instructions starting from row 10
+    instructions.forEach((instruction, index) => {
+      configSheet.getRange(10 + index, 1, 1, 3).merge().setValue(instruction);
+    });
+
+    const result = {
+      success: true,
+      message: 'Customer automation system ready',
+      trigger_installed: true,
+      config_sheet_created: true,
+      customer_instructions: [
+        '✅ Automation system is now ready',
+        '📝 Customers edit the Config sheet to setup',
+        '⚡ No developer intervention required',
+        '🔄 Setup happens automatically when SETUP_TRIGGER = TRUE',
+        '🎯 Customers get their web app URL immediately',
+        '',
+        '💼 Commercial ready: Fully autonomous customer onboarding!'
+      ],
+      developer_notes: [
+        'Customers never need to contact you for setup',
+        'They get immediate feedback and their web app URL',
+        'Failed setups show clear error messages',
+        'All setup activity is logged for support if needed'
+      ]
+    };
+
+    console.log('🎉 Customer automation system ready!');
+    console.log('✅ Customers can now setup completely independently');
+
+    return result;
+
+  } catch (error) {
+    console.error('❌ Customer automation setup failed:', error.toString());
+
+    return {
+      success: false,
+      error: error.toString(),
+      troubleshooting: [
+        'Ensure you have edit permissions on the spreadsheet',
+        'Check that triggers can be created in this project',
+        'Verify the Config sheet can be created/edited'
+      ]
+    };
+  }
+}
+
+/**
+ * Helper function to find a config row by key
+ * @param {string} key - The config key to find
+ * @returns {number|null} Row number or null if not found
+ */
+function findConfigRow(key) {
+  try {
+    const configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
+    if (!configSheet) return null;
+
+    const data = configSheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] === key) {
+        return i + 1; // Return 1-based row number
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error finding config row:', error.toString());
+    return null;
+  }
+}
