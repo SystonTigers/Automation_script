@@ -1,8 +1,25 @@
 /**
  * @fileoverview Main Entry Points for Football Automation System
- * @version 6.3.0
+ * @version 6.2.0
  * @description Real integration of all advanced components
  */
+
+// System version - visible in Apps Script UI
+const SYSTEM_VERSION = '6.2.0-live';
+
+/**
+ * Get system version and deployment info
+ * @returns {string} Current system version
+ */
+function SA_Version() {
+  return {
+    version: SYSTEM_VERSION,
+    deployedAt: new Date().toISOString(),
+    status: 'operational',
+    fileCount: 79,
+    buildTag: 'v6.2.0-live'
+  };
+}
 
 /**
  * WEBAPP ENTRY POINT - Main webapp handler with full integration

@@ -1,1 +1,29 @@
+# Node / tools
+node_modules/
+npm-debug.log*
+yarn.lock
+pnpm-lock.yaml
 
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+tmp/
+tmp_remote/
+
+# Local auth (never commit)
+.clasprc.json
+
+# Backup files
+*.backup
+*.old
+*.bak
+
+# IDE files
+.vscode/settings.json
+.idea/
+
+# Logs
+*.log
