@@ -144,4 +144,23 @@ jobs:
           echo "📤 Pushing files..."
           clasp push --force
 
-          echo "✅ Deployment completed successfully!"
+          echo "✅ Code deployment completed successfully!"
+
+      - name: Update web app deployment
+        env:
+          WEBAPP_DEPLOYMENT_ID: ${{ vars.WEBAPP_DEPLOYMENT_ID }}
+        run: |
+          if [ -n "$WEBAPP_DEPLOYMENT_ID" ]; then
+            echo "🌐 Updating web app deployment..."
+
+            # Create a version label for tracking
+            npx clasp version "${{ github.ref_name }} @ ${{ github.sha }}"
+
+            # Update the existing deployment (no new deployments created)
+            npx clasp deploy --deploymentId "$WEBAPP_DEPLOYMENT_ID" --description "Auto: ${{ github.sha }}"
+
+            echo "✅ Web app deployment updated successfully!"
+          else
+            echo "⚠️  WEBAPP_DEPLOYMENT_ID not set - skipping web app deployment"
+            echo "   To enable: Add WEBAPP_DEPLOYMENT_ID as a GitHub Actions variable"
+          fi
