@@ -225,3 +225,253 @@ function quickFixWebApp(spreadsheetId) {
     };
   }
 }
+
+/**
+ * AUTONOMOUS CUSTOMER SETUP - Enhanced version of existing system
+ * Creates Config sheet and autonomous trigger for customers
+ */
+function setupAutonomousCustomer() {
+  try {
+    console.log('🚀 Setting up autonomous customer system...');
+
+    // Step 1: Create Config sheet in current spreadsheet
+    const configSheet = createConfigSheetInCurrentSpreadsheet();
+    if (!configSheet.success) {
+      throw new Error('Config sheet creation failed: ' + configSheet.error);
+    }
+
+    // Step 2: Create the autonomous trigger
+    const triggerResult = createCustomerTrigger();
+    if (!triggerResult.success) {
+      console.warn('Trigger setup failed but continuing...', triggerResult.error);
+    }
+
+    // Step 3: Set initial properties so system works immediately
+    PropertiesService.getScriptProperties().setProperties({
+      'AUTONOMOUS_SETUP_ENABLED': 'true',
+      'SETUP_DATE': new Date().toISOString(),
+      'SYSTEM_STATUS': 'READY_FOR_CUSTOMER_CONFIG'
+    });
+
+    console.log('🎉 Autonomous setup complete!');
+
+    return {
+      success: true,
+      message: 'Autonomous customer system ready',
+      configSheetCreated: configSheet.success,
+      triggerInstalled: triggerResult.success,
+      instructions: [
+        '✅ System ready for autonomous customer setup',
+        '📝 Customer can now edit Config sheet values',
+        '⚡ When customer sets SETUP_TRIGGER = TRUE, full setup runs automatically',
+        '🎯 No developer intervention needed!'
+      ]
+    };
+
+  } catch (error) {
+    console.error('❌ Autonomous setup failed:', error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Create Config sheet in current spreadsheet
+ */
+function createConfigSheetInCurrentSpreadsheet() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    let configSheet = spreadsheet.getSheetByName('Config');
+
+    if (!configSheet) {
+      configSheet = spreadsheet.insertSheet('Config');
+      console.log('✅ Created new Config sheet');
+    } else {
+      console.log('📋 Using existing Config sheet');
+    }
+
+    // Set up the structure
+    const configData = [
+      ['Key', 'Value', 'Description'],
+      ['CLUB_NAME', 'Your Club Name', 'Enter your football club name'],
+      ['LEAGUE_NAME', 'Your League', 'Enter your league name'],
+      ['MAKE_WEBHOOK_URL', '', 'Your Make.com webhook URL (optional)'],
+      ['SETUP_TRIGGER', 'FALSE', '⚡ Set to TRUE to start automatic setup'],
+      ['SETUP_STATUS', 'Not Started', 'Current setup status'],
+      ['WEB_APP_URL', '', 'Your web app URL (generated automatically)']
+    ];
+
+    configSheet.clear();
+    configSheet.getRange(1, 1, configData.length, 3).setValues(configData);
+
+    // Format nicely
+    configSheet.getRange(1, 1, 1, 3)
+      .setFontWeight('bold')
+      .setBackground('#4285f4')
+      .setFontColor('white');
+
+    configSheet.getRange(5, 1, 1, 3).setBackground('#fff3cd'); // Highlight trigger row
+
+    return { success: true, sheet: configSheet };
+
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create trigger for autonomous setup
+ */
+function createCustomerTrigger() {
+  try {
+    // Delete existing triggers
+    const triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'onCustomerConfigEdit') {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+
+    // Create new trigger
+    ScriptApp.newTrigger('onCustomerConfigEdit')
+      .onEdit()
+      .create();
+
+    return { success: true };
+
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Autonomous trigger - runs when customer edits Config sheet
+ */
+function onCustomerConfigEdit(e) {
+  try {
+    if (!e || e.source.getActiveSheet().getName() !== 'Config') {
+      return;
+    }
+
+    const range = e.range;
+    const value = range.getValue();
+
+    // Check if SETUP_TRIGGER was set to TRUE
+    if (range.getColumn() === 2 && String(value).toUpperCase() === 'TRUE') {
+      const configKey = range.offset(0, -1).getValue();
+
+      if (configKey === 'SETUP_TRIGGER') {
+        console.log('🎯 Customer triggered autonomous setup!');
+
+        // Mark as processing
+        range.setValue('PROCESSING...');
+        Utilities.sleep(1000);
+
+        // Run the existing setup functions
+        const result = runAutonomousSetup();
+
+        if (result.success) {
+          range.setValue('COMPLETED');
+
+          // Update WEB_APP_URL in Config sheet
+          const urlRow = findConfigRowByKey('WEB_APP_URL');
+          if (urlRow && result.webAppUrl) {
+            e.source.getActiveSheet().getRange(urlRow, 2).setValue(result.webAppUrl);
+          }
+
+          SpreadsheetApp.getUi().alert(
+            'Setup Complete!',
+            `🎉 Your system is ready!\n\n🔗 Web App URL: ${result.webAppUrl || 'Check Config sheet'}\n\n✅ You can now use this for live match updates!`,
+            SpreadsheetApp.getUi().ButtonSet.OK
+          );
+
+        } else {
+          range.setValue('FAILED');
+          SpreadsheetApp.getUi().alert('Setup Failed', `❌ Error: ${result.error}`, SpreadsheetApp.getUi().ButtonSet.OK);
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Autonomous setup trigger failed:', error.toString());
+  }
+}
+
+/**
+ * Run autonomous setup using existing functions
+ */
+function runAutonomousSetup() {
+  try {
+    // Get config from sheet
+    const config = readConfigFromCurrentSheet();
+
+    // Set script properties
+    PropertiesService.getScriptProperties().setProperties({
+      'SPREADSHEET_ID': SpreadsheetApp.getActiveSpreadsheet().getId(),
+      'CLUB_NAME': config.CLUB_NAME || 'Your Club',
+      'MAKE_WEBHOOK_URL': config.MAKE_WEBHOOK_URL || '',
+      'SETUP_COMPLETED': 'true',
+      'SETUP_DATE': new Date().toISOString()
+    });
+
+    // Generate web app URL
+    const webAppUrl = `https://script.google.com/macros/s/${ScriptApp.getScriptId()}/exec`;
+
+    return {
+      success: true,
+      message: 'Autonomous setup completed',
+      webAppUrl: webAppUrl,
+      config: config
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Read config from current sheet
+ */
+function readConfigFromCurrentSheet() {
+  try {
+    const configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
+    const data = configSheet.getDataRange().getValues();
+
+    const config = {};
+    for (let i = 1; i < data.length; i++) {
+      const key = data[i][0];
+      const value = data[i][1];
+      if (key && value) {
+        config[key] = value;
+      }
+    }
+
+    return config;
+  } catch (error) {
+    return {};
+  }
+}
+
+/**
+ * Find config row by key
+ */
+function findConfigRowByKey(key) {
+  try {
+    const configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
+    const data = configSheet.getDataRange().getValues();
+
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] === key) {
+        return i + 1;
+      }
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
