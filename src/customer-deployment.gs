@@ -540,18 +540,8 @@ function setupCustomerAutomation() {
       throw new Error(`Trigger setup failed: ${triggerResult.error}`);
     }
 
-    // Step 2: Add setup instructions to Config sheet
-    const configSheet = SheetUtils.getOrCreateSheet('Config', [
-      ['Key', 'Value', 'Description'],
-      ['CLUB_NAME', 'Your Club Name', 'Enter your football club name'],
-      ['LEAGUE_NAME', 'Your League', 'Enter your league name'],
-      ['TEAM_AGE_GROUP', 'Senior', 'Team age group (Senior, U18, U16, etc.)'],
-      ['SETUP_TRIGGER', 'FALSE', '⚡ Set to TRUE to start automatic setup'],
-      ['SETUP_STATUS', 'Not Started', 'Setup progress status'],
-      ['SETUP_COMPLETED', '', 'Timestamp when setup completed'],
-      ['WEB_APP_URL', '', 'Your web app URL (generated automatically)']
-    ]);
-
+    // Step 2: Create Config sheet directly without SheetUtils dependency
+    const configSheet = createConfigSheetDirect();
     if (!configSheet) {
       throw new Error('Could not create Config sheet');
     }
@@ -642,5 +632,137 @@ function findConfigRow(key) {
   } catch (error) {
     console.error('Error finding config row:', error.toString());
     return null;
+  }
+}
+
+/**
+ * Create Config sheet directly without dependencies
+ * @returns {Sheet|null} Created or existing Config sheet
+ */
+function createConfigSheetDirect() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+    // Check if Config sheet already exists
+    let configSheet = spreadsheet.getSheetByName('Config');
+
+    if (!configSheet) {
+      // Create new Config sheet
+      configSheet = spreadsheet.insertSheet('Config');
+      console.log('✅ Created new Config sheet');
+    } else {
+      console.log('📋 Using existing Config sheet');
+    }
+
+    // Set up the basic structure
+    const configData = [
+      ['Key', 'Value', 'Description'],
+      ['CLUB_NAME', 'Your Club Name', 'Enter your football club name'],
+      ['LEAGUE_NAME', 'Your League', 'Enter your league name'],
+      ['TEAM_AGE_GROUP', 'Senior', 'Team age group (Senior, U18, U16, etc.)'],
+      ['SETUP_TRIGGER', 'FALSE', '⚡ Set to TRUE to start automatic setup'],
+      ['SETUP_STATUS', 'Not Started', 'Setup progress status'],
+      ['SETUP_COMPLETED', '', 'Timestamp when setup completed'],
+      ['WEB_APP_URL', '', 'Your web app URL (generated automatically)']
+    ];
+
+    // Clear existing content and add headers
+    configSheet.clear();
+    configSheet.getRange(1, 1, configData.length, 3).setValues(configData);
+
+    // Format headers
+    configSheet.getRange(1, 1, 1, 3)
+      .setFontWeight('bold')
+      .setBackground('#4285f4')
+      .setFontColor('white');
+
+    // Format trigger row
+    configSheet.getRange(5, 1, 1, 3)
+      .setBackground('#fff3cd');
+
+    console.log('✅ Config sheet structure created');
+    return configSheet;
+
+  } catch (error) {
+    console.error('❌ Failed to create Config sheet:', error.toString());
+    return null;
+  }
+}
+
+/**
+ * SIMPLIFIED SETUP - Use this first!
+ * Creates just the Config sheet and trigger without complex dependencies
+ * @returns {Object} Setup result
+ */
+function quickCustomerSetup() {
+  try {
+    console.log('🚀 Quick customer setup starting...');
+
+    // Step 1: Create Config sheet
+    const configSheet = createConfigSheetDirect();
+    if (!configSheet) {
+      throw new Error('Could not create Config sheet');
+    }
+
+    // Step 2: Create trigger
+    const triggerResult = createAutoSetupTrigger();
+    if (!triggerResult.success) {
+      console.warn('Trigger creation failed, but continuing...', triggerResult.error);
+    }
+
+    // Step 3: Add instructions
+    const instructions = [
+      '',
+      '📋 CUSTOMER SETUP INSTRUCTIONS:',
+      '1. Update CLUB_NAME with your team name',
+      '2. Update LEAGUE_NAME with your league',
+      '3. Set SETUP_TRIGGER to TRUE to start',
+      '4. Wait for automatic setup to complete',
+      '5. Save your Web App URL when generated',
+      '',
+      '🎯 The system will automatically:',
+      '• Install all required components',
+      '• Create your web app for live updates',
+      '• Validate your configuration',
+      '• Generate your unique web app URL',
+      '',
+      '⚡ No developer intervention needed!'
+    ];
+
+    // Add instructions starting from row 10
+    instructions.forEach((instruction, index) => {
+      try {
+        configSheet.getRange(10 + index, 1, 1, 3).merge().setValue(instruction);
+      } catch (error) {
+        console.warn('Could not add instruction:', instruction);
+      }
+    });
+
+    const result = {
+      success: true,
+      message: 'Quick customer setup complete',
+      config_sheet_created: true,
+      trigger_installed: triggerResult.success,
+      instructions: [
+        '✅ Config sheet created successfully',
+        '📝 Customer can now edit the Config sheet',
+        '⚡ Set SETUP_TRIGGER = TRUE to run full setup',
+        '🎯 System ready for autonomous customer onboarding'
+      ]
+    };
+
+    console.log('🎉 Quick setup complete!');
+    console.log('✅ Now tell customer to set SETUP_TRIGGER = TRUE');
+
+    return result;
+
+  } catch (error) {
+    console.error('❌ Quick setup failed:', error.toString());
+
+    return {
+      success: false,
+      error: error.toString(),
+      message: 'Quick setup failed, but Config sheet may still be created'
+    };
   }
 }
