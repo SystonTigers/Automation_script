@@ -110,6 +110,19 @@ Before releasing new versions:
 - [ ] Make.com integration sends correctly
 - [ ] Error handling graceful throughout
 
+## ⏱️ Trigger Maintenance
+
+### Idempotent System Triggers
+- Run `setupSystemTriggers()` after installation or configuration changes.
+- The helper now delegates to `ensureTimeTrigger()` so only `scheduledHealthCheck` and `cleanupExpiredCache` are created if missing—other `scheduled*` handlers remain untouched.
+
+### Verification Steps
+1. Execute `setupSystemTriggers()`.
+2. Run `verifyScheduledTriggerIntegrity()` and review the logged summary.
+3. Confirm `scheduledSystemMonitoring` and `scheduledLogCleanup` still report active triggers alongside the health check and cache cleanup jobs.
+
+If any required handler reports `exists: false`, inspect the Triggers UI before re-running the specific installer that manages that job. Avoid bulk deletions; always rely on the idempotent helpers.
+
 ## 🔄 Customer Update Strategy
 
 ### Automatic Updates
