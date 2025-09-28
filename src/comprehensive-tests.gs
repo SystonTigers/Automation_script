@@ -590,7 +590,7 @@ function runPrivacyTests() {
 function runIntegrationTests() {
   const tests = {
     testConfigSystemIntegration: () => {
-      const config = getConfig();
+      const config = getRuntimeConfig();
       AdvancedTestFramework.assertNotNull(config, 'Config should load');
       AdvancedTestFramework.assertNotNull(config.SYSTEM, 'System config should exist');
     },
@@ -722,7 +722,7 @@ function runAllComprehensiveTests() {
 function quickComprehensiveTest() {
   try {
     // Quick validation of core systems
-    const config = getConfig();
+    const config = getRuntimeConfig();
     if (!config) throw new Error('Config system failed');
 
     const health = HealthCheck.quickHealthCheck();

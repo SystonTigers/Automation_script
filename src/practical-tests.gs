@@ -94,7 +94,7 @@ class SimpleTestFramework {
 function testConfigLoading() {
   SimpleTestFramework.runTest('Config Loading', () => {
     // Test config can be loaded
-    const config = getConfig();
+    const config = getRuntimeConfig();
     SimpleTestFramework.assertNotNull(config, 'Config should load successfully');
 
     // Test required keys are present
@@ -317,7 +317,7 @@ function runSingleTest(testName) {
 function smokeTest() {
   try {
     // Test 1: Config loads
-    const config = getConfig();
+    const config = getRuntimeConfig();
     if (!config) throw new Error('Config failed to load');
 
     // Test 2: Health check runs

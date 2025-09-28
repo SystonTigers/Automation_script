@@ -489,7 +489,7 @@ function verifyScheduledTriggerIntegrity() {
  */
 function getQuickStatus() {
   try {
-    const config = getConfig();
+    const config = getRuntimeConfig();
     const health = HealthCheck.quickHealthCheck();
 
     return {

@@ -115,7 +115,7 @@ class WorkingMonitoring {
       // Test 3: Can we load the config?
       healthResults.checks++;
       try {
-        const config = getConfig();
+        const config = getRuntimeConfig();
         if (config && config.SYSTEM && config.SYSTEM.CLUB_NAME) {
           healthResults.passed++;
           healthResults.details.push({
@@ -236,11 +236,11 @@ class WorkingMonitoring {
     try {
       // Test 1: Config loading speed
       const configStart = Date.now();
-      const config = getConfig();
+      const config = getRuntimeConfig();
       const configTime = Date.now() - configStart;
 
       performanceTests.push({
-        function: 'getConfig',
+        function: 'getRuntimeConfig',
         timeMs: configTime,
         status: configTime < 1000 ? 'fast' : configTime < 3000 ? 'acceptable' : 'slow'
       });
@@ -307,7 +307,7 @@ class WorkingMonitoring {
 
       // Simple error tracking - check if we can execute basic functions
       const testFunctions = [
-        () => getConfig(),
+        () => getRuntimeConfig(),
         () => SpreadsheetApp.getActiveSpreadsheet().getName(),
         () => new Date().toISOString()
       ];

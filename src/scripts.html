@@ -275,7 +275,7 @@ function switchTab(tabName) {
 
 async function loadConfiguration() {
     try {
-        const config = await callServerFunction('getConfig');
+        const config = await callServerFunction('getRuntimeConfig');
         window.ClubConsole.config = config;
 
         // Update UI with config values
