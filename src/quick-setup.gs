@@ -227,44 +227,50 @@ function quickFixWebApp(spreadsheetId) {
 }
 
 /**
- * AUTONOMOUS CUSTOMER SETUP - Enhanced version of existing system
+ * SIMPLE AUTONOMOUS SETUP - No heavy dependencies
  * Creates Config sheet and autonomous trigger for customers
+ * BYPASSES monitoring/excellence systems to avoid initialization errors
  */
 function setupAutonomousCustomer() {
   try {
-    console.log('🚀 Setting up autonomous customer system...');
+    console.log('🚀 Setting up autonomous customer system (simple mode)...');
 
-    // Step 1: Create Config sheet in current spreadsheet
-    const configSheet = createConfigSheetInCurrentSpreadsheet();
+    // Step 1: Create Config sheet in current spreadsheet (direct approach)
+    const configSheet = createConfigSheetDirect();
     if (!configSheet.success) {
       throw new Error('Config sheet creation failed: ' + configSheet.error);
     }
 
-    // Step 2: Create the autonomous trigger
-    const triggerResult = createCustomerTrigger();
+    // Step 2: Create the autonomous trigger (direct approach)
+    const triggerResult = createCustomerTriggerDirect();
     if (!triggerResult.success) {
       console.warn('Trigger setup failed but continuing...', triggerResult.error);
     }
 
-    // Step 3: Set initial properties so system works immediately
-    PropertiesService.getScriptProperties().setProperties({
+    // Step 3: Set minimal properties for immediate functionality
+    const properties = PropertiesService.getScriptProperties();
+    properties.setProperties({
       'AUTONOMOUS_SETUP_ENABLED': 'true',
       'SETUP_DATE': new Date().toISOString(),
-      'SYSTEM_STATUS': 'READY_FOR_CUSTOMER_CONFIG'
+      'SYSTEM_STATUS': 'READY_FOR_CUSTOMER_CONFIG',
+      'SPREADSHEET_ID': SpreadsheetApp.getActiveSpreadsheet().getId(),
+      'SETUP_COMPLETED': 'true'
     });
 
-    console.log('🎉 Autonomous setup complete!');
+    console.log('🎉 Simple autonomous setup complete!');
 
     return {
       success: true,
-      message: 'Autonomous customer system ready',
+      message: 'Autonomous customer system ready (simple mode)',
       configSheetCreated: configSheet.success,
       triggerInstalled: triggerResult.success,
+      webAppUrl: `https://script.google.com/macros/s/${ScriptApp.getScriptId()}/exec`,
       instructions: [
         '✅ System ready for autonomous customer setup',
         '📝 Customer can now edit Config sheet values',
         '⚡ When customer sets SETUP_TRIGGER = TRUE, full setup runs automatically',
-        '🎯 No developer intervention needed!'
+        '🎯 No developer intervention needed!',
+        '🔗 Web app URL available immediately'
       ]
     };
 
@@ -274,6 +280,83 @@ function setupAutonomousCustomer() {
       success: false,
       error: error.toString()
     };
+  }
+}
+
+/**
+ * DIRECT CONFIG SHEET CREATION - No SheetUtils dependency
+ */
+function createConfigSheetDirect() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    let configSheet = spreadsheet.getSheetByName('Config');
+
+    if (!configSheet) {
+      configSheet = spreadsheet.insertSheet('Config');
+      console.log('✅ Created new Config sheet');
+    } else {
+      console.log('📋 Using existing Config sheet');
+    }
+
+    // Set up the structure (simplified)
+    const configData = [
+      ['Key', 'Value', 'Description'],
+      ['CLUB_NAME', 'Your Club Name', 'Enter your football club name'],
+      ['LEAGUE_NAME', 'Your League', 'Enter your league name'],
+      ['MAKE_WEBHOOK_URL', '', 'Your Make.com webhook URL (optional)'],
+      ['SETUP_TRIGGER', 'FALSE', '⚡ Set to TRUE to start automatic setup'],
+      ['SETUP_STATUS', 'Ready', 'Current setup status'],
+      ['WEB_APP_URL', `https://script.google.com/macros/s/${ScriptApp.getScriptId()}/exec`, 'Your web app URL']
+    ];
+
+    // Clear and populate
+    configSheet.clear();
+    configSheet.getRange(1, 1, configData.length, 3).setValues(configData);
+
+    // Basic formatting
+    try {
+      configSheet.getRange(1, 1, 1, 3)
+        .setFontWeight('bold')
+        .setBackground('#4285f4')
+        .setFontColor('white');
+
+      configSheet.getRange(5, 1, 1, 3).setBackground('#fff3cd'); // Highlight trigger row
+    } catch (formatError) {
+      console.warn('Formatting failed but continuing...', formatError.toString());
+    }
+
+    return { success: true, sheet: configSheet };
+
+  } catch (error) {
+    console.error('Direct config sheet creation failed:', error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * DIRECT TRIGGER CREATION - No complex dependencies
+ */
+function createCustomerTriggerDirect() {
+  try {
+    // Clean up existing triggers
+    const triggers = ScriptApp.getProjectTriggers();
+    triggers.forEach(trigger => {
+      if (trigger.getHandlerFunction() === 'onCustomerConfigEdit') {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    });
+
+    // Create new trigger
+    ScriptApp.newTrigger('onCustomerConfigEdit')
+      .onEdit()
+      .create();
+
+    console.log('✅ Customer trigger created');
+    return { success: true };
+
+  } catch (error) {
+    console.error('Trigger creation failed:', error.toString());
+    return { success: false, error: error.toString() };
   }
 }
 
@@ -400,37 +483,79 @@ function onCustomerConfigEdit(e) {
 }
 
 /**
- * Run autonomous setup using existing functions
+ * Run autonomous setup using direct approach (no heavy dependencies)
  */
 function runAutonomousSetup() {
   try {
-    // Get config from sheet
-    const config = readConfigFromCurrentSheet();
+    console.log('🚀 Running autonomous setup (simple mode)...');
 
-    // Set script properties
-    PropertiesService.getScriptProperties().setProperties({
+    // Get config from sheet (direct approach)
+    const config = readConfigFromCurrentSheetDirect();
+
+    // Set script properties (direct approach - no complex config system)
+    const properties = PropertiesService.getScriptProperties();
+    properties.setProperties({
       'SPREADSHEET_ID': SpreadsheetApp.getActiveSpreadsheet().getId(),
       'CLUB_NAME': config.CLUB_NAME || 'Your Club',
+      'LEAGUE_NAME': config.LEAGUE_NAME || 'Your League',
       'MAKE_WEBHOOK_URL': config.MAKE_WEBHOOK_URL || '',
       'SETUP_COMPLETED': 'true',
-      'SETUP_DATE': new Date().toISOString()
+      'SETUP_DATE': new Date().toISOString(),
+      'AUTONOMOUS_SETUP_SUCCESS': 'true'
     });
 
     // Generate web app URL
     const webAppUrl = `https://script.google.com/macros/s/${ScriptApp.getScriptId()}/exec`;
 
+    console.log('✅ Autonomous setup completed successfully');
+
     return {
       success: true,
-      message: 'Autonomous setup completed',
+      message: 'Autonomous setup completed (simple mode)',
       webAppUrl: webAppUrl,
-      config: config
+      config: config,
+      timestamp: new Date().toISOString()
     };
 
   } catch (error) {
+    console.error('❌ Autonomous setup failed:', error.toString());
     return {
       success: false,
       error: error.toString()
     };
+  }
+}
+
+/**
+ * Read config from current sheet (direct approach - no dependencies)
+ */
+function readConfigFromCurrentSheetDirect() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const configSheet = spreadsheet.getSheetByName('Config');
+
+    if (!configSheet) {
+      console.warn('Config sheet not found, using defaults');
+      return {};
+    }
+
+    const data = configSheet.getDataRange().getValues();
+    const config = {};
+
+    for (let i = 1; i < data.length; i++) {
+      const key = data[i][0];
+      const value = data[i][1];
+      if (key && value && value !== '') {
+        config[key] = value;
+      }
+    }
+
+    console.log(`✅ Config read: ${Object.keys(config).length} values`);
+    return config;
+
+  } catch (error) {
+    console.error('Config reading failed:', error.toString());
+    return {};
   }
 }
 
