@@ -466,26 +466,44 @@ class AdvancedSecurity {
   /**
    * Validate webhook data
    */
-  static validateWebhookData(data, context) {
+  static validateWebhookData(data, context = {}) {
     if (!data || typeof data !== 'object') {
       throw new Error('Webhook data must be an object');
     }
 
-    // Validate required fields
-    const requiredFields = ['timestamp', 'event_type', 'source'];
-    for (const field of requiredFields) {
-      if (!data[field]) {
-        throw new Error(`Missing required field: ${field}`);
+    const allowQueryParameters = context.allowQueryParameters === true;
+    const sanitized = {};
+
+    for (const key of Object.keys(data)) {
+      const value = data[key];
+      if (typeof value === 'string') {
+        sanitized[key] = this.sanitizeGeneric(value);
+      } else if (value && typeof value === 'object') {
+        try {
+          sanitized[key] = JSON.parse(JSON.stringify(value));
+        } catch (error) {
+          sanitized[key] = value;
+        }
+      } else {
+        sanitized[key] = value;
       }
     }
 
-    // Sanitize all string fields
-    const sanitized = {};
-    for (const [key, value] of Object.entries(data)) {
-      if (typeof value === 'string') {
-        sanitized[key] = this.sanitizeGeneric(value);
-      } else {
-        sanitized[key] = value;
+    if (!allowQueryParameters) {
+      const requiredFields = ['timestamp', 'event_type', 'source'];
+      for (const field of requiredFields) {
+        if (!sanitized[field]) {
+          throw new Error(`Missing required field: ${field}`);
+        }
+      }
+    } else {
+      if (sanitized.action) {
+        const normalizedAction = sanitized.action.toLowerCase();
+        const allowedActions = Array.isArray(context.allowedActions) ? context.allowedActions : null;
+        if (allowedActions && !allowedActions.includes(normalizedAction)) {
+          throw new Error(`Invalid action parameter: ${normalizedAction}`);
+        }
+        sanitized.action = normalizedAction;
       }
     }
 

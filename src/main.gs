@@ -27,7 +27,12 @@ function SA_Version() {
 function doGet(e) {
   try {
     // 1. SECURITY CHECK - Use advanced security
-    const securityCheck = AdvancedSecurity.validateInput(e.parameter || {}, 'webhook_data', { source: 'webapp' });
+    const allowedActions = ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard'];
+    const securityCheck = AdvancedSecurity.validateInput(e.parameter || {}, 'webhook_data', {
+      source: 'webapp',
+      allowQueryParameters: true,
+      allowedActions: allowedActions
+    });
     if (!securityCheck.valid) {
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
@@ -47,11 +52,12 @@ function doGet(e) {
 
     // 3. MONITORING - Start performance tracking
     const startTime = Date.now();
-    ProductionMonitoringManager.collectMetric('webapp', 'request', 1, { action: e.parameter?.action || 'unknown' });
+    const queryParams = securityCheck.sanitized || {};
+    ProductionMonitoringManager.collectMetric('webapp', 'request', 1, { action: queryParams.action || 'unknown' });
 
     // 4. ROUTE REQUEST
     let result;
-    const action = e.parameter?.action || 'health';
+    const action = queryParams.action || 'health';
 
     switch (action) {
       case 'health':
@@ -86,7 +92,7 @@ function doGet(e) {
         result = {
           message: 'Football Automation System API',
           version: getConfig('SYSTEM.VERSION', '6.3.0'),
-          available_actions: ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard']
+          available_actions: allowedActions
         };
     }
 
