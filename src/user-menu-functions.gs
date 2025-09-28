@@ -349,7 +349,7 @@ function testSystemQuick() {
   try {
     const tests = {
       logger: typeof logger !== 'undefined',
-      config: typeof getConfig !== 'undefined',
+      config: typeof getRuntimeConfig !== 'undefined',
       sheetUtils: typeof SheetUtils !== 'undefined',
       eventsManager: typeof EnhancedEventsManager !== 'undefined',
       batchManager: typeof BatchFixturesManager !== 'undefined',

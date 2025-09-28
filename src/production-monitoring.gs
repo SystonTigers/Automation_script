@@ -240,7 +240,7 @@ class ProductionMonitoringManager {
 
   static checkConfigurationHealth() {
     try {
-      const config = getConfig();
+      const config = getRuntimeConfig();
       const check = {
         name: 'Configuration System',
         status: 'healthy',

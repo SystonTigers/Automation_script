@@ -127,7 +127,7 @@ class HealthCheck {
    */
   static checkConfiguration() {
     try {
-      const config = getConfig();
+      const config = getRuntimeConfig();
       const requiredKeys = ['SYSTEM.CLUB_NAME', 'SYSTEM.VERSION'];
 
       const missingKeys = requiredKeys.filter(key => {
@@ -227,7 +227,7 @@ class HealthCheck {
   static quickHealthCheck() {
     try {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-      const config = getConfig();
+      const config = getRuntimeConfig();
 
       return {
         status: 'healthy',

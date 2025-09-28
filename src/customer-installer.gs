@@ -507,7 +507,7 @@ function performInstallationHealthCheck() {
 
   // Check 4: System Functions
   try {
-    const hasCoreFunction = typeof getConfig === 'function';
+    const hasCoreFunction = typeof getRuntimeConfig === 'function';
     checks.push({ name: 'Core Functions', pass: hasCoreFunction, weight: 20 });
     if (hasCoreFunction) score += 20;
   } catch (error) {

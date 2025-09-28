@@ -845,7 +845,7 @@ function handleAddFixture(params) {
 function getDashboardStats() {
   try {
     // Use config-aware sheet access
-    const config = getConfig();
+    const config = getRuntimeConfig();
     const playersSheet = SheetUtils.getSheet('Players');
     const fixturesSheet = SheetUtils.getSheet('Fixtures');
     const resultsSheet = SheetUtils.getSheet('Results');
@@ -1012,7 +1012,7 @@ function testDynamicConfigSystem() {
 
   try {
     // Test 1: Config loading
-    const config = getConfig();
+    const config = getRuntimeConfig();
     console.log('✅ Config loaded:', config.TEAM_NAME);
 
     // Test 2: Template rendering

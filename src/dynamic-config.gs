@@ -47,12 +47,12 @@ const DEFAULT_CONFIG_VALUES = {
 // ==================== CORE CONFIG FUNCTIONS ====================
 
 /**
- * Get configuration with caching
+ * Get runtime configuration with caching
  * @param {Object} opts - Options
  * @param {boolean} opts.forceRefresh - Force refresh from sheet
  * @returns {Object} Configuration object
  */
-function getConfig(opts = {}) {
+function getRuntimeConfig(opts = {}) {
   const now = Date.now();
   const props = PropertiesService.getScriptProperties();
 
@@ -84,11 +84,11 @@ function getConfig(opts = {}) {
 }
 
 /**
- * Shorthand for getConfig()
+ * Shorthand for getRuntimeConfig()
  * @returns {Object} Configuration object
  */
 function cfg() {
-  return getConfig();
+  return getRuntimeConfig();
 }
 
 /**
@@ -97,7 +97,7 @@ function cfg() {
  * @returns {Object} Configuration with overrides applied
  */
 function getConfigWithQuery_(e) {
-  const base = getConfig();
+  const base = getRuntimeConfig();
 
   if (e && e.parameter) {
     // Allow preview overrides
@@ -299,7 +299,7 @@ function renderHtml_(fileName, opts = {}) {
     } = opts;
 
     // Get configuration
-    const cfg = config || getConfig();
+    const cfg = config || getRuntimeConfig();
 
     // Create template
     const template = HtmlService.createTemplateFromFile(fileName);
@@ -358,7 +358,7 @@ function include(filename) {
  * @returns {Object} Complete payload with config
  */
 function buildConfiguredPayload(eventData) {
-  const config = getConfig();
+  const config = getRuntimeConfig();
 
   return {
     // Event data
@@ -397,7 +397,7 @@ function buildConfiguredPayload(eventData) {
  * @returns {Object} Complete configuration
  */
 function getAllConfig() {
-  return getConfig();
+  return getRuntimeConfig();
 }
 
 /**
@@ -415,7 +415,7 @@ function clearConfigCache() {
  */
 function validateConfig() {
   try {
-    const config = getConfig();
+    const config = getRuntimeConfig();
 
     return {
       valid: true,
@@ -441,7 +441,7 @@ function testConfigSystem() {
 
   try {
     // Test 1: Load config
-    const config = getConfig();
+    const config = getRuntimeConfig();
     console.log('✅ Config loaded successfully');
 
     // Test 2: Validate required keys
@@ -449,11 +449,11 @@ function testConfigSystem() {
     console.log('✅ Required keys validation passed');
 
     // Test 3: Cache functionality
-    const config2 = getConfig(); // Should use cache
+    const config2 = getRuntimeConfig(); // Should use cache
     console.log('✅ Cache functionality working');
 
     // Test 4: Force refresh
-    const config3 = getConfig({forceRefresh: true});
+    const config3 = getRuntimeConfig({forceRefresh: true});
     console.log('✅ Force refresh working');
 
     return {
