@@ -1,0 +1,16 @@
+name: Test Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Simple test
+        run: |
+          echo "🧪 Testing GitHub Actions runner availability"
+          echo "✅ Runner is working!"
+          date
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
