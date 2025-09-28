@@ -1620,7 +1620,9 @@ function generateExcellenceReport() {
 
 /**
  * Initialize excellence on system startup
+ * TEMPORARILY DISABLED for setup testing
  */
+/*
 (function() {
   console.log('🚀 Auto-initializing Excellence Systems...');
   try {
@@ -1630,3 +1632,4 @@ function generateExcellenceReport() {
     console.error('❌ Excellence initialization failed:', error);
   }
 })();
+*/

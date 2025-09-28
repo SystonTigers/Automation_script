@@ -537,7 +537,9 @@ function getEnhancedSystemInfo() {
 
 /**
  * Auto-initialize enhanced system on load
+ * TEMPORARILY DISABLED for setup testing
  */
+/*
 (function() {
   console.log('🚀 Auto-initializing Enhanced System...');
   try {
@@ -554,3 +556,4 @@ function getEnhancedSystemInfo() {
     console.error('❌ Enhanced system auto-initialization failed:', error);
   }
 })();
+*/

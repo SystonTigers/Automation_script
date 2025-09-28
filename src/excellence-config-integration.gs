@@ -524,7 +524,9 @@ class ExcellenceConfigManager {
 
 /**
  * Auto-apply excellence configurations on system startup
+ * TEMPORARILY DISABLED for setup testing
  */
+/*
 (function() {
   console.log('🏆 Auto-applying Excellence Configurations...');
   try {
@@ -539,6 +541,7 @@ class ExcellenceConfigManager {
     console.error('❌ Excellence configuration auto-apply failed:', error);
   }
 })();
+*/
 
 /**
  * Public API for excellence configuration
