@@ -429,6 +429,46 @@ function runSecurityTests() {
       AdvancedSecurity.logSecurityEvent('test_event', { test: true });
       // Test that logging doesn't throw errors
       AdvancedTestFramework.assertTrue(true, 'Security logging should not throw errors');
+    },
+
+    testWebappQueryParameterValidation: () => {
+      const context = {
+        source: 'webapp',
+        allowQueryParameters: true,
+        allowedActions: ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard']
+      };
+      const queryResult = AdvancedSecurity.validateInput({
+        action: 'health',
+        extra: '<script>bad</script>'
+      }, 'webhook_data', context);
+
+      AdvancedTestFramework.assertTrue(queryResult.valid, 'Health action query should pass validation');
+      AdvancedTestFramework.assertEquals(queryResult.sanitized.action, 'health', 'Action should remain normalized');
+      AdvancedTestFramework.assertFalse(queryResult.sanitized.extra.includes('<'), 'Sanitized extra parameter should strip <');
+      AdvancedTestFramework.assertFalse(queryResult.sanitized.extra.includes('>'), 'Sanitized extra parameter should strip >');
+    },
+
+    testWebappQueryRejectsUnknownAction: () => {
+      const context = {
+        source: 'webapp',
+        allowQueryParameters: true,
+        allowedActions: ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard']
+      };
+      const invalidActionResult = AdvancedSecurity.validateInput({ action: 'drop_all' }, 'webhook_data', context);
+
+      AdvancedTestFramework.assertFalse(invalidActionResult.valid, 'Unknown query action should be rejected');
+    },
+
+    testWebhookPayloadRejection: () => {
+      const invalidResult = AdvancedSecurity.validateInput({
+        event_type: 'goal'
+      }, 'webhook_data', { source: 'webhook' });
+
+      AdvancedTestFramework.assertFalse(invalidResult.valid, 'Malformed webhook payload should be rejected');
+      const hasMissingFieldWarning = (invalidResult.warnings || []).some(function(message) {
+        return message.indexOf('Missing required field') !== -1;
+      });
+      AdvancedTestFramework.assertTrue(hasMissingFieldWarning, 'Validation warning should mention missing required fields');
     }
   };
 
