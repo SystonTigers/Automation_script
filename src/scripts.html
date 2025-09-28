@@ -104,7 +104,7 @@ function setupSetupListeners() {
     }
 
     // Club name and badge
-    const clubName = document.getElementById('club-name');
+    const clubName = document.getElementById('club-name-input');
     const badgeUrl = document.getElementById('badge-url');
 
     if (clubName) {
@@ -291,11 +291,11 @@ async function loadConfiguration() {
 
 function updateUIWithConfig(config) {
     // Update header
-    const clubName = document.getElementById('club-name');
+    const clubNameDisplay = document.getElementById('club-name-display');
     const clubBadge = document.getElementById('club-badge');
 
-    if (clubName && config.CLUB_NAME) {
-        clubName.textContent = config.CLUB_NAME;
+    if (clubNameDisplay) {
+        clubNameDisplay.textContent = config.CLUB_NAME || 'Club Console';
     }
 
     if (clubBadge && config.BADGE_URL) {
@@ -320,7 +320,7 @@ function updateUIWithConfig(config) {
 
 function updateSetupForm(config) {
     const fields = {
-        'club-name': config.CLUB_NAME,
+        'club-name-input': config.CLUB_NAME,
         'primary-color': config.PRIMARY_HEX,
         'primary-color-text': config.PRIMARY_HEX,
         'secondary-color': config.SECONDARY_HEX,
@@ -368,7 +368,7 @@ async function saveConfiguration() {
         showStatus('Saving configuration...', 'info');
 
         const configData = {
-            CLUB_NAME: document.getElementById('club-name')?.value || '',
+            CLUB_NAME: document.getElementById('club-name-input')?.value || '',
             PRIMARY_HEX: document.getElementById('primary-color')?.value || '#FF0000',
             SECONDARY_HEX: document.getElementById('secondary-color')?.value || '#FFFFFF',
             BADGE_URL: document.getElementById('badge-url')?.value || '',
@@ -818,7 +818,7 @@ function updateBrandPreview() {
     const previewBadge = document.getElementById('preview-badge');
     const brandPreview = document.getElementById('brand-preview');
 
-    const clubName = document.getElementById('club-name')?.value || 'Club Name';
+    const clubName = document.getElementById('club-name-input')?.value || 'Club Name';
     const badgeUrl = document.getElementById('badge-url')?.value;
     const primaryColor = document.getElementById('primary-color')?.value;
     const secondaryColor = document.getElementById('secondary-color')?.value;
