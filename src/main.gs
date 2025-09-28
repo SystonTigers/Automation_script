@@ -22,12 +22,29 @@ function SA_Version() {
 }
 
 /**
+ * Enumerates the whitelisted actions the webapp endpoint supports.
+ * Declared at file scope so both security validation and default
+ * responses reference the same canonical list during conflict
+ * resolution merges.
+ * @const {!Array<string>}
+ */
+const WEBAPP_ALLOWED_ACTIONS = Object.freeze([
+  'health',
+  'advanced_health',
+  'dashboard',
+  'monitoring',
+  'test',
+  'gdpr_init',
+  'gdpr_dashboard'
+]);
+
+/**
  * WEBAPP ENTRY POINT - Main webapp handler with full integration
  */
 function doGet(e) {
   try {
     // 1. SECURITY CHECK - Use advanced security
-    const allowedActions = ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard'];
+    const allowedActions = WEBAPP_ALLOWED_ACTIONS;
     const securityCheck = AdvancedSecurity.validateInput(e.parameter || {}, 'webhook_data', {
       source: 'webapp',
       allowQueryParameters: true,
