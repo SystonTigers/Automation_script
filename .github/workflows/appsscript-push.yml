@@ -37,7 +37,12 @@ jobs:
 
           echo "✅ CLASPRC_JSON secret found (${#CLASPRC_JSON} chars)"
 
-          echo "$CLASPRC_JSON" > ~/.clasprc.json
+          # Use base64 encoding to avoid GitHub's secret masking interference
+          echo "$CLASPRC_JSON" | base64 -d > ~/.clasprc.json 2>/dev/null || {
+            echo "🔄 Secret not base64-encoded, using direct method..."
+            # Create file using printf to avoid echo interpretation issues
+            printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          }
 
           if [ ! -f ~/.clasprc.json ]; then
             echo "❌ ERROR: Failed to create .clasprc.json"
@@ -47,11 +52,31 @@ jobs:
           echo "📋 File size: $(wc -c < ~/.clasprc.json) bytes"
           echo "📋 File lines: $(wc -l < ~/.clasprc.json) lines"
 
+          # Check for GitHub's secret masking (*** characters)
+          if grep -q '\*\*\*' ~/.clasprc.json; then
+            echo "❌ ERROR: GitHub secret masking detected in .clasprc.json"
+            echo "The secret contains *** characters which indicates GitHub is masking sensitive content"
+            echo "Try encoding the secret as base64 in GitHub secrets"
+            exit 1
+          fi
+
           # Validate JSON without showing content
           if ! jq empty ~/.clasprc.json 2>/dev/null; then
             echo "❌ ERROR: Invalid JSON in .clasprc.json"
-            echo "First few characters:"
-            head -c 100 ~/.clasprc.json
+            echo "JSON validation failed - checking for common issues..."
+
+            # Check if file is empty
+            if [ ! -s ~/.clasprc.json ]; then
+              echo "File is empty"
+            else
+              echo "File contains $(wc -c < ~/.clasprc.json) characters"
+              echo "Checking for non-printable characters..."
+              if file ~/.clasprc.json | grep -q "text"; then
+                echo "File appears to be text"
+              else
+                echo "File may contain binary data"
+              fi
+            fi
             exit 1
           fi
 
