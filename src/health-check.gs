@@ -257,9 +257,10 @@ function doHealthCheck() {
 }
 
 /**
- * Webapp handler for health check
+ * Webapp handler for health check - DISABLED
+ * Routing moved to main.gs to prevent conflicts
  */
-function doGet(e) {
+function healthCheck_doGet_DISABLED(e) {
   if (e.parameter && e.parameter.action === 'health') {
     const health = HealthCheck.quickHealthCheck();
 

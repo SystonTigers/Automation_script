@@ -5,9 +5,10 @@
  */
 
 /**
- * Handles GET requests - Simple and robust version
+ * Handles GET requests - Simple and robust version - DISABLED
+ * Routing moved to main.gs to prevent conflicts
  */
-function doGet(e) {
+function simple_doGet_DISABLED(e) {
   try {
     const path = (e && e.pathInfo) ? e.pathInfo : '';
 
@@ -33,9 +34,10 @@ function doGet(e) {
 }
 
 /**
- * Handles POST requests - Simple version
+ * Handles POST requests - Simple version - DISABLED
+ * Routing moved to main.gs to prevent conflicts
  */
-function doPost(e) {
+function simple_doPost_DISABLED(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'unknown';
 

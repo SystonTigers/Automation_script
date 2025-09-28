@@ -1,13 +1,14 @@
 /**
  * Comprehensive Web App - Full Admin Interface
- * Complete management system for Syston Tigers via web interface
+ * Complete management system for ${getConfigValue('SYSTEM.CLUB_NAME')} via web interface
  * @version 6.2.0
  */
 
 /**
- * Enhanced doGet handler with full admin interface
+ * Enhanced doGet handler with full admin interface - DISABLED
+ * Routing moved to main.gs to prevent conflicts
  */
-function doGet(e) {
+function comprehensive_doGet_DISABLED(e) {
   try {
     const path = (e && e.pathInfo) ? e.pathInfo : '';
 
@@ -42,9 +43,10 @@ function doGet(e) {
 }
 
 /**
- * Enhanced doPost handler for all form submissions
+ * Enhanced doPost handler for all form submissions - DISABLED
+ * Routing moved to main.gs to prevent conflicts
  */
-function doPost(e) {
+function comprehensive_doPost_DISABLED(e) {
   try {
     const params = e.parameter || {};
     const action = params.action || 'unknown';
@@ -86,7 +88,7 @@ function createMainDashboard() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🏈 Syston Tigers - Admin Dashboard</title>
+  <title>🏈 ${getConfigValue('SYSTEM.CLUB_NAME')} - Admin Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -128,7 +130,7 @@ function createMainDashboard() {
 <body>
   <div class="dashboard">
     <div class="header">
-      <h1>🏈 Syston Tigers</h1>
+      <h1>🏈 ${getConfigValue('SYSTEM.CLUB_NAME')}</h1>
       <h2>Complete Admin Dashboard</h2>
       <p>Manage everything from one place - no technical skills required!</p>
     </div>
@@ -207,13 +209,13 @@ function createMainDashboard() {
     }
 
     loadStats();
-    console.log('🏈 Syston Tigers Admin Dashboard Ready!');
+    console.log('🏈 ${getConfigValue('SYSTEM.CLUB_NAME')} Admin Dashboard Ready!');
   </script>
 </body>
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Syston Tigers - Admin Dashboard')
+    .setTitle('${getConfigValue('SYSTEM.CLUB_NAME')} - Admin Dashboard')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -225,7 +227,7 @@ function createPlayerManagementInterface() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>👥 Player Management - Syston Tigers</title>
+  <title>👥 Player Management - ${getConfigValue('SYSTEM.CLUB_NAME')}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -412,7 +414,7 @@ function createPlayerManagementInterface() {
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Player Management - Syston Tigers')
+    .setTitle('Player Management - ${getConfigValue('SYSTEM.CLUB_NAME')}')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -486,7 +488,7 @@ function createFixtureManagementInterface() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>📅 Fixture Management - Syston Tigers</title>
+  <title>📅 Fixture Management - ${getConfigValue('SYSTEM.CLUB_NAME')}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -687,7 +689,7 @@ function createFixtureManagementInterface() {
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Fixture Management - Syston Tigers')
+    .setTitle('Fixture Management - ${getConfigValue('SYSTEM.CLUB_NAME')}')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -756,7 +758,7 @@ function createSeasonSetupInterface() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🏆 Season Setup - Syston Tigers</title>
+  <title>🏆 Season Setup - ${getConfigValue('SYSTEM.CLUB_NAME')}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -987,7 +989,7 @@ function createSeasonSetupInterface() {
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Season Setup - Syston Tigers')
+    .setTitle('Season Setup - ${getConfigValue('SYSTEM.CLUB_NAME')}')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -999,7 +1001,7 @@ function createHistoricalDataInterface() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>📊 Historical Data Import - Syston Tigers</title>
+  <title>📊 Historical Data Import - ${getConfigValue('SYSTEM.CLUB_NAME')}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1091,7 +1093,7 @@ function createHistoricalDataInterface() {
 
       <div class="grid">
         <div class="form-group">
-          <label for="homeScore">Syston Tigers Score</label>
+          <label for="homeScore">${getConfigValue('SYSTEM.CLUB_NAME')} Score</label>
           <input type="number" id="homeScore" name="homeScore" min="0" max="20" required>
         </div>
         <div class="form-group">
@@ -1156,6 +1158,6 @@ function createHistoricalDataInterface() {
 </html>`;
 
   return HtmlService.createHtmlOutput(html)
-    .setTitle('Historical Data Import - Syston Tigers')
+    .setTitle('Historical Data Import - ${getConfigValue('SYSTEM.CLUB_NAME')}')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }

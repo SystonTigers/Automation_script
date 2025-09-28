@@ -134,7 +134,7 @@ const SYSTEM_CONFIG = {
       buyerId: 'default_buyer',
       clubName: 'Your Football Club',
       clubShortName: 'YFC',
-      league: 'Leicester & District Football League',
+      league: getConfigValue('SYSTEM.LEAGUE', 'Local League'),
       ageGroup: "Senior Men's",
       primaryColor: '#ff6600',
       secondaryColor: '#000000',

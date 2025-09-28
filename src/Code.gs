@@ -6,80 +6,14 @@
  */
 
 /**
- * Enhanced doGet handler with full admin interface
+ * Admin interface functions - routing now handled by main.gs
+ * REMOVED: doGet function to prevent conflicts
  */
-function doGet(e) {
-  try {
-    const path = (e && e.pathInfo) ? e.pathInfo : '';
-
-    // Route to different admin sections
-    switch (path) {
-      case 'players':
-        return createPlayerManagementInterface();
-      case 'fixtures':
-        return createFixtureManagementInterface();
-      case 'season':
-        return createSeasonSetupInterface();
-      case 'historical':
-        return createHistoricalDataInterface();
-      case 'live':
-        return createEnhancedLiveMatchInterface();
-      case 'stats':
-        return createStatisticsInterface();
-      case 'health':
-        return createHealthResponse();
-      case 'test':
-        return createTestResponse();
-      default:
-        return createMainDashboard();
-    }
-  } catch (error) {
-    return HtmlService.createHtmlOutput(`
-      <div style="text-align: center; padding: 50px; font-family: Arial;">
-        <h2>⚠️ Web App Error</h2>
-        <p>Error: ${error.toString()}</p>
-        <p><a href="?">Try again</a></p>
-      </div>
-    `);
-  }
-}
 
 /**
- * Enhanced doPost handler for all form submissions
+ * Form submission handlers - doPost routing now handled by main.gs
+ * REMOVED: doPost function to prevent conflicts
  */
-function doPost(e) {
-  try {
-    const params = e.parameter || {};
-    const action = params.action || 'unknown';
-
-    Logger.log('POST received', { action: action, params: params });
-
-    switch (action) {
-      case 'add_player':
-        return handleAddPlayer(params);
-      case 'add_fixture':
-        return handleAddFixture(params);
-      case 'season_setup':
-        return handleSeasonSetup(params);
-      case 'add_historical_match':
-        return handleHistoricalMatch(params);
-      case 'live_event':
-        return handleLiveEvent(params);
-      default:
-        return ContentService.createTextOutput(JSON.stringify({
-          success: false,
-          error: 'Unknown action: ' + action
-        })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-  } catch (error) {
-    Logger.log('POST error: ' + error.toString());
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
 
 /**
  * Create main admin dashboard with dynamic configuration
