@@ -27,7 +27,12 @@ function SA_Version() {
 function doGet(e) {
   try {
     // 1. SECURITY CHECK - Use advanced security
-    const securityCheck = AdvancedSecurity.validateInput(e.parameter || {}, 'webhook_data', { source: 'webapp' });
+    const allowedActions = ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard'];
+    const securityCheck = AdvancedSecurity.validateInput(e.parameter || {}, 'webhook_data', {
+      source: 'webapp',
+      allowQueryParameters: true,
+      allowedActions: allowedActions
+    });
     if (!securityCheck.valid) {
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
@@ -47,11 +52,12 @@ function doGet(e) {
 
     // 3. MONITORING - Start performance tracking
     const startTime = Date.now();
-    ProductionMonitoringManager.collectMetric('webapp', 'request', 1, { action: e.parameter?.action || 'unknown' });
+    const queryParams = securityCheck.sanitized || {};
+    ProductionMonitoringManager.collectMetric('webapp', 'request', 1, { action: queryParams.action || 'unknown' });
 
     // 4. ROUTE REQUEST
     let result;
-    const action = e.parameter?.action || 'health';
+    const action = queryParams.action || 'health';
 
     switch (action) {
       case 'health':
@@ -86,7 +92,7 @@ function doGet(e) {
         result = {
           message: 'Football Automation System API',
           version: getConfigValue('SYSTEM.VERSION', '6.3.0'),
-          available_actions: ['health', 'advanced_health', 'dashboard', 'monitoring', 'test', 'gdpr_init', 'gdpr_dashboard']
+          available_actions: allowedActions
         };
     }
 
@@ -183,6 +189,7 @@ function doPost(e) {
  * GOAL PROCESSING - With full privacy and security integration
  */
 function processGoal(player, minute, assist = null) {
+  let sanitizedMinute = null;
   try {
     // 1. SECURITY - Validate inputs
     const playerValidation = AdvancedSecurity.validateInput(player, 'player_name', { source: 'goal_processing' });
@@ -190,10 +197,7 @@ function processGoal(player, minute, assist = null) {
       throw new Error('Invalid player name');
     }
 
-    const minuteValidation = AdvancedSecurity.validateInput(minute, 'match_event');
-    if (!minuteValidation.valid) {
-      throw new Error('Invalid minute');
-    }
+    sanitizedMinute = AdvancedSecurity.validateMinute(minute);
 
     // 2. PRIVACY - Check consent
     const consent = SimplePrivacy.checkPlayerConsent(playerValidation.sanitized);
@@ -203,13 +207,13 @@ function processGoal(player, minute, assist = null) {
     }
 
     // 3. PERFORMANCE - Use caching for repeated operations
-    const cacheKey = `goal_${player}_${minute}_${Date.now()}`;
-    PerformanceOptimizer.set(cacheKey, { player, minute, assist }, 300000); // 5 min cache
+    const cacheKey = `goal_${player}_${sanitizedMinute}_${Date.now()}`;
+    PerformanceOptimizer.set(cacheKey, { player, minute: sanitizedMinute, assist }, 300000); // 5 min cache
 
     // 4. MONITORING - Track goal processing
     ProductionMonitoringManager.collectMetric('goals', 'processed', 1, {
       player: player,
-      minute: minute,
+      minute: sanitizedMinute,
       hasAssist: !!assist
     });
 
@@ -217,7 +221,7 @@ function processGoal(player, minute, assist = null) {
     const result = processMatchEvent({
       eventType: 'goal',
       player: playerValidation.sanitized,
-      minute: minute,
+      minute: sanitizedMinute,
       additionalData: { assist: assist }
     });
 
@@ -226,7 +230,7 @@ function processGoal(player, minute, assist = null) {
   } catch (error) {
     console.error('Goal processing failed:', error);
     ProductionMonitoringManager.triggerAlert('goal_processing_error', 'warning',
-      `Goal processing failed: ${error.toString()}`, { player, minute, assist });
+      `Goal processing failed: ${error.toString()}`, { player, minute: sanitizedMinute !== null ? sanitizedMinute : minute, assist });
 
     return { success: false, error: error.toString() };
   }
@@ -397,30 +401,85 @@ function getPerformanceDashboard() {
  */
 function setupSystemTriggers() {
   try {
-    // Delete existing triggers to avoid duplicates
-    ScriptApp.getProjectTriggers().forEach(trigger => {
-      if (trigger.getHandlerFunction().startsWith('scheduled')) {
-        ScriptApp.deleteTrigger(trigger);
+    const requiredTriggers = [
+      {
+        functionName: 'scheduledHealthCheck',
+        schedule: { everyHours: 1 },
+        description: 'Hourly system health check'
+      },
+      {
+        functionName: 'cleanupExpiredCache',
+        schedule: { everyMinutes: 30 },
+        description: 'Cache cleanup every 30 minutes'
       }
+    ];
+
+    const results = requiredTriggers.map(triggerConfig => {
+      const ensureResult = ensureTimeTrigger(
+        triggerConfig.functionName,
+        triggerConfig.schedule,
+        triggerConfig.description
+      );
+
+      return {
+        functionName: triggerConfig.functionName,
+        created: ensureResult.created,
+        existed: ensureResult.existing,
+        schedule: triggerConfig.schedule,
+        description: triggerConfig.description
+      };
     });
 
-    // Health check every hour
-    ScriptApp.newTrigger('scheduledHealthCheck')
-      .timeBased()
-      .everyHours(1)
-      .create();
+    const response = {
+      success: true,
+      ensured: results,
+      timestamp: new Date().toISOString()
+    };
 
-    // Performance cleanup every 30 minutes
-    ScriptApp.newTrigger('cleanupExpiredCache')
-      .timeBased()
-      .everyMinutes(30)
-      .create();
-
-    console.log('✅ System triggers installed');
-    return { success: true, triggers: ['scheduledHealthCheck', 'cleanupExpiredCache'] };
+    console.log('✅ System triggers verified', response);
+    return response;
 
   } catch (error) {
     console.error('Trigger setup failed:', error);
+    return { success: false, error: error.toString() };
+  }
+}
+
+function verifyScheduledTriggerIntegrity() {
+  try {
+    const functionsToVerify = [
+      { functionName: 'scheduledHealthCheck', required: true },
+      { functionName: 'cleanupExpiredCache', required: true },
+      { functionName: 'scheduledSystemMonitoring', required: true },
+      { functionName: 'scheduledLogCleanup', required: true }
+    ];
+
+    const triggers = ScriptApp.getProjectTriggers();
+    const details = functionsToVerify.map(entry => {
+      const matchingTriggers = triggers.filter(trigger =>
+        trigger.getHandlerFunction() === entry.functionName &&
+        trigger.getTriggerSource() === ScriptApp.TriggerSource.CLOCK
+      );
+
+      return {
+        functionName: entry.functionName,
+        required: entry.required,
+        exists: matchingTriggers.length > 0,
+        triggerCount: matchingTriggers.length
+      };
+    });
+
+    const response = {
+      success: details.every(detail => !detail.required || detail.exists),
+      details: details,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('ℹ️ Scheduled trigger integrity check', response);
+    return response;
+
+  } catch (error) {
+    console.error('Trigger integrity verification failed:', error);
     return { success: false, error: error.toString() };
   }
 }
