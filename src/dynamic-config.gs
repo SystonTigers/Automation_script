@@ -14,7 +14,7 @@
 
 // ==================== CONFIGURATION CONSTANTS ====================
 
-const CONFIG_SHEET_NAME = 'Config';
+const CONFIG_SHEET_NAME = 'CONFIG';  // Match CustomerInstaller sheet name
 const CONFIG_CACHE_KEY = 'APP_CONFIG_CACHE';
 const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -118,7 +118,8 @@ function getConfigWithQuery_(e) {
  */
 function readConfigFromSheet_() {
   try {
-    const ss = SpreadsheetApp.getActive();
+    // Use configured sheet ID instead of getActive() for trigger compatibility
+    const ss = getSheet();  // Uses getConfiguredSheetId_() internally
     let sheet = ss.getSheetByName(CONFIG_SHEET_NAME);
 
     // Create Config sheet if it doesn't exist
@@ -148,7 +149,8 @@ function readConfigFromSheet_() {
  * @private
  */
 function createConfigSheet_() {
-  const ss = SpreadsheetApp.getActive();
+  // Use configured sheet ID instead of getActive() for trigger compatibility
+  const ss = getSheet();  // Uses getConfiguredSheetId_() internally
   const sheet = ss.insertSheet(CONFIG_SHEET_NAME);
 
   // Set up headers
@@ -195,7 +197,8 @@ function createConfigSheet_() {
  */
 function updateConfig(key, value) {
   try {
-    const ss = SpreadsheetApp.getActive();
+    // Use configured sheet ID instead of getActive() for trigger compatibility
+    const ss = getSheet();  // Uses getConfiguredSheetId_() internally
     let sheet = ss.getSheetByName(CONFIG_SHEET_NAME);
 
     if (!sheet) {

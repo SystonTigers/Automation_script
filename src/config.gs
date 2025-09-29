@@ -24,26 +24,30 @@ const CONFIG_LOGGER = typeof logger !== 'undefined' && logger && typeof logger.s
     error() {}
   };
 
-const SHEET_ID = (function resolveSheetId() {
-  CONFIG_LOGGER.enterFunction('resolveSheetId');
+/**
+ * Lazy accessor for configured sheet ID
+ * Only resolves when actually needed, allows installer to run first
+ */
+function getConfiguredSheetId_() {
+  CONFIG_LOGGER.enterFunction('getConfiguredSheetId_');
 
   try {
     const propertyValue = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
     const trimmedValue = propertyValue && typeof propertyValue === 'string' ? propertyValue.trim() : '';
 
     if (!trimmedValue) {
-      const error = new Error('SPREADSHEET_ID script property is not configured');
+      const error = new Error('SPREADSHEET_ID script property is not configured. Run SA_INSTALL() first to configure the system.');
       CONFIG_LOGGER.error(error.message);
       throw error;
     }
 
-    CONFIG_LOGGER.exitFunction('resolveSheetId', { success: true });
+    CONFIG_LOGGER.exitFunction('getConfiguredSheetId_', { success: true });
     return trimmedValue;
   } catch (error) {
-    CONFIG_LOGGER.exitFunction('resolveSheetId', { success: false });
+    CONFIG_LOGGER.exitFunction('getConfiguredSheetId_', { success: false });
     throw error;
   }
-})();
+}
 
 /**
  * Returns the main spreadsheet using the configured sheet ID
@@ -55,17 +59,17 @@ function getSheet() {
 
   try {
     // @testHook(config_get_sheet_open_start)
-    const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+    const sheetId = getConfiguredSheetId_();
+    const spreadsheet = SpreadsheetApp.openById(sheetId);
     // @testHook(config_get_sheet_open_complete)
 
     CONFIG_LOGGER.exitFunction('getSheet', {
       success: true,
-      sheetId: SHEET_ID
+      sheetId: sheetId
     });
     return spreadsheet;
   } catch (error) {
     CONFIG_LOGGER.error('Failed to open spreadsheet by ID', {
-      sheetId: SHEET_ID,
       error: error instanceof Error ? { message: error.message, stack: error.stack } : error
     });
     CONFIG_LOGGER.exitFunction('getSheet', { success: false });
@@ -134,7 +138,7 @@ const SYSTEM_CONFIG = {
       buyerId: 'default_buyer',
       clubName: 'Your Football Club',
       clubShortName: 'YFC',
-      league: getConfigValue('SYSTEM.LEAGUE', 'Local League'),
+      league: 'Local League',  // Fixed: removed self-referential getConfigValue call
       ageGroup: "Senior Men's",
       primaryColor: '#ff6600',
       secondaryColor: '#000000',
