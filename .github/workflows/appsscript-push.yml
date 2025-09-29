@@ -155,5 +155,12 @@ jobs:
           # Create a version label for tracking
           npx clasp version "prod-${{ github.ref_name }} @ ${{ github.sha }}"
 
-          # Use our single deployment script
-          node ./scripts/update-single-deployment.js
+          # Use our single deployment script (with error handling)
+          if [ -f "./scripts/update-single-deployment.js" ]; then
+            echo "✅ Found deployment script, executing..."
+            node ./scripts/update-single-deployment.js
+          else
+            echo "⚠️ Deployment script not found, using fallback deployment..."
+            # Fallback: simple deployment
+            npx clasp deploy --description "Fallback deployment $(date)"
+          fi
