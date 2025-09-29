@@ -11,15 +11,17 @@
 class TriggerManager {
 
   // Whitelist of allowed trigger functions (prevents orphaned triggers)
-  static ALLOWED_TRIGGERS = [
-    'runWeeklyScheduleAutomation',
-    'runMonthlyScheduledTasks',
-    'scheduledHealthCheck',
-    'cleanupExpiredCache',
-    'processLiveEventQueue',
-    'onEditTrigger',
-    'processGoalOfTheMonth'
-  ];
+  static getAllowedTriggers() {
+    return [
+      'runWeeklyScheduleAutomation',
+      'runMonthlyScheduledTasks',
+      'scheduledHealthCheck',
+      'cleanupExpiredCache',
+      'processLiveEventQueue',
+      'onEditTrigger',
+      'processGoalOfTheMonth'
+    ];
+  }
 
   /**
    * Ensure exactly one trigger exists for a given function
@@ -198,7 +200,7 @@ class TriggerManager {
     allTriggers.forEach(trigger => {
       const functionName = trigger.getHandlerFunction();
 
-      if (this.ALLOWED_TRIGGERS.includes(functionName)) {
+      if (this.getAllowedTriggers().includes(functionName)) {
         results.kept++;
         console.log(`✅ Keeping trigger for allowed function: ${functionName}`);
       } else {
@@ -323,7 +325,7 @@ class TriggerManager {
         problems.push(`${functionName} has ${info.count} duplicate triggers`);
       }
 
-      if (!this.ALLOWED_TRIGGERS.includes(functionName)) {
+      if (!this.getAllowedTriggers().includes(functionName)) {
         problems.push(`${functionName} is not in allowed triggers list`);
       }
     });

@@ -10,10 +10,14 @@
  */
 class LiveEventDebouncer {
 
-  static QUEUE_KEY = 'LIVE_EVENT_QUEUE';
-  static PROCESSED_KEY = 'PROCESSED_EVENTS';
-  static MAX_QUEUE_SIZE = 100;
-  static MAX_PROCESSED_KEYS = 1000;
+  static getConstants() {
+    return {
+      QUEUE_KEY: 'LIVE_EVENT_QUEUE',
+      PROCESSED_KEY: 'PROCESSED_EVENTS',
+      MAX_QUEUE_SIZE: 100,
+      MAX_PROCESSED_KEYS: 1000
+    };
+  }
 
   /**
    * Queue a live event instead of posting immediately
@@ -47,7 +51,7 @@ class LiveEventDebouncer {
       queue.push(queuedEvent);
 
       // Limit queue size
-      if (queue.length > this.MAX_QUEUE_SIZE) {
+      if (queue.length > this.getConstants().MAX_QUEUE_SIZE) {
         queue.shift(); // Remove oldest
         console.warn(`⚠️ Event queue full, removed oldest event`);
       }
@@ -202,12 +206,12 @@ class LiveEventDebouncer {
       processed.push(eventId);
 
       // Limit size to prevent memory issues
-      if (processed.length > this.MAX_PROCESSED_KEYS) {
-        processed.splice(0, processed.length - this.MAX_PROCESSED_KEYS);
+      if (processed.length > this.getConstants().MAX_PROCESSED_KEYS) {
+        processed.splice(0, processed.length - this.getConstants().MAX_PROCESSED_KEYS);
       }
 
       PropertiesService.getScriptProperties().setProperty(
-        this.PROCESSED_KEY,
+        this.getConstants().PROCESSED_KEY,
         JSON.stringify(processed)
       );
     }
@@ -218,7 +222,7 @@ class LiveEventDebouncer {
    */
   static getProcessedEvents() {
     try {
-      const stored = PropertiesService.getScriptProperties().getProperty(this.PROCESSED_KEY);
+      const stored = PropertiesService.getScriptProperties().getProperty(this.getConstants().PROCESSED_KEY);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.warn('⚠️ Could not read processed events, starting fresh:', error);
@@ -231,7 +235,7 @@ class LiveEventDebouncer {
    */
   static getEventQueue() {
     try {
-      const stored = PropertiesService.getScriptProperties().getProperty(this.QUEUE_KEY);
+      const stored = PropertiesService.getScriptProperties().getProperty(this.getConstants().QUEUE_KEY);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.warn('⚠️ Could not read event queue, starting fresh:', error);
@@ -245,7 +249,7 @@ class LiveEventDebouncer {
   static saveEventQueue(queue) {
     try {
       PropertiesService.getScriptProperties().setProperty(
-        this.QUEUE_KEY,
+        this.getConstants().QUEUE_KEY,
         JSON.stringify(queue)
       );
     } catch (error) {
@@ -348,7 +352,7 @@ class LiveEventDebouncer {
       processedCount: processed.length,
       oldestQueued: queue.length > 0 ? queue[0].timestamp : null,
       newestQueued: queue.length > 0 ? queue[queue.length - 1].timestamp : null,
-      queueIsFull: queue.length >= this.MAX_QUEUE_SIZE,
+      queueIsFull: queue.length >= this.getConstants().MAX_QUEUE_SIZE,
       needsProcessing: queue.length > 0
     };
   }
@@ -358,8 +362,8 @@ class LiveEventDebouncer {
    */
   static clearAll() {
     try {
-      PropertiesService.getScriptProperties().deleteProperty(this.QUEUE_KEY);
-      PropertiesService.getScriptProperties().deleteProperty(this.PROCESSED_KEY);
+      PropertiesService.getScriptProperties().deleteProperty(this.getConstants().QUEUE_KEY);
+      PropertiesService.getScriptProperties().deleteProperty(this.getConstants().PROCESSED_KEY);
 
       console.log('🧹 Cleared all queued and processed events');
 
