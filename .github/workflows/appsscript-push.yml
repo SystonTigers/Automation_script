@@ -148,37 +148,34 @@ jobs:
 
       - name: Manage single web app deployment
         env:
-          WEBAPP_DEPLOYMENT_ID: ${{ secrets.WEBAPP_DEPLOYMENT_ID }}
-          # Fallback to vars if secret not set
-          WEBAPP_DEPLOYMENT_ID_VAR: ${{ vars.WEBAPP_DEPLOYMENT_ID }}
+          WEBAPP_DEPLOYMENT_ID: ${{ vars.WEBAPP_DEPLOYMENT_ID }}
+          # Alternative syntax in case vars doesn't work
+          WEBAPP_DEPLOYMENT_ID_ALT: ${{ github.repository_variables.WEBAPP_DEPLOYMENT_ID }}
         run: |
           echo "🔄 Managing single web app deployment..."
 
           # Debug: Check if variable is being passed
           echo "🔍 Debugging environment variables:"
-          echo "WEBAPP_DEPLOYMENT_ID (secret) length: ${#WEBAPP_DEPLOYMENT_ID}"
-          echo "WEBAPP_DEPLOYMENT_ID_VAR (var) length: ${#WEBAPP_DEPLOYMENT_ID_VAR}"
+          echo "WEBAPP_DEPLOYMENT_ID length: ${#WEBAPP_DEPLOYMENT_ID}"
+          echo "WEBAPP_DEPLOYMENT_ID_ALT length: ${#WEBAPP_DEPLOYMENT_ID_ALT}"
 
-          # Try secret first, then fallback to var
+          # Require WEBAPP_DEPLOYMENT_ID to be set (no fallback allowed)
           if [ -n "$WEBAPP_DEPLOYMENT_ID" ]; then
-            echo "✅ Using WEBAPP_DEPLOYMENT_ID from secret (${#WEBAPP_DEPLOYMENT_ID} chars)"
-          elif [ -n "$WEBAPP_DEPLOYMENT_ID_VAR" ]; then
-            echo "✅ Using WEBAPP_DEPLOYMENT_ID from variable (${#WEBAPP_DEPLOYMENT_ID_VAR} chars)"
-            export WEBAPP_DEPLOYMENT_ID="$WEBAPP_DEPLOYMENT_ID_VAR"
+            echo "✅ WEBAPP_DEPLOYMENT_ID is set (${#WEBAPP_DEPLOYMENT_ID} chars)"
+          elif [ -n "$WEBAPP_DEPLOYMENT_ID_ALT" ]; then
+            echo "✅ WEBAPP_DEPLOYMENT_ID_ALT is set, using alternative (${#WEBAPP_DEPLOYMENT_ID_ALT} chars)"
+            export WEBAPP_DEPLOYMENT_ID="$WEBAPP_DEPLOYMENT_ID_ALT"
           else
-            echo "❌ ERROR: WEBAPP_DEPLOYMENT_ID not configured"
+            echo "❌ ERROR: WEBAPP_DEPLOYMENT_ID GitHub repository variable is required"
             echo ""
-            echo "To fix this, set it as either a Secret OR Variable:"
+            echo "To fix this:"
+            echo "1. Go to GitHub → Settings → Secrets and variables → Actions → Variables tab"
+            echo "2. Click 'New repository variable'"
+            echo "3. Name: WEBAPP_DEPLOYMENT_ID"
+            echo "4. Value: <your deployment ID>"
             echo ""
-            echo "Option 1 - Secret (recommended):"
-            echo "  GitHub → Settings → Secrets and variables → Actions → Secrets"
-            echo "  Name: WEBAPP_DEPLOYMENT_ID"
-            echo "  Value: AKfycbzNgKU9vaGM-TloSlV-CH8FawsN2gy_BEn10MrVPmc"
-            echo ""
-            echo "Option 2 - Variable:"
-            echo "  GitHub → Settings → Secrets and variables → Actions → Variables"
-            echo "  Name: WEBAPP_DEPLOYMENT_ID"
-            echo "  Value: AKfycbzNgKU9vaGM-TloSlV-CH8FawsN2gy_BEn10MrVPmc"
+            echo "To find your deployment ID, run locally:"
+            echo "  npx clasp deployments"
             echo ""
             echo "This prevents accidental deployment multiplication."
             exit 1
