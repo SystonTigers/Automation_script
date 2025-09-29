@@ -111,25 +111,37 @@ const WEBAPP_ALLOWED_ACTIONS = Object.freeze([
  */
 function doGet(e) {
   try {
-    // Handle path-based routing (from Code.gs)
+    // Simple routing without complex dependencies
     const path = (e && e.pathInfo) ? e.pathInfo : '';
+    const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'status';
 
+    // Basic health check
+    if (!path && action === 'status') {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        status: 'healthy',
+        version: getConfigValue('SYSTEM.VERSION', '6.2.0'),
+        timestamp: new Date().toISOString(),
+        message: 'Web app is running'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Handle path-based routing if needed
     if (path) {
       return handlePathRouting(path, e);
     }
 
-    // Handle query parameter routing (original main.gs logic)
+    // Fallback to complex routing for other actions
     return handleQueryParameterRouting(e);
 
   } catch (error) {
-    logger.error('Main doGet handler failed', { error: error.toString(), path: e?.pathInfo, params: e?.parameter });
-    return HtmlService.createHtmlOutput(`
-      <div style="text-align: center; padding: 50px; font-family: Arial;">
-        <h2>⚠️ Web App Error</h2>
-        <p>Error: ${error.toString()}</p>
-        <p><a href="?">Try again</a></p>
-      </div>
-    `);
+    console.error('doGet error:', error);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString(),
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
