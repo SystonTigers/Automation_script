@@ -275,10 +275,13 @@ function doPost(e) {
     // 1. QUOTA CHECK - Prevent quota exhaustion
     const quotaCheck = QuotaMonitor.checkQuotaLimits();
     if (!quotaCheck.allowed) {
-      QuotaMonitor.recordUsage('URL_FETCH', 1); // Count this request
+      // FIXED: DO NOT record usage for blocked requests to prevent quota inflation
+      console.warn('Request blocked due to quota limits:', quotaCheck);
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
         error: 'System quota limits exceeded',
+        blocked_reason: quotaCheck.blocked_reason,
+        retry_after: quotaCheck.retry_after,
         violations: quotaCheck.violations
       })).setMimeType(ContentService.MimeType.JSON);
     }
@@ -288,10 +291,13 @@ function doPost(e) {
     const rateCheck = AdvancedSecurity.checkAdvancedRateLimit(userEmail, { perMinute: 10 });
 
     if (!rateCheck.allowed) {
-      QuotaMonitor.recordUsage('URL_FETCH', 1);
+      // FIXED: DO NOT record quota usage for rate-limited requests
+      console.warn('Request blocked due to rate limiting:', rateCheck);
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
-        error: 'Rate limit exceeded'
+        error: 'Rate limit exceeded',
+        retry_after: rateCheck.resetTime,
+        current_usage: rateCheck.current
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -902,7 +908,7 @@ class QuotaMonitor {
   };
 
   /**
-   * Check current quota usage and enforce limits
+   * Check current quota usage and PROPERLY enforce limits
    */
   static checkQuotaLimits() {
     try {
@@ -932,12 +938,19 @@ class QuotaMonitor {
         }
       });
 
-      // Log violations
+      // FIXED: Properly enforce quota limits
       if (violations.length > 0) {
         const critical = violations.filter(v => v.severity === 'critical');
         if (critical.length > 0) {
-          logger.error('Quota limits exceeded', { violations: critical });
-          return { allowed: false, violations: violations };
+          logger.error('Quota limits exceeded - BLOCKING REQUEST', { violations: critical });
+
+          // CRITICAL FIX: Actually block the request when quota exceeded
+          return {
+            allowed: false,
+            violations: violations,
+            blocked_reason: 'quota_exceeded',
+            retry_after: this.getQuotaResetTime()
+          };
         } else {
           logger.warn('Quota warning thresholds reached', { violations: violations });
         }
@@ -947,8 +960,24 @@ class QuotaMonitor {
 
     } catch (error) {
       logger.error('Quota check failed', { error: error.toString() });
-      return { allowed: true, error: 'Quota check unavailable' };
+      // SECURITY FIX: Fail closed when quota check fails
+      return {
+        allowed: false,
+        error: 'Quota validation failed',
+        blocked_reason: 'quota_check_error'
+      };
     }
+  }
+
+  /**
+   * Get time when quota will reset (next day)
+   * @returns {string} ISO timestamp when quota resets
+   */
+  static getQuotaResetTime() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0); // Midnight
+    return tomorrow.toISOString();
   }
 
   /**
