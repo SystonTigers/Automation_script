@@ -146,22 +146,14 @@ jobs:
 
           echo "✅ Code deployment completed successfully!"
 
-      - name: Update developer web app deployment
+      - name: Manage single web app deployment
         env:
           WEBAPP_DEPLOYMENT_ID: ${{ vars.WEBAPP_DEPLOYMENT_ID }}
         run: |
-          if [ -n "$WEBAPP_DEPLOYMENT_ID" ]; then
-            echo "🌐 Updating developer web app deployment..."
+          echo "🔄 Managing single web app deployment..."
 
-            # Create a version label for tracking
-            npx clasp version "dev-${{ github.ref_name }} @ ${{ github.sha }}"
+          # Create a version label for tracking
+          npx clasp version "prod-${{ github.ref_name }} @ ${{ github.sha }}"
 
-            # Update the existing deployment (no new deployments created)
-            npx clasp deploy --deploymentId "$WEBAPP_DEPLOYMENT_ID" --description "Dev Auto: ${{ github.sha }}"
-
-            echo "✅ Developer web app deployment updated successfully!"
-          else
-            echo "ℹ️  WEBAPP_DEPLOYMENT_ID not set - skipping developer web app deployment"
-            echo "   Note: This is only for the main developer's web app"
-            echo "   Customer web apps are deployed using deployCustomerWebApp() function"
-          fi
+          # Use our single deployment script
+          node ./scripts/update-single-deployment.js
