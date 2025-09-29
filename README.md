@@ -81,13 +81,16 @@ MAKE_WEBHOOK_URL_BATCH_CONTENT = "https://hook.integromat.com/..."
 
 ### Initial Setup Functions (Apps Script Console - One Time Only):
 
-Run these functions in Apps Script console for first-time setup:
-
+**For Club Administrators (Customer Setup):**
 - `SA_INSTALL()` - Install club configuration from CONFIG sheet
 - `SA_ADMIN_SECRETS()` - Open admin panel to set webhook URLs
+
+**For System Maintenance (Optional):**
 - `SA_INSTALL_TRIGGERS()` - Set up all system triggers
 - `SA_TRIG_RECONCILE()` - Clean up orphaned triggers (maintenance)
 - `SA_QUEUE_STATUS()` - Check event queue status (monitoring)
+
+**Note:** Customers only need SA_INSTALL() and SA_ADMIN_SECRETS() - the system handles everything else automatically!
 
 ## 🏗️ Architecture
 
