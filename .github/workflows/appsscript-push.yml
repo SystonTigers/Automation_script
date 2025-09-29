@@ -4,7 +4,10 @@ on:
   push:
     branches: [ "main" ]
 
-# Removed concurrency to avoid queue delays
+# Concurrency: prevent race conditions from overlapping deployments
+concurrency:
+  group: appsscript-push-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   deploy:

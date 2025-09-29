@@ -42,7 +42,9 @@ try {
   }
 
   // 2) Update the specified deployment only
-  console.log(`✅ Using deployment ID: ${deploymentId}`);
+  // Mask deployment ID in logs (show only last 4 chars for verification)
+  const maskedId = `***${deploymentId.slice(-4)}`;
+  console.log(`✅ Using deployment ID: ${maskedId}`);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   sh(`npx clasp deploy --deploymentId ${deploymentId} --description "CI update ${timestamp}"`);
   console.log('✅ Single deployment updated successfully!');
