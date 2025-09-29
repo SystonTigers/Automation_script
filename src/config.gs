@@ -576,7 +576,7 @@ const SYSTEM_CONFIG = {
     WEBHOOK_RETRY_ATTEMPTS: 3,
     WEBHOOK_RETRY_DELAY_MS: 2000,
     WEBHOOK_URL_FALLBACK: 'MAKE_WEBHOOK_URL_FALLBACK',
-    WEBHOOK_SECRET: getConfigProperty('MAKE_WEBHOOK_SECRET'), // For signature validation
+    WEBHOOK_SECRET: PropertiesService.getScriptProperties().getProperty('MAKE_WEBHOOK_SECRET') || '', // For signature validation
     IDEMPOTENCY: {
       ENABLED: true,
       TTL_SECONDS: 86400,
