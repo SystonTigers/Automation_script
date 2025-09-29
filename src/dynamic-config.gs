@@ -251,12 +251,12 @@ function requireKeys_(cfg, keys) {
     const errorMsg = `
 🚨 CONFIGURATION INCOMPLETE 🚨
 
-Missing required configuration in Config sheet:
+Missing required configuration in CONFIG sheet:
 ${missing.map(k => `• ${k}`).join('\n')}
 
 Please:
 1. Open your Google Sheet
-2. Go to the 'Config' tab
+2. Go to the 'CONFIG' tab
 3. Fill in the missing values
 4. Refresh this page
 

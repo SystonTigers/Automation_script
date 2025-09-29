@@ -17,7 +17,7 @@ function installForCustomer() {
     console.log('🚀 Starting customer installation...');
 
     // Step 1: Read configuration from customer's Sheet
-    const config = readConfigFromSheet('Config');
+    const config = readConfigFromSheet('CONFIG');
     console.log(`✅ Config loaded: ${Object.keys(config).length} settings`);
 
     // Step 2: Validate required configuration
@@ -83,7 +83,7 @@ function installForCustomer() {
       error: error.toString(),
       timestamp: new Date().toISOString(),
       troubleshooting: [
-        'Check that the Config sheet exists and has all required settings',
+        'Check that the CONFIG sheet exists and has all required settings',
         'Verify the installing user has edit access to the spreadsheet',
         'Ensure all required sheet tabs exist (Live Match Updates, Players, etc.)',
         'Check the system logs for detailed error information'
@@ -97,7 +97,7 @@ function installForCustomer() {
  * @param {string} tabName - Name of the config tab (default: 'Config')
  * @returns {Object} Configuration object
  */
-function readConfigFromSheet(tabName = 'Config') {
+function readConfigFromSheet(tabName = 'CONFIG') {
   try {
     // Get the spreadsheet using stored ID or fallback to active
     const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
@@ -244,7 +244,7 @@ function setupScriptProperties(config) {
 
       // Installation metadata (anonymized for security)
       'INSTALL.COMPLETED_AT': new Date().toISOString(),
-      'INSTALL.INSTALLED_BY_HASH': this.hashEmail(Session.getActiveUser().getEmail()),
+      'INSTALL.INSTALLED_BY_HASH': hashEmail(Session.getActiveUser() ? Session.getActiveUser().getEmail() : 'unknown'),
       'INSTALL.VERSION': '6.2.0',
 
       // Legacy compatibility keys (TODO: Remove in v7.0)
@@ -407,7 +407,7 @@ function validateAndCreateRequiredSheets() {
       headers: ['Date', 'Opponent', 'Home/Away', 'Competition', 'Home Score', 'Away Score', 'Result', 'Scorers', 'Assists', 'MOTM']
     },
     {
-      name: 'Config',
+      name: 'CONFIG',
       headers: ['Key', 'Value'],
       data: [
         ['CLUB_NAME', 'Your Club Name'],
@@ -516,7 +516,7 @@ function performInstallationHealthCheck() {
   try {
     const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
   const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
-    const requiredSheets = ['Live Match Updates', 'Players', 'Fixtures', 'Results', 'Config'];
+    const requiredSheets = ['Live Match Updates', 'Players', 'Fixtures', 'Results', 'CONFIG'];
     const existingSheets = requiredSheets.filter(name => spreadsheet.getSheetByName(name));
     const allSheetsExist = existingSheets.length === requiredSheets.length;
     checks.push({ name: 'Required Sheets', pass: allSheetsExist, found: existingSheets.length, required: requiredSheets.length, weight: 25 });
@@ -591,21 +591,21 @@ function getInstallationStatus() {
 
 /**
  * Quick setup function for testing
- * Creates a basic Config sheet if it doesn't exist
+ * Creates a basic CONFIG sheet if it doesn't exist
  * @returns {Object} Setup result
  */
-function createBasicConfigSheet() {
+function createBasicCONFIGSheet() {
   try {
     const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
   const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
-    let configSheet = spreadsheet.getSheetByName('Config');
+    let configSheet = spreadsheet.getSheetByName('CONFIG');
 
     if (configSheet) {
-      return { success: true, message: 'Config sheet already exists', action: 'none' };
+      return { success: true, message: 'CONFIG sheet already exists', action: 'none' };
     }
 
-    // Create Config sheet with sample data
-    configSheet = spreadsheet.insertSheet('Config');
+    // Create CONFIG sheet with sample data
+    configSheet = spreadsheet.insertSheet('CONFIG');
 
     const sampleConfig = [
       ['Key', 'Value'],
@@ -625,7 +625,7 @@ function createBasicConfigSheet() {
 
     return {
       success: true,
-      message: 'Config sheet created with sample data. Please update the values and run installForCustomer().',
+      message: 'CONFIG sheet created with sample data. Please update the values and run installForCustomer().',
       action: 'created'
     };
 
@@ -633,7 +633,7 @@ function createBasicConfigSheet() {
     return {
       success: false,
       error: error.toString(),
-      message: 'Failed to create Config sheet'
+      message: 'Failed to create CONFIG sheet'
     };
   }
 }

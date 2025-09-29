@@ -2170,7 +2170,7 @@ function getRuntimeConfig(requestSource = 'unknown') {
       // Metadata
       last_updated: new Date().toISOString(),
       response_time_ms: Date.now() - startTime,
-      accessed_by: this.hashEmail(userEmail), // Privacy-safe identifier
+      accessed_by: hashEmail(userEmail), // Privacy-safe identifier
       request_source: requestSource
     };
 
@@ -2269,7 +2269,7 @@ function logConfigAccess(userEmail, source, status, details = null) {
     const properties = PropertiesService.getScriptProperties();
     const logEntry = {
       timestamp: new Date().toISOString(),
-      user_hash: this.hashEmail(userEmail),
+      user_hash: hashEmail(userEmail),
       source: source,
       status: status,
       details: details,
@@ -2289,7 +2289,7 @@ function logConfigAccess(userEmail, source, status, details = null) {
     properties.setProperty(logKey, JSON.stringify(logs));
 
     // Also log to console for immediate monitoring
-    console.log(`[CONFIG_ACCESS] ${status.toUpperCase()}: ${this.hashEmail(userEmail)} from ${source}`);
+    console.log(`[CONFIG_ACCESS] ${status.toUpperCase()}: ${hashEmail(userEmail)} from ${source}`);
 
   } catch (error) {
     console.error('Config access logging failed:', error);

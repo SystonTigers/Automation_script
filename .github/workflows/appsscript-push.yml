@@ -159,27 +159,40 @@ jobs:
           echo "WEBAPP_DEPLOYMENT_ID length: ${#WEBAPP_DEPLOYMENT_ID}"
           echo "WEBAPP_DEPLOYMENT_ID_ALT length: ${#WEBAPP_DEPLOYMENT_ID_ALT}"
 
-          # Fix: Hard-code the deployment ID until GitHub variable access is resolved
+          # Require WEBAPP_DEPLOYMENT_ID to be set (no fallback allowed)
           if [ -n "$WEBAPP_DEPLOYMENT_ID" ]; then
             echo "✅ WEBAPP_DEPLOYMENT_ID is set (${#WEBAPP_DEPLOYMENT_ID} chars)"
           elif [ -n "$WEBAPP_DEPLOYMENT_ID_ALT" ]; then
             echo "✅ WEBAPP_DEPLOYMENT_ID_ALT is set, using alternative (${#WEBAPP_DEPLOYMENT_ID_ALT} chars)"
             export WEBAPP_DEPLOYMENT_ID="$WEBAPP_DEPLOYMENT_ID_ALT"
           else
-            echo "⚠️ GitHub variables not accessible, using known deployment ID"
-            export WEBAPP_DEPLOYMENT_ID="AKfycbzNgKU9vaGM-TloSlV-CH8FawsN2gy_BEn10MrVPmc"
-            echo "✅ Set WEBAPP_DEPLOYMENT_ID to known value (${#WEBAPP_DEPLOYMENT_ID} chars)"
+            echo "❌ ERROR: WEBAPP_DEPLOYMENT_ID GitHub variable is required"
+            echo ""
+            echo "To fix this:"
+            echo "1. Go to GitHub → Settings → Actions → Variables"
+            echo "2. Add repository variable WEBAPP_DEPLOYMENT_ID"
+            echo "3. Set value to your existing deployment ID"
+            echo ""
+            echo "To find your deployment ID:"
+            echo "  npx clasp deployments"
+            echo ""
+            echo "This prevents accidental deployment multiplication."
+            exit 1
           fi
 
           # Create a version label for tracking
           npx clasp version "prod-${{ github.ref_name }} @ ${{ github.sha }}"
 
-          # Use our single deployment script (with error handling)
-          if [ -f "./scripts/update-single-deployment.js" ]; then
-            echo "✅ Found deployment script, executing..."
-            node ./scripts/update-single-deployment.js
-          else
-            echo "⚠️ Deployment script not found, using fallback deployment..."
-            # Fallback: simple deployment
-            npx clasp deploy --description "Fallback deployment $(date)"
+          # Require deployment script (no fallback to enforce single-deployment contract)
+          if [ ! -f "./scripts/update-single-deployment.js" ]; then
+            echo "❌ ERROR: Deployment script not found at ./scripts/update-single-deployment.js"
+            echo ""
+            echo "This workflow requires the single-deployment script to prevent"
+            echo "accidental creation of multiple deployments."
+            echo ""
+            echo "Please ensure the script exists in the repository."
+            exit 1
           fi
+
+          echo "✅ Found deployment script, executing..."
+          node ./scripts/update-single-deployment.js
