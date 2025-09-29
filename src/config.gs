@@ -50,6 +50,14 @@ function getConfiguredSheetId_() {
 }
 
 /**
+ * Runtime-safe accessor for spreadsheet ID from config
+ * Replaces getConfigValue('SHEETS.SPREADSHEET_ID') calls
+ */
+function getSpreadsheetIdFromConfig() {
+  return getConfiguredSheetId_();
+}
+
+/**
  * Returns the main spreadsheet using the configured sheet ID
  * Replaces all use of getActiveSpreadsheet()
  * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
@@ -417,7 +425,7 @@ const SYSTEM_CONFIG = {
 
   // ==================== GOOGLE SHEETS CONFIGURATION ====================
   SHEETS: {
-    SPREADSHEET_ID: SHEET_ID,
+    // SPREADSHEET_ID removed - use getConfiguredSheetId_() helper instead
     TAB_NAMES: {
       // Core sheets
       LIVE_MATCH: 'Live Match Updates',

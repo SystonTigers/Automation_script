@@ -339,7 +339,7 @@ class BatchFixturesManager {
    */
   getFixturesSheet() {
     try {
-      const ssId = getConfigValue('SHEETS.SPREADSHEET_ID', '');
+      const ssId = getSpreadsheetIdFromConfig();
       if (!ssId) return null;
       const ss = SpreadsheetApp.openById(ssId);
       return ss.getSheetByName(getConfigValue('SHEETS.TAB_NAMES.FIXTURES', 'Fixtures'));
@@ -351,7 +351,7 @@ class BatchFixturesManager {
 
   getResultsSheet() {
     try {
-      const ssId = getConfigValue('SHEETS.SPREADSHEET_ID', '');
+      const ssId = getSpreadsheetIdFromConfig();
       if (!ssId) return null;
       const ss = SpreadsheetApp.openById(ssId);
       return ss.getSheetByName(getConfigValue('SHEETS.TAB_NAMES.RESULTS', 'Results'));
@@ -933,7 +933,7 @@ function runBatchFixtures() {
  */
 function initBatchFixtures() {
   try {
-    const ssId = getConfigValue('SHEETS.SPREADSHEET_ID', '');
+    const ssId = getSpreadsheetIdFromConfig();
     const tabs = getConfigValue('SHEETS.TAB_NAMES', {});
 
     const results = {
