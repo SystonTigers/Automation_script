@@ -22,34 +22,27 @@ A complete **Google Apps Script-based automation system** that transforms manual
 
 ## 🚀 Quick Start
 
-1. **Clone and configure:**
-   ```bash
-   git clone https://github.com/SystonTigers/Automation_script.git
-   cd Automation_script
-   ```
+**For Club Administrators (Customer Setup):**
 
-2. **Set up Google Apps Script:**
-   ```bash
-   npm install -g @google/clasp
-   clasp login
-   clasp push
-   ```
+1. **Copy the Google Sheet template** (provided by your system administrator)
+2. **Configure your club in the CONFIG tab:**
+   - Team name, league, colors, badge URL, home venue
+   - Contact email and season information
+3. **Run the installer:** Apps Script menu → "Install Club Configuration"
+4. **Set up secrets:** Use the Admin panel to add webhook URLs (one-time setup)
 
-3. **Configure webhooks:**
-   - Add your Make.com webhook URLs to script properties
-   - Set up Google Sheets with required tabs
-   - Deploy as web app in Apps Script console
+**System deploys automatically via CI/CD** - no manual Apps Script editing required!
 
-## 🔄 Deployment Pipeline
+## 🔄 Deployment Pipeline (Developers Only)
 
 This project uses **GitHub Actions** for automatic deployment:
 
 1. **Edit locally** in VS Code or your preferred editor
 2. **Commit & push** to `main` branch
-3. **GitHub Action** automatically pushes to Google Apps Script
-4. **Verify deployment** by running `SA_Version()` in Apps Script console
+3. **GitHub Action** automatically deploys to Google Apps Script
+4. **Single web app deployment** is updated (never multiplied)
 
-**No more manual copying between interfaces!** 🎉
+**Customers never need to access Apps Script console!** 🎉
 
 ## ⚙️ Configuration
 
@@ -65,13 +58,36 @@ This project uses **GitHub Actions** for automatic deployment:
 - **Batch Content**: Weekly fixtures/results → Scheduled posting
 - **Player Stats**: Monthly summaries → Statistics posting
 
-### Google Apps Script Properties:
-```javascript
-MAKE_WEBHOOK_URL_LIVE_EVENTS = "your-make-webhook-url"
-MAKE_WEBHOOK_URL_BATCH_CONTENT = "your-make-webhook-url"
+### Configuration Method:
+
+**Club Information (Google Sheet CONFIG tab):**
+```
 TEAM_NAME = "Your Team Name"
 LEAGUE_NAME = "Your League"
+HOME_COLOUR = "#FF0000"
+AWAY_COLOUR = "#FFFFFF"
+BADGE_URL = "https://your-badge-url.png"
+HOME_VENUE = "Your Ground Name"
+CONTACT_EMAIL = "admin@yourclub.com"
 ```
+
+**Webhook URLs (Admin Sidebar - Secure):**
+```
+MAKE_WEBHOOK_URL_LIVE_EVENTS = "https://hook.integromat.com/..."
+MAKE_WEBHOOK_URL_BATCH_CONTENT = "https://hook.integromat.com/..."
+```
+
+**No manual Script Properties editing required!**
+
+### Initial Setup Functions (Apps Script Console - One Time Only):
+
+Run these functions in Apps Script console for first-time setup:
+
+- `SA_INSTALL()` - Install club configuration from CONFIG sheet
+- `SA_ADMIN_SECRETS()` - Open admin panel to set webhook URLs
+- `SA_INSTALL_TRIGGERS()` - Set up all system triggers
+- `SA_TRIG_RECONCILE()` - Clean up orphaned triggers (maintenance)
+- `SA_QUEUE_STATUS()` - Check event queue status (monitoring)
 
 ## 🏗️ Architecture
 

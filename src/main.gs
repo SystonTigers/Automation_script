@@ -1078,3 +1078,128 @@ class QuotaMonitor {
     }
   }
 }
+
+// ==================== SERVICE ENTRY POINTS ====================
+
+/**
+ * Customer Configuration Installer Entry Point
+ * Safe installation that only uses Google Sheets CONFIG tab
+ */
+function SA_INSTALL() {
+  try {
+    console.log('🚀 Starting customer configuration installation...');
+    const result = CustomerInstaller.installFromSheet();
+
+    if (result.success) {
+      console.log('✅ Installation completed successfully!');
+      console.log(`📊 Configured ${result.configKeys} settings, found ${result.secretsFound} secrets`);
+    } else {
+      console.error('❌ Installation failed:', result.error);
+      console.log('💡 Help:', result.help);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('❌ Installation entry point failed:', error);
+    return {
+      success: false,
+      error: error.toString(),
+      help: 'Check that CustomerInstaller service is available'
+    };
+  }
+}
+
+/**
+ * Trigger Management Service Entry Point
+ * Ensures single triggers and removes orphaned triggers
+ */
+function SA_TRIG_RECONCILE() {
+  try {
+    console.log('🔧 Starting trigger reconciliation...');
+    const result = TriggerManager.reconcileTriggers();
+
+    console.log(`📊 Reconciliation complete: ${result.kept} kept, ${result.removed} removed`);
+    if (result.orphaned.length > 0) {
+      console.log(`🗑️ Removed orphaned triggers: ${result.orphaned.join(', ')}`);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('❌ Trigger reconciliation failed:', error);
+    return {
+      success: false,
+      error: error.toString(),
+      total: 0,
+      kept: 0,
+      removed: 0,
+      orphaned: []
+    };
+  }
+}
+
+/**
+ * Install All System Triggers Entry Point
+ * Sets up all required system triggers
+ */
+function SA_INSTALL_TRIGGERS() {
+  try {
+    console.log('🚀 Installing all system triggers...');
+    const result = TriggerManager.installSystemTriggers();
+
+    console.log(`📊 Trigger installation: ${result.summary.successful} successful, ${result.summary.failed} failed`);
+
+    return result;
+  } catch (error) {
+    console.error('❌ Trigger installation failed:', error);
+    return {
+      success: false,
+      error: error.toString(),
+      summary: { total: 0, successful: 0, failed: 1 }
+    };
+  }
+}
+
+/**
+ * Admin Secret Configuration Panel Entry Point
+ * Opens secure sidebar for webhook URL configuration
+ */
+function SA_ADMIN_SECRETS() {
+  try {
+    console.log('🔐 Opening admin secrets panel...');
+    CustomerInstaller.showAdminPanel();
+    return { success: true, message: 'Admin panel opened' };
+  } catch (error) {
+    console.error('❌ Failed to open admin panel:', error);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Event Queue Status Entry Point
+ * Check live event debouncer queue status
+ */
+function SA_QUEUE_STATUS() {
+  try {
+    console.log('📊 Checking event queue status...');
+    const status = LiveEventDebouncer.getQueueStatus();
+
+    console.log(`📈 Queue: ${status.queueSize} events, ${status.processedCount} processed total`);
+    if (status.needsProcessing) {
+      console.log('⚠️ Queue needs processing');
+    }
+
+    return status;
+  } catch (error) {
+    console.error('❌ Failed to get queue status:', error);
+    return {
+      success: false,
+      error: error.toString(),
+      queueSize: 0,
+      processedCount: 0,
+      needsProcessing: false
+    };
+  }
+}
