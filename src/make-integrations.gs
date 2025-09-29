@@ -602,15 +602,31 @@ class MakeIntegration {
       try {
         // @testHook(webhook_attempt_start)
         
+        // Prepare payload string for signing
+        const payloadString = JSON.stringify(payload);
+
+        // Generate webhook signature if secret is configured
+        const signature = this.generateWebhookSignature(payload);
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+
+        // Build headers with optional signature
+        const headers = {
+          'Content-Type': 'application/json',
+          'User-Agent': `SystonTigersAutomation/${getConfigValue('SYSTEM.VERSION')}`,
+          'X-Attempt': attempt.toString(),
+          'X-Event-Type': payload.event_type,
+          'X-Make-Timestamp': timestamp
+        };
+
+        // Add signature header if available
+        if (signature) {
+          headers['X-Make-Signature'] = signature;
+        }
+
         const response = UrlFetchApp.fetch(webhookUrl, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': `SystonTigersAutomation/${getConfigValue('SYSTEM.VERSION')}`,
-            'X-Attempt': attempt.toString(),
-            'X-Event-Type': payload.event_type
-          },
-          payload: JSON.stringify(payload),
+          headers: headers,
+          payload: payloadString,
           muteHttpExceptions: true
         });
         
@@ -924,6 +940,282 @@ class MakeIntegration {
     }
   }
 
+  // ==================== WEBHOOK SIGNATURE VALIDATION ====================
+
+  /**
+   * Generate webhook signature for outgoing payloads
+   * @param {Object} payload - Payload object
+   * @param {string} secret - Webhook secret
+   * @returns {string} Generated signature
+   */
+  generateWebhookSignature(payload, secret = null) {
+    try {
+      const webhookSecret = secret || getConfigValue('MAKE.WEBHOOK_SECRET');
+      if (!webhookSecret) {
+        this.logger.warn('Webhook secret not configured for signature generation');
+        return null;
+      }
+
+      const payloadString = JSON.stringify(payload, Object.keys(payload).sort());
+      const signature = Utilities.computeHmacSha256Signature(payloadString, webhookSecret);
+      const hexSignature = signature.map(byte => (byte & 0xff).toString(16).padStart(2, '0')).join('');
+
+      return `sha256=${hexSignature}`;
+    } catch (error) {
+      this.logger.error('Failed to generate webhook signature', { error: error.toString() });
+      return null;
+    }
+  }
+
+  /**
+   * Validate incoming webhook signature from Make.com
+   * @param {Object} request - Incoming request object
+   * @param {string} payload - Raw payload string
+   * @param {string} receivedSignature - Signature from header
+   * @returns {Object} Validation result
+   */
+  validateIncomingWebhookSignature(request, payload, receivedSignature) {
+    this.logger.enterFunction('validateIncomingWebhookSignature', {
+      hasSignature: !!receivedSignature,
+      payloadSize: payload ? payload.length : 0
+    });
+
+    try {
+      const webhookSecret = getConfigValue('MAKE.WEBHOOK_SECRET');
+      if (!webhookSecret) {
+        this.logger.warn('Webhook secret not configured - skipping signature validation');
+        return {
+          valid: true,
+          skipped: true,
+          reason: 'webhook_secret_not_configured'
+        };
+      }
+
+      if (!receivedSignature) {
+        this.logger.security('Webhook received without signature', {
+          remoteAddress: request.remoteAddress,
+          userAgent: request.headers ? request.headers['User-Agent'] : null
+        });
+        return {
+          valid: false,
+          reason: 'missing_signature',
+          security_event: true
+        };
+      }
+
+      // Extract signature from header (format: "sha256=...")
+      const signatureMatch = receivedSignature.match(/^sha256=([a-f0-9]+)$/);
+      if (!signatureMatch) {
+        this.logger.security('Invalid signature format received', {
+          receivedFormat: receivedSignature.substring(0, 20) + '...',
+          remoteAddress: request.remoteAddress
+        });
+        return {
+          valid: false,
+          reason: 'invalid_signature_format',
+          security_event: true
+        };
+      }
+
+      const receivedHash = signatureMatch[1];
+
+      // Generate expected signature
+      const expectedSignature = Utilities.computeHmacSha256Signature(payload, webhookSecret);
+      const expectedHash = expectedSignature.map(byte => (byte & 0xff).toString(16).padStart(2, '0')).join('');
+
+      // Constant-time comparison to prevent timing attacks
+      const isValid = this.constantTimeCompare(receivedHash, expectedHash);
+
+      if (!isValid) {
+        this.logger.security('Webhook signature validation failed', {
+          remoteAddress: request.remoteAddress,
+          userAgent: request.headers ? request.headers['User-Agent'] : null,
+          expectedLength: expectedHash.length,
+          receivedLength: receivedHash.length
+        });
+        return {
+          valid: false,
+          reason: 'signature_mismatch',
+          security_event: true
+        };
+      }
+
+      this.logger.info('Webhook signature validated successfully');
+      return {
+        valid: true,
+        reason: 'signature_valid'
+      };
+
+    } catch (error) {
+      this.logger.error('Webhook signature validation error', { error: error.toString() });
+      return {
+        valid: false,
+        reason: 'validation_error',
+        error: error.toString()
+      };
+    }
+  }
+
+  /**
+   * Constant-time string comparison to prevent timing attacks
+   * @param {string} a - First string
+   * @param {string} b - Second string
+   * @returns {boolean} True if strings are equal
+   */
+  constantTimeCompare(a, b) {
+    if (a.length !== b.length) {
+      return false;
+    }
+
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+
+    return result === 0;
+  }
+
+  /**
+   * Verify webhook timestamp to prevent replay attacks
+   * @param {string} timestamp - Timestamp from webhook header
+   * @param {number} toleranceSeconds - Maximum age tolerance in seconds
+   * @returns {Object} Verification result
+   */
+  verifyWebhookTimestamp(timestamp, toleranceSeconds = 300) {
+    try {
+      if (!timestamp) {
+        return {
+          valid: false,
+          reason: 'missing_timestamp'
+        };
+      }
+
+      const webhookTime = parseInt(timestamp, 10);
+      if (isNaN(webhookTime)) {
+        return {
+          valid: false,
+          reason: 'invalid_timestamp_format'
+        };
+      }
+
+      const currentTime = Math.floor(Date.now() / 1000);
+      const ageDifference = Math.abs(currentTime - webhookTime);
+
+      if (ageDifference > toleranceSeconds) {
+        this.logger.security('Webhook timestamp outside tolerance window', {
+          webhookTime: new Date(webhookTime * 1000).toISOString(),
+          currentTime: new Date(currentTime * 1000).toISOString(),
+          ageDifference: ageDifference,
+          toleranceSeconds: toleranceSeconds
+        });
+        return {
+          valid: false,
+          reason: 'timestamp_too_old',
+          age_difference: ageDifference,
+          tolerance: toleranceSeconds
+        };
+      }
+
+      return {
+        valid: true,
+        age_difference: ageDifference
+      };
+
+    } catch (error) {
+      this.logger.error('Webhook timestamp verification error', { error: error.toString() });
+      return {
+        valid: false,
+        reason: 'verification_error',
+        error: error.toString()
+      };
+    }
+  }
+
+  /**
+   * Enhanced webhook security validation combining signature and timestamp
+   * @param {Object} request - Incoming request object
+   * @param {string} payload - Raw payload string
+   * @returns {Object} Comprehensive validation result
+   */
+  validateWebhookSecurity(request) {
+    this.logger.enterFunction('validateWebhookSecurity', {
+      hasHeaders: !!request.headers,
+      remoteAddress: request.remoteAddress
+    });
+
+    try {
+      const headers = request.headers || {};
+      const payload = request.postData ? request.postData.contents : '';
+
+      // Extract security headers
+      const signature = headers['X-Make-Signature'] || headers['x-make-signature'];
+      const timestamp = headers['X-Make-Timestamp'] || headers['x-make-timestamp'];
+      const userAgent = headers['User-Agent'] || headers['user-agent'];
+
+      // Validate signature
+      const signatureResult = this.validateIncomingWebhookSignature(request, payload, signature);
+
+      // Validate timestamp
+      const timestampResult = this.verifyWebhookTimestamp(timestamp);
+
+      // Check User-Agent for Make.com
+      const validUserAgent = userAgent && userAgent.includes('Make.com');
+      if (!validUserAgent) {
+        this.logger.security('Suspicious User-Agent for webhook', {
+          userAgent: userAgent,
+          remoteAddress: request.remoteAddress
+        });
+      }
+
+      // Overall security assessment
+      const overallValid = signatureResult.valid && timestampResult.valid;
+
+      if (overallValid) {
+        this.logger.audit('Webhook security validation passed', {
+          remoteAddress: request.remoteAddress,
+          signatureValid: signatureResult.valid,
+          timestampValid: timestampResult.valid,
+          userAgent: userAgent
+        });
+      } else {
+        this.logger.security('Webhook security validation failed', {
+          remoteAddress: request.remoteAddress,
+          signatureValid: signatureResult.valid,
+          signatureReason: signatureResult.reason,
+          timestampValid: timestampResult.valid,
+          timestampReason: timestampResult.reason,
+          userAgent: userAgent
+        });
+      }
+
+      const result = {
+        valid: overallValid,
+        signature: signatureResult,
+        timestamp: timestampResult,
+        user_agent_valid: validUserAgent,
+        remote_address: request.remoteAddress,
+        security_level: overallValid ? 'secure' : 'insecure',
+        validation_timestamp: DateUtils.formatISO(DateUtils.now())
+      };
+
+      this.logger.exitFunction('validateWebhookSecurity', {
+        valid: overallValid,
+        security_level: result.security_level
+      });
+
+      return result;
+
+    } catch (error) {
+      this.logger.error('Webhook security validation error', { error: error.toString() });
+      return {
+        valid: false,
+        error: error.toString(),
+        security_level: 'error',
+        validation_timestamp: DateUtils.formatISO(DateUtils.now())
+      };
+    }
+  }
+
   // ==================== UTILITY METHODS ====================
 
   /**
@@ -936,11 +1228,11 @@ class MakeIntegration {
       'goal_team', 'goal_opposition', 'card_red', 'card_second_yellow',
       'kick_off', 'half_time', 'full_time'
     ];
-    
+
     const mediumPriorityEvents = [
       'card_yellow', 'substitution', 'motm', 'second_half_kickoff'
     ];
-    
+
     if (highPriorityEvents.includes(payload.event_type)) {
       return 'high';
     } else if (mediumPriorityEvents.includes(payload.event_type)) {
@@ -1328,5 +1620,93 @@ function initializeMakeIntegration() {
 function getMakeRouterDocumentation(contextOverrides = {}) {
   const integration = new MakeIntegration();
   return integration.getRouterDocumentation(contextOverrides);
+}
+
+/**
+ * Validate incoming webhook security (signature + timestamp)
+ * @param {Object} request - Request object from doPost
+ * @returns {Object} Validation result
+ */
+function validateIncomingWebhookSecurity(request) {
+  const integration = new MakeIntegration();
+  return integration.validateWebhookSecurity(request);
+}
+
+/**
+ * Generate webhook signature for testing purposes
+ * @param {Object} payload - Test payload
+ * @param {string} secret - Optional secret override
+ * @returns {string} Generated signature
+ */
+function generateTestWebhookSignature(payload, secret = null) {
+  const integration = new MakeIntegration();
+  return integration.generateWebhookSignature(payload, secret);
+}
+
+/**
+ * Test webhook signature validation with sample data
+ * @returns {Object} Test results
+ */
+function testWebhookSignatureValidation() {
+  logger.enterFunction('testWebhookSignatureValidation');
+
+  try {
+    const integration = new MakeIntegration();
+
+    // Test payload
+    const testPayload = {
+      event_type: 'security_test',
+      timestamp: DateUtils.formatISO(DateUtils.now()),
+      test_data: { message: 'Signature validation test' }
+    };
+
+    // Generate signature
+    const signature = integration.generateWebhookSignature(testPayload);
+
+    if (!signature) {
+      return {
+        success: false,
+        error: 'Failed to generate test signature - check webhook secret configuration',
+        timestamp: DateUtils.formatISO(DateUtils.now())
+      };
+    }
+
+    // Mock request object
+    const mockRequest = {
+      headers: {
+        'X-Make-Signature': signature,
+        'X-Make-Timestamp': Math.floor(Date.now() / 1000).toString(),
+        'User-Agent': 'Make.com Webhook'
+      },
+      postData: {
+        contents: JSON.stringify(testPayload)
+      },
+      remoteAddress: '127.0.0.1'
+    };
+
+    // Validate security
+    const validationResult = integration.validateWebhookSecurity(mockRequest);
+
+    logger.exitFunction('testWebhookSignatureValidation', {
+      success: validationResult.valid,
+      security_level: validationResult.security_level
+    });
+
+    return {
+      success: true,
+      test_payload: testPayload,
+      generated_signature: signature,
+      validation_result: validationResult,
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+
+  } catch (error) {
+    logger.error('Webhook signature validation test failed', { error: error.toString() });
+    return {
+      success: false,
+      error: error.toString(),
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+  }
 }
 

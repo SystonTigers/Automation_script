@@ -156,36 +156,316 @@ class EnhancedSecurityManager {
   }
 
   /**
-   * FIXED: Decrypt and validate session
+   * FIXED: Decrypt and validate session with timeout handling
    * @param {string} sessionToken - Session token
+   * @param {Object} options - Validation options
    * @returns {Object} Session validation result
    */
-  validateEncryptedSession(sessionToken) {
+  validateEncryptedSession(sessionToken, options = {}) {
     try {
       const encryptedData = PropertiesService.getScriptProperties().getProperty(`SESSION_${sessionToken}`);
 
       if (!encryptedData) {
-        return { success: false, error: 'Session not found' };
+        return { success: false, error: 'Session not found', code: 'SESSION_NOT_FOUND' };
       }
 
       // Decrypt session data
       const sessionData = this.decryptSessionData(encryptedData);
 
       if (!sessionData) {
-        return { success: false, error: 'Session decryption failed' };
+        return { success: false, error: 'Session decryption failed', code: 'DECRYPTION_FAILED' };
       }
 
-      // Validate expiration
-      if (new Date(sessionData.expiresAt) < new Date()) {
+      const now = new Date();
+      const expiresAt = new Date(sessionData.expiresAt);
+      const lastActivity = new Date(sessionData.lastActivity || sessionData.createdAt);
+
+      // Check hard expiration
+      if (expiresAt < now) {
         this.destroySession(sessionToken);
-        return { success: false, error: 'Session expired' };
+        this.logSecurityEvent('session_expired', {
+          token: this.maskSessionToken(sessionToken),
+          username: sessionData.username,
+          reason: 'hard_expiration'
+        });
+        return { success: false, error: 'Session expired', code: 'SESSION_EXPIRED' };
       }
 
-      return { success: true, session: sessionData };
+      // Check inactivity timeout
+      const inactivityTimeout = this.getSessionTimeoutSettings().inactivity_timeout_ms;
+      const timeSinceActivity = now.getTime() - lastActivity.getTime();
+
+      if (timeSinceActivity > inactivityTimeout) {
+        this.destroySession(sessionToken);
+        this.logSecurityEvent('session_timeout', {
+          token: this.maskSessionToken(sessionToken),
+          username: sessionData.username,
+          inactive_for_ms: timeSinceActivity,
+          timeout_limit_ms: inactivityTimeout
+        });
+        return {
+          success: false,
+          error: 'Session timed out due to inactivity',
+          code: 'SESSION_TIMEOUT_INACTIVITY',
+          inactive_for_minutes: Math.round(timeSinceActivity / 60000)
+        };
+      }
+
+      // Check for session extension if activity detected
+      if (!options.skipExtension && timeSinceActivity > 0) {
+        this.extendSessionActivity(sessionToken, sessionData);
+      }
+
+      // Check for concurrent sessions
+      const concurrentSessions = this.checkConcurrentSessions(sessionData.username);
+      if (concurrentSessions.violatesLimit) {
+        this.logSecurityEvent('concurrent_session_violation', {
+          username: sessionData.username,
+          active_sessions: concurrentSessions.count,
+          limit: concurrentSessions.limit
+        });
+      }
+
+      return {
+        success: true,
+        session: sessionData,
+        time_remaining_ms: expiresAt.getTime() - now.getTime(),
+        last_activity: lastActivity.toISOString(),
+        concurrent_sessions: concurrentSessions.count
+      };
 
     } catch (error) {
       this.logger.error('Session validation failed', { error: error.toString() });
-      return { success: false, error: 'Session validation failed' };
+      return { success: false, error: 'Session validation failed', code: 'VALIDATION_ERROR' };
+    }
+  }
+
+  /**
+   * Enhanced session timeout configuration
+   * @returns {Object} Timeout settings
+   */
+  getSessionTimeoutSettings() {
+    const config = getConfigValue('SECURITY.SESSION_TIMEOUT', {});
+
+    return {
+      // Default timeouts in milliseconds
+      hard_timeout_ms: config.HARD_TIMEOUT_MS || 14400000, // 4 hours
+      inactivity_timeout_ms: config.INACTIVITY_TIMEOUT_MS || 1800000, // 30 minutes
+      warning_threshold_ms: config.WARNING_THRESHOLD_MS || 300000, // 5 minutes before timeout
+      extension_increment_ms: config.EXTENSION_INCREMENT_MS || 1800000, // 30 minutes
+      max_concurrent_sessions: config.MAX_CONCURRENT_SESSIONS || 3,
+      cleanup_interval_ms: config.CLEANUP_INTERVAL_MS || 3600000 // 1 hour
+    };
+  }
+
+  /**
+   * Extend session activity timestamp
+   * @param {string} sessionToken - Session token
+   * @param {Object} sessionData - Current session data
+   */
+  extendSessionActivity(sessionToken, sessionData) {
+    try {
+      const now = new Date();
+      const settings = this.getSessionTimeoutSettings();
+
+      // Update last activity
+      sessionData.lastActivity = now.toISOString();
+
+      // Optionally extend expiration if near timeout
+      const expiresAt = new Date(sessionData.expiresAt);
+      const timeRemaining = expiresAt.getTime() - now.getTime();
+
+      if (timeRemaining < settings.warning_threshold_ms) {
+        sessionData.expiresAt = new Date(now.getTime() + settings.extension_increment_ms).toISOString();
+
+        this.logSecurityEvent('session_extended', {
+          token: this.maskSessionToken(sessionToken),
+          username: sessionData.username,
+          new_expiry: sessionData.expiresAt,
+          extension_reason: 'activity_detected'
+        });
+      }
+
+      // Re-encrypt and store updated session
+      this.storeEncryptedSession(sessionToken, sessionData);
+
+    } catch (error) {
+      this.logger.error('Failed to extend session activity', { error: error.toString() });
+    }
+  }
+
+  /**
+   * Check for concurrent sessions for a user
+   * @param {string} username - Username to check
+   * @returns {Object} Concurrent session analysis
+   */
+  checkConcurrentSessions(username) {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const allProperties = properties.getProperties();
+      const sessionKeys = Object.keys(allProperties).filter(key => key.startsWith('SESSION_'));
+
+      let activeSessions = 0;
+      const userSessions = [];
+
+      sessionKeys.forEach(key => {
+        try {
+          const sessionData = this.decryptSessionData(allProperties[key]);
+          if (sessionData && sessionData.username === username) {
+            const expiresAt = new Date(sessionData.expiresAt);
+            if (expiresAt > new Date()) {
+              activeSessions++;
+              userSessions.push({
+                token: key.replace('SESSION_', ''),
+                createdAt: sessionData.createdAt,
+                lastActivity: sessionData.lastActivity,
+                userAgent: sessionData.userAgent
+              });
+            }
+          }
+        } catch (error) {
+          // Skip corrupted sessions
+        }
+      });
+
+      const settings = this.getSessionTimeoutSettings();
+
+      return {
+        count: activeSessions,
+        limit: settings.max_concurrent_sessions,
+        violatesLimit: activeSessions > settings.max_concurrent_sessions,
+        sessions: userSessions
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to check concurrent sessions', { error: error.toString() });
+      return { count: 0, limit: 1, violatesLimit: false, sessions: [] };
+    }
+  }
+
+  /**
+   * Cleanup expired sessions
+   * @returns {Object} Cleanup result
+   */
+  cleanupExpiredSessions() {
+    this.logger.enterFunction('cleanupExpiredSessions');
+
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const allProperties = properties.getProperties();
+      const sessionKeys = Object.keys(allProperties).filter(key => key.startsWith('SESSION_'));
+
+      let expiredCount = 0;
+      let activeCount = 0;
+      const now = new Date();
+
+      sessionKeys.forEach(key => {
+        try {
+          const sessionData = this.decryptSessionData(allProperties[key]);
+          if (sessionData) {
+            const expiresAt = new Date(sessionData.expiresAt);
+            const lastActivity = new Date(sessionData.lastActivity || sessionData.createdAt);
+            const settings = this.getSessionTimeoutSettings();
+
+            // Check both hard expiration and inactivity timeout
+            const isHardExpired = expiresAt < now;
+            const isInactivityExpired = (now.getTime() - lastActivity.getTime()) > settings.inactivity_timeout_ms;
+
+            if (isHardExpired || isInactivityExpired) {
+              properties.deleteProperty(key);
+              expiredCount++;
+
+              this.logSecurityEvent('session_cleanup', {
+                token: this.maskSessionToken(key.replace('SESSION_', '')),
+                username: sessionData.username,
+                reason: isHardExpired ? 'hard_expired' : 'inactivity_expired',
+                expired_at: now.toISOString()
+              });
+            } else {
+              activeCount++;
+            }
+          } else {
+            // Corrupted session data - remove it
+            properties.deleteProperty(key);
+            expiredCount++;
+          }
+        } catch (error) {
+          // Remove corrupted sessions
+          properties.deleteProperty(key);
+          expiredCount++;
+        }
+      });
+
+      const result = {
+        success: true,
+        expired_sessions_removed: expiredCount,
+        active_sessions_remaining: activeCount,
+        cleanup_timestamp: now.toISOString()
+      };
+
+      this.logger.exitFunction('cleanupExpiredSessions', result);
+      return result;
+
+    } catch (error) {
+      this.logger.error('Session cleanup failed', { error: error.toString() });
+      return {
+        success: false,
+        error: error.toString(),
+        cleanup_timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Get session status information
+   * @param {string} sessionToken - Session token
+   * @returns {Object} Session status
+   */
+  getSessionStatus(sessionToken) {
+    try {
+      const validation = this.validateEncryptedSession(sessionToken, { skipExtension: true });
+
+      if (!validation.success) {
+        return {
+          valid: false,
+          code: validation.code,
+          error: validation.error
+        };
+      }
+
+      const session = validation.session;
+      const now = new Date();
+      const expiresAt = new Date(session.expiresAt);
+      const lastActivity = new Date(session.lastActivity || session.createdAt);
+      const settings = this.getSessionTimeoutSettings();
+
+      const timeRemainingMs = expiresAt.getTime() - now.getTime();
+      const timeSinceActivityMs = now.getTime() - lastActivity.getTime();
+      const inactivityTimeoutMs = settings.inactivity_timeout_ms;
+
+      return {
+        valid: true,
+        username: session.username,
+        created_at: session.createdAt,
+        expires_at: session.expiresAt,
+        last_activity: session.lastActivity,
+        time_remaining_ms: timeRemainingMs,
+        time_remaining_minutes: Math.round(timeRemainingMs / 60000),
+        time_since_activity_ms: timeSinceActivityMs,
+        time_since_activity_minutes: Math.round(timeSinceActivityMs / 60000),
+        inactivity_timeout_minutes: Math.round(inactivityTimeoutMs / 60000),
+        approaching_timeout: timeRemainingMs < settings.warning_threshold_ms,
+        approaching_inactivity_timeout: (inactivityTimeoutMs - timeSinceActivityMs) < settings.warning_threshold_ms,
+        concurrent_sessions: validation.concurrent_sessions
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to get session status', { error: error.toString() });
+      return {
+        valid: false,
+        error: error.toString(),
+        code: 'STATUS_ERROR'
+      };
     }
   }
 
@@ -445,4 +725,191 @@ function authenticateAdminSecure(username, password, mfaCode = null, forcePasswo
  */
 function validateWebhookUrlSecure(webhookUrl) {
   return EnhancedSecurity.validateWebhookSecurity(webhookUrl);
+}
+
+// ==================== SESSION TIMEOUT PUBLIC API ====================
+
+/**
+ * Get session status with timeout information
+ * @param {string} sessionToken - Session token
+ * @returns {Object} Session status
+ */
+function getSessionStatus(sessionToken) {
+  const enhancedSecurity = new EnhancedSecurityManager();
+  return enhancedSecurity.getSessionStatus(sessionToken);
+}
+
+/**
+ * Extend session activity (updates last activity timestamp)
+ * @param {string} sessionToken - Session token
+ * @returns {Object} Extension result
+ */
+function extendSessionActivity(sessionToken) {
+  logger.enterFunction('extendSessionActivity', { hasToken: !!sessionToken });
+
+  try {
+    const enhancedSecurity = new EnhancedSecurityManager();
+    const validation = enhancedSecurity.validateEncryptedSession(sessionToken);
+
+    if (!validation.success) {
+      return {
+        success: false,
+        error: validation.error,
+        code: validation.code
+      };
+    }
+
+    // Activity is automatically extended during validation
+    const status = enhancedSecurity.getSessionStatus(sessionToken);
+
+    logger.exitFunction('extendSessionActivity', { success: true });
+    return {
+      success: true,
+      last_activity: status.last_activity,
+      time_remaining_minutes: status.time_remaining_minutes,
+      message: 'Session activity extended successfully'
+    };
+
+  } catch (error) {
+    logger.error('Failed to extend session activity', { error: error.toString() });
+    return {
+      success: false,
+      error: error.toString(),
+      code: 'EXTENSION_ERROR'
+    };
+  }
+}
+
+/**
+ * Cleanup expired sessions (maintenance function)
+ * @returns {Object} Cleanup result
+ */
+function cleanupExpiredSessions() {
+  const enhancedSecurity = new EnhancedSecurityManager();
+  return enhancedSecurity.cleanupExpiredSessions();
+}
+
+/**
+ * Check concurrent sessions for a user
+ * @param {string} username - Username to check
+ * @returns {Object} Concurrent session analysis
+ */
+function checkUserConcurrentSessions(username) {
+  logger.enterFunction('checkUserConcurrentSessions', { username });
+
+  try {
+    const enhancedSecurity = new EnhancedSecurityManager();
+    const result = enhancedSecurity.checkConcurrentSessions(username);
+
+    logger.exitFunction('checkUserConcurrentSessions', {
+      username,
+      sessionCount: result.count,
+      violatesLimit: result.violatesLimit
+    });
+
+    return {
+      success: true,
+      username: username,
+      active_sessions: result.count,
+      session_limit: result.limit,
+      violates_limit: result.violatesLimit,
+      sessions: result.sessions,
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+
+  } catch (error) {
+    logger.error('Failed to check concurrent sessions', { error: error.toString(), username });
+    return {
+      success: false,
+      error: error.toString(),
+      username: username
+    };
+  }
+}
+
+/**
+ * Get session timeout configuration
+ * @returns {Object} Timeout settings
+ */
+function getSessionTimeoutConfiguration() {
+  const enhancedSecurity = new EnhancedSecurityManager();
+  const settings = enhancedSecurity.getSessionTimeoutSettings();
+
+  return {
+    success: true,
+    settings: {
+      hard_timeout_hours: Math.round(settings.hard_timeout_ms / 3600000),
+      inactivity_timeout_minutes: Math.round(settings.inactivity_timeout_ms / 60000),
+      warning_threshold_minutes: Math.round(settings.warning_threshold_ms / 60000),
+      extension_increment_minutes: Math.round(settings.extension_increment_ms / 60000),
+      max_concurrent_sessions: settings.max_concurrent_sessions,
+      cleanup_interval_hours: Math.round(settings.cleanup_interval_ms / 3600000)
+    },
+    raw_settings_ms: settings,
+    timestamp: DateUtils.formatISO(DateUtils.now())
+  };
+}
+
+/**
+ * Test session timeout functionality
+ * @returns {Object} Test results
+ */
+function testSessionTimeoutHandling() {
+  logger.enterFunction('testSessionTimeoutHandling');
+
+  try {
+    const enhancedSecurity = new EnhancedSecurityManager();
+
+    // Create test session data
+    const testSessionData = {
+      username: 'test_user',
+      role: 'admin',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
+      lastActivity: new Date(Date.now() - 10 * 60 * 1000).toISOString() // 10 minutes ago
+    };
+
+    const testSessionToken = 'test_session_' + Utilities.getUuid();
+
+    // Test session storage and retrieval
+    enhancedSecurity.storeEncryptedSession(testSessionToken, testSessionData);
+    const validation = enhancedSecurity.validateEncryptedSession(testSessionToken);
+
+    // Test status retrieval
+    const status = enhancedSecurity.getSessionStatus(testSessionToken);
+
+    // Test concurrent sessions
+    const concurrent = enhancedSecurity.checkConcurrentSessions('test_user');
+
+    // Test configuration
+    const config = enhancedSecurity.getSessionTimeoutSettings();
+
+    // Cleanup test session
+    enhancedSecurity.destroySession(testSessionToken);
+
+    const result = {
+      success: true,
+      tests: {
+        session_storage: { success: true },
+        session_validation: { success: validation.success },
+        session_status: { success: status.valid },
+        concurrent_sessions: { success: true, count: concurrent.count },
+        configuration_loaded: { success: !!config.hard_timeout_ms }
+      },
+      test_session_status: status,
+      timeout_configuration: config,
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+
+    logger.exitFunction('testSessionTimeoutHandling', { success: true });
+    return result;
+
+  } catch (error) {
+    logger.error('Session timeout test failed', { error: error.toString() });
+    return {
+      success: false,
+      error: error.toString(),
+      timestamp: DateUtils.formatISO(DateUtils.now())
+    };
+  }
 }

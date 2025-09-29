@@ -193,35 +193,36 @@ function handleQueryParameterRouting(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // 3. MONITORING - Start performance tracking
-  const startTime = Date.now();
-  const queryParams = securityCheck.sanitized || {};
-  ProductionMonitoringManager.collectMetric('webapp', 'request', 1, { action: queryParams.action || 'unknown' });
+  try {
+    // 3. MONITORING - Start performance tracking
+    const startTime = Date.now();
+    const queryParams = securityCheck.sanitized || {};
+    ProductionMonitoringManager.collectMetric('webapp', 'request', 1, { action: queryParams.action || 'unknown' });
 
-  // 4. ROUTE REQUEST
-  let result;
-  const action = queryParams.action || 'health';
+    // 4. ROUTE REQUEST
+    let result;
+    const action = queryParams.action || 'health';
 
-  switch (action) {
-    case 'health':
-      result = HealthCheck.performHealthCheck();
-      break;
+    switch (action) {
+      case 'health':
+        result = HealthCheck.performHealthCheck();
+        break;
 
-    case 'advanced_health':
-      result = ProductionMonitoringManager.performAdvancedHealthCheck();
-      break;
+      case 'advanced_health':
+        result = ProductionMonitoringManager.performAdvancedHealthCheck();
+        break;
 
-    case 'dashboard':
-      result = getWorkingMonitoringDashboard();
-      break;
+      case 'dashboard':
+        result = getWorkingMonitoringDashboard();
+        break;
 
-    case 'monitoring':
-      result = runSystemMonitoring();
-      break;
+      case 'monitoring':
+        result = runSystemMonitoring();
+        break;
 
-    case 'test':
-      result = runPracticalTests();
-      break;
+      case 'test':
+        result = runPracticalTests();
+        break;
 
       case 'gdpr_init':
         result = initializeGDPRCompliance();
@@ -891,21 +892,25 @@ function validateActionParams(action, params) {
  * Quota monitoring and rate limiting system
  */
 class QuotaMonitor {
-  static DAILY_LIMITS = {
-    SCRIPT_RUNTIME: 360, // 6 hours in minutes
-    URL_FETCH: 20000,
-    EMAIL_QUOTA: 100,
-    PROPERTIES_READ: 50000,
-    PROPERTIES_WRITE: 50000
-  };
+  static getDailyLimits() {
+    return {
+      SCRIPT_RUNTIME: 360, // 6 hours in minutes
+      URL_FETCH: 20000,
+      EMAIL_QUOTA: 100,
+      PROPERTIES_READ: 50000,
+      PROPERTIES_WRITE: 50000
+    };
+  }
 
-  static WARNING_THRESHOLDS = {
-    SCRIPT_RUNTIME: 300, // 5 hours warning
-    URL_FETCH: 18000, // 90% warning
-    EMAIL_QUOTA: 90,
-    PROPERTIES_READ: 45000,
-    PROPERTIES_WRITE: 45000
-  };
+  static getWarningThresholds() {
+    return {
+      SCRIPT_RUNTIME: 300, // 5 hours warning
+      URL_FETCH: 18000, // 90% warning
+      EMAIL_QUOTA: 90,
+      PROPERTIES_READ: 45000,
+      PROPERTIES_WRITE: 45000
+    };
+  }
 
   /**
    * Check current quota usage and PROPERLY enforce limits
@@ -916,10 +921,10 @@ class QuotaMonitor {
       const violations = [];
 
       // Check each quota type
-      Object.keys(this.DAILY_LIMITS).forEach(quotaType => {
+      Object.keys(this.getDailyLimits()).forEach(quotaType => {
         const current = usage[quotaType] || 0;
-        const limit = this.DAILY_LIMITS[quotaType];
-        const warning = this.WARNING_THRESHOLDS[quotaType];
+        const limit = this.getDailyLimits()[quotaType];
+        const warning = this.getWarningThresholds()[quotaType];
 
         if (current >= limit) {
           violations.push({
@@ -1019,8 +1024,8 @@ class QuotaMonitor {
       properties.setProperty(usageKey, JSON.stringify(usage));
 
       // Check if we're approaching limits
-      const limit = this.DAILY_LIMITS[quotaType];
-      const warning = this.WARNING_THRESHOLDS[quotaType];
+      const limit = this.getDailyLimits()[quotaType];
+      const warning = this.getWarningThresholds()[quotaType];
 
       if (usage[quotaType] >= warning && usage[quotaType] < warning + amount) {
         logger.warn(`Quota warning: ${quotaType} usage ${usage[quotaType]}/${limit}`);
