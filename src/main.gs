@@ -113,9 +113,18 @@ function doGet(e) {
   try {
     // Simple routing without complex dependencies
     const path = (e && e.pathInfo) ? e.pathInfo : '';
-    const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'status';
+    const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : '';
 
-    // Basic health check
+    // PUBLIC ROUTES (no authentication required)
+
+    // Landing page - default route
+    if (!path && !action) {
+      return HtmlService.createTemplateFromFile('index').evaluate()
+        .setTitle('Football Club Automation')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    }
+
+    // Status check API
     if (!path && action === 'status') {
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
@@ -126,12 +135,21 @@ function doGet(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Handle path-based routing if needed
+    // Customer setup/intake (public)
+    if (path === 'setup' || path === 'intake') {
+      return HtmlService.createTemplateFromFile('buyerIntake').evaluate()
+        .setTitle('Customer Setup')
+        .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    }
+
+    // PROTECTED ROUTES (authentication required)
+
+    // Handle path-based routing
     if (path) {
       return handlePathRouting(path, e);
     }
 
-    // Fallback to complex routing for other actions
+    // Handle query parameter routing (complex features)
     return handleQueryParameterRouting(e);
 
   } catch (error) {
