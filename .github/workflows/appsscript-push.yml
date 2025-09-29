@@ -149,8 +149,26 @@ jobs:
       - name: Manage single web app deployment
         env:
           WEBAPP_DEPLOYMENT_ID: ${{ vars.WEBAPP_DEPLOYMENT_ID }}
+          # Alternative syntax in case vars doesn't work
+          WEBAPP_DEPLOYMENT_ID_ALT: ${{ github.repository_variables.WEBAPP_DEPLOYMENT_ID }}
         run: |
           echo "🔄 Managing single web app deployment..."
+
+          # Debug: Check if variable is being passed
+          echo "🔍 Debugging environment variables:"
+          echo "WEBAPP_DEPLOYMENT_ID length: ${#WEBAPP_DEPLOYMENT_ID}"
+          echo "WEBAPP_DEPLOYMENT_ID_ALT length: ${#WEBAPP_DEPLOYMENT_ID_ALT}"
+
+          if [ -n "$WEBAPP_DEPLOYMENT_ID" ]; then
+            echo "✅ WEBAPP_DEPLOYMENT_ID is set (${#WEBAPP_DEPLOYMENT_ID} chars)"
+          elif [ -n "$WEBAPP_DEPLOYMENT_ID_ALT" ]; then
+            echo "✅ WEBAPP_DEPLOYMENT_ID_ALT is set, using alternative (${#WEBAPP_DEPLOYMENT_ID_ALT} chars)"
+            export WEBAPP_DEPLOYMENT_ID="$WEBAPP_DEPLOYMENT_ID_ALT"
+          else
+            echo "❌ Both WEBAPP_DEPLOYMENT_ID and ALT are empty or unset"
+            echo "Available env vars starting with WEBAPP:"
+            env | grep WEBAPP || echo "No WEBAPP env vars found"
+          fi
 
           # Create a version label for tracking
           npx clasp version "prod-${{ github.ref_name }} @ ${{ github.sha }}"
