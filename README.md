@@ -90,7 +90,7 @@ MAKE_WEBHOOK_URL_BATCH_CONTENT = "https://hook.integromat.com/..."
 - `SA_TRIG_RECONCILE()` - Clean up orphaned triggers (maintenance)
 - `SA_QUEUE_STATUS()` - Check event queue status (monitoring)
 
-**Note:** Customers only need SA_INSTALL() and SA_ADMIN_SECRETS() - the system handles everything else automatically!
+**Note:** Customers only need SA_INSTALL() and SA_ADMIN_SECRETS() - the system handles everything else automatically! 🚀
 
 ## 🏗️ Architecture
 
