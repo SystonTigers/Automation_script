@@ -384,45 +384,241 @@ class AdvancedSecurity {
   }
 
   /**
-   * Write to security log sheet using spreadsheet ID from Script Properties
+   * Enterprise security logging with fallback systems and alerting
    */
   static writeSecurityLog(logEntry) {
+    const startTime = Date.now();
+
     try {
-      // Get spreadsheet ID from Script Properties instead of getActiveSpreadsheet()
+      // Primary logging: Spreadsheet-based security log
+      const primarySuccess = this.writePrimarySecurityLog(logEntry);
+
+      if (primarySuccess) {
+        return { success: true, method: 'primary_spreadsheet', response_time: Date.now() - startTime };
+      }
+
+      // Fallback 1: Script Properties-based logging
+      console.warn('Primary security logging failed, using fallback storage');
+      const fallbackSuccess = this.writeFallbackSecurityLog(logEntry);
+
+      if (fallbackSuccess) {
+        return { success: true, method: 'fallback_properties', response_time: Date.now() - startTime };
+      }
+
+      // Fallback 2: Console-only logging (last resort)
+      this.writeConsoleSecurityLog(logEntry);
+      return { success: true, method: 'console_only', response_time: Date.now() - startTime };
+
+    } catch (error) {
+      console.error('All security logging methods failed:', error);
+      this.triggerSecurityAlert('logging_system_failure', error.toString());
+      return { success: false, error: error.toString(), response_time: Date.now() - startTime };
+    }
+  }
+
+  /**
+   * Primary security logging to spreadsheet
+   */
+  static writePrimarySecurityLog(logEntry) {
+    try {
       const properties = PropertiesService.getScriptProperties();
-      const spreadsheetId = properties.getProperty('SPREADSHEET_ID') || properties.getProperty('SHEET.MAIN_SHEET_ID');
+      const spreadsheetId = properties.getProperty('SYSTEM.SPREADSHEET_ID') ||
+                           properties.getProperty('SPREADSHEET_ID');
 
       if (!spreadsheetId) {
-        console.warn('Security log skipped: No spreadsheet ID configured in Script Properties');
-        return;
+        console.error('SECURITY ALERT: No spreadsheet ID configured for security logging');
+        this.triggerSecurityAlert('missing_spreadsheet_config', 'No spreadsheet ID found');
+        return false;
       }
 
       const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
       let sheet = spreadsheet.getSheetByName('Security Log');
 
       if (!sheet) {
-        sheet = spreadsheet.insertSheet('Security Log');
-        sheet.getRange(1, 1, 1, 6).setValues([
-          ['Timestamp', 'Event', 'User', 'Severity', 'Details', 'IP']
-        ]);
-
-        const headerRange = sheet.getRange(1, 1, 1, 6);
-        headerRange.setFontWeight('bold');
-        headerRange.setBackground('#ffebee');
+        sheet = this.createSecurityLogSheet(spreadsheet);
       }
 
+      // Enhanced log entry with additional security metadata
+      const enhancedEntry = {
+        ...logEntry,
+        log_id: Utilities.getUuid().substring(0, 8),
+        source: 'apps_script_security',
+        version: properties.getProperty('SYSTEM.VERSION') || '6.2.0'
+      };
+
       sheet.appendRow([
-        logEntry.timestamp,
-        logEntry.event,
-        logEntry.user,
-        logEntry.severity,
-        JSON.stringify(logEntry.details),
-        'unknown' // Apps Script limitation
+        enhancedEntry.timestamp,
+        enhancedEntry.event,
+        enhancedEntry.user,
+        enhancedEntry.severity,
+        JSON.stringify(enhancedEntry.details),
+        enhancedEntry.log_id,
+        enhancedEntry.source,
+        enhancedEntry.version
       ]);
 
+      return true;
+
     } catch (error) {
-      console.error('Failed to write security log:', error);
-      // Continue execution - don't fail the entire request due to logging issues
+      console.error('Primary security logging failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Fallback security logging to Script Properties with rotation
+   */
+  static writeFallbackSecurityLog(logEntry) {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const fallbackKey = `security_fallback_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+      const fallbackEntry = {
+        ...logEntry,
+        fallback_reason: 'primary_logging_failed',
+        stored_at: Date.now()
+      };
+
+      properties.setProperty(fallbackKey, JSON.stringify(fallbackEntry));
+
+      // Cleanup old fallback logs (keep only last 50)
+      this.cleanupFallbackSecurityLogs();
+
+      console.log(`Security log stored in fallback: ${fallbackKey}`);
+      return true;
+
+    } catch (error) {
+      console.error('Fallback security logging failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Console-only security logging (last resort)
+   */
+  static writeConsoleSecurityLog(logEntry) {
+    const consoleEntry = {
+      ...logEntry,
+      logging_method: 'console_only',
+      alert: 'CRITICAL_LOGGING_FAILURE'
+    };
+
+    console.error('[SECURITY LOG - CONSOLE FALLBACK]', JSON.stringify(consoleEntry, null, 2));
+
+    // Attempt to trigger external alert
+    this.triggerSecurityAlert('logging_system_critical', 'All logging methods failed');
+  }
+
+  /**
+   * Create properly formatted security log sheet
+   */
+  static createSecurityLogSheet(spreadsheet) {
+    const sheet = spreadsheet.insertSheet('Security Log');
+
+    // Enhanced header with additional security fields
+    const headers = [
+      'Timestamp', 'Event', 'User', 'Severity', 'Details',
+      'Log ID', 'Source', 'Version'
+    ];
+
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+    // Format header row
+    const headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#ffebee');
+    headerRange.setBorder(true, true, true, true, false, false);
+
+    // Set column widths for readability
+    sheet.setColumnWidth(1, 150); // Timestamp
+    sheet.setColumnWidth(2, 120); // Event
+    sheet.setColumnWidth(3, 200); // User
+    sheet.setColumnWidth(4, 80);  // Severity
+    sheet.setColumnWidth(5, 300); // Details
+    sheet.setColumnWidth(6, 100); // Log ID
+    sheet.setColumnWidth(7, 120); // Source
+    sheet.setColumnWidth(8, 80);  // Version
+
+    // Freeze header row
+    sheet.setFrozenRows(1);
+
+    console.log('Created new Security Log sheet with enhanced format');
+    return sheet;
+  }
+
+  /**
+   * Cleanup old fallback security logs
+   */
+  static cleanupFallbackSecurityLogs() {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const allProps = properties.getProperties();
+
+      const fallbackKeys = Object.keys(allProps).filter(key =>
+        key.startsWith('security_fallback_')
+      );
+
+      // If more than 50 fallback logs, remove oldest ones
+      if (fallbackKeys.length > 50) {
+        fallbackKeys.sort(); // Keys contain timestamps, so this sorts chronologically
+        const keysToDelete = fallbackKeys.slice(0, fallbackKeys.length - 50);
+
+        keysToDelete.forEach(key => {
+          properties.deleteProperty(key);
+        });
+
+        console.log(`Cleaned up ${keysToDelete.length} old fallback security logs`);
+      }
+
+    } catch (error) {
+      console.error('Failed to cleanup fallback security logs:', error);
+    }
+  }
+
+  /**
+   * Trigger security alerts for critical issues
+   */
+  static triggerSecurityAlert(alertType, details) {
+    try {
+      const alertEntry = {
+        alert_type: alertType,
+        details: details,
+        timestamp: new Date().toISOString(),
+        severity: 'CRITICAL',
+        system: 'football_automation',
+        alert_id: Utilities.getUuid().substring(0, 12)
+      };
+
+      // Log to console immediately
+      console.error(`[SECURITY ALERT] ${alertType.toUpperCase()}: ${details}`);
+
+      // Store alert in properties for external monitoring
+      const properties = PropertiesService.getScriptProperties();
+      const alertKey = `security_alert_${Date.now()}_${alertType}`;
+      properties.setProperty(alertKey, JSON.stringify(alertEntry));
+
+      // Optional: Try to send external notification (webhook, email, etc.)
+      // This would be configured based on your monitoring setup
+      this.attemptExternalAlert(alertEntry);
+
+    } catch (error) {
+      console.error('Failed to trigger security alert:', error);
+    }
+  }
+
+  /**
+   * Attempt to send external security alert
+   */
+  static attemptExternalAlert(alertEntry) {
+    try {
+      // This could integrate with external monitoring systems
+      // For now, just ensure it's logged prominently
+      console.error('🚨 SECURITY SYSTEM ALERT 🚨', alertEntry);
+
+      // Future: Add webhook notifications, email alerts, etc.
+
+    } catch (error) {
+      console.error('External alert failed:', error);
     }
   }
 

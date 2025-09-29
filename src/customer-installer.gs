@@ -198,6 +198,21 @@ function validateCustomerConfig(config) {
 }
 
 /**
+ * Hash email for privacy-compliant storage
+ * @param {string} email - Email to hash
+ * @returns {string} SHA-256 hash of email
+ */
+function hashEmail(email) {
+  if (!email) return 'anonymous';
+  try {
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email);
+    return Utilities.base64Encode(digest).substring(0, 12); // First 12 chars for brevity
+  } catch (error) {
+    return 'hash_error';
+  }
+}
+
+/**
  * Set up Script Properties from customer configuration
  * @param {Object} config - Configuration object
  */
@@ -205,39 +220,36 @@ function setupScriptProperties(config) {
   try {
     const properties = PropertiesService.getScriptProperties();
 
-    // Map config to script properties with proper prefixes
+    // Map config to script properties - Single Source of Truth pattern
     const propertyMappings = {
-      // System properties
+      // Primary system properties (canonical keys)
       'SYSTEM.CLUB_NAME': config.CLUB_NAME,
       'SYSTEM.CLUB_SHORT_NAME': config.CLUB_SHORT_NAME || config.CLUB_NAME,
       'SYSTEM.LEAGUE_NAME': config.LEAGUE_NAME,
       'SYSTEM.SEASON': config.SEASON || new Date().getFullYear().toString(),
       'SYSTEM.VERSION': config.SYSTEM_VERSION || '6.2.0',
       'SYSTEM.ENVIRONMENT': config.ENVIRONMENT || 'production',
+      'SYSTEM.SPREADSHEET_ID': config.SHEET_ID, // Primary sheet ID key
 
-      // Sheet properties (new dotted keys)
-      'SHEET.MAIN_SHEET_ID': config.SHEET_ID,
-      'SHEET.MAIN_SHEET_URL': config.SHEET_URL,
-
-      // Legacy sheet properties (required by config.gs runtime)
-      'SPREADSHEET_ID': config.SHEET_ID,
-      'SHEET_ID': config.SHEET_ID,
-      'SHEET_URL': config.SHEET_URL,
-
-      // Make.com integration
+      // Make.com integration (primary keys)
       'MAKE.WEBHOOK_URL': config.MAKE_WEBHOOK_URL,
       'MAKE.WEBHOOK_URL_LIVE_EVENTS': config.MAKE_WEBHOOK_URL_LIVE_EVENTS || config.MAKE_WEBHOOK_URL,
       'MAKE.WEBHOOK_URL_BATCH_CONTENT': config.MAKE_WEBHOOK_URL_BATCH_CONTENT || config.MAKE_WEBHOOK_URL,
 
-      // Optional properties
+      // Contact & external properties
       'CONTACT.EMAIL': config.CONTACT_EMAIL || '',
       'WEBSITE.URL': config.WEBSITE_URL || '',
       'SOCIAL.HANDLES': config.SOCIAL_MEDIA_HANDLES || '',
 
-      // Installation metadata
+      // Installation metadata (anonymized for security)
       'INSTALL.COMPLETED_AT': new Date().toISOString(),
-      'INSTALL.INSTALLED_BY': Session.getActiveUser().getEmail(),
-      'INSTALL.VERSION': '6.2.0'
+      'INSTALL.INSTALLED_BY_HASH': this.hashEmail(Session.getActiveUser().getEmail()),
+      'INSTALL.VERSION': '6.2.0',
+
+      // Legacy compatibility keys (TODO: Remove in v7.0)
+      'SPREADSHEET_ID': config.SHEET_ID, // Legacy alias
+      'SHEET_ID': config.SHEET_ID,       // Legacy alias
+      'SHEET_URL': config.SHEET_URL      // Legacy alias
     };
 
     // Set all properties

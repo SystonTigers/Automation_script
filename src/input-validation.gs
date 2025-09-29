@@ -179,56 +179,298 @@ function createSecureResponse(data, success = true) {
 }
 
 /**
- * Rate limiting helper using persistent storage (Script Properties)
+ * Enterprise-Grade Rate Limiter with corruption resilience and monitoring
  */
 class RateLimiter {
 
+  /**
+   * Check rate limit with comprehensive error handling and data validation
+   * @param {string} identifier - Unique identifier for the rate limit bucket
+   * @param {number} maxRequests - Maximum requests allowed in the window
+   * @param {number} windowMs - Time window in milliseconds
+   * @returns {Object} Rate limit result with detailed metadata
+   */
   static checkLimit(identifier, maxRequests = 10, windowMs = 60000) {
+    const startTime = Date.now();
+    const limitKey = `rate_limit_${this.sanitizeIdentifier(identifier)}`;
+
     try {
       const now = Date.now();
       const windowStart = now - windowMs;
       const properties = PropertiesService.getScriptProperties();
-      const limitKey = `rate_limit_${identifier}`;
 
-      // Get existing requests from persistent storage
-      const storedData = properties.getProperty(limitKey);
-      let requests = storedData ? JSON.parse(storedData) : [];
+      // Get and validate stored data with corruption detection
+      let requests = this.getValidatedRequests(properties, limitKey, windowStart);
 
-      // Clean old entries (outside the current window)
-      requests = requests.filter(time => time > windowStart);
+      // Circuit breaker: If too many validation errors, temporarily disable rate limiting
+      if (this.shouldBypassRateLimit(identifier)) {
+        this.logRateLimitEvent(identifier, 'bypassed', 'circuit_breaker_active');
+        return this.createSuccessResponse(maxRequests, now, windowMs, startTime);
+      }
+
+      // Clean expired entries and validate data integrity
+      const originalCount = requests.length;
+      requests = requests.filter(time => {
+        return typeof time === 'number' &&
+               time > windowStart &&
+               time <= now &&
+               !isNaN(time);
+      });
+
+      // Log if we had to clean corrupted data
+      if (originalCount > requests.length) {
+        console.warn(`Rate limiter cleaned ${originalCount - requests.length} invalid entries for ${identifier}`);
+      }
 
       // Check if limit exceeded
       if (requests.length >= maxRequests) {
+        this.logRateLimitEvent(identifier, 'blocked', `${requests.length}/${maxRequests}`);
         return {
           allowed: false,
           remaining: 0,
           resetTime: requests[0] + windowMs,
           current: requests.length,
-          limit: maxRequests
+          limit: maxRequests,
+          identifier: identifier,
+          processing_time_ms: Date.now() - startTime,
+          next_window_in_seconds: Math.ceil((requests[0] + windowMs - now) / 1000)
         };
       }
 
-      // Add current request and save back to storage
+      // Add current request with validation
       requests.push(now);
-      properties.setProperty(limitKey, JSON.stringify(requests));
+
+      // Store with error handling and retry logic
+      const saveSuccess = this.saveRequestsWithRetry(properties, limitKey, requests);
+      if (!saveSuccess) {
+        console.error(`Failed to save rate limit data for ${identifier} after retries`);
+        this.incrementFailureCounter(identifier);
+      }
+
+      this.logRateLimitEvent(identifier, 'allowed', `${requests.length}/${maxRequests}`);
 
       return {
         allowed: true,
         remaining: maxRequests - requests.length,
         resetTime: now + windowMs,
         current: requests.length,
-        limit: maxRequests
+        limit: maxRequests,
+        identifier: identifier,
+        processing_time_ms: Date.now() - startTime,
+        window_ms: windowMs
       };
 
     } catch (error) {
-      console.error('Rate limiting error:', error);
-      // Fail open - allow request if rate limiting is broken
+      console.error(`Rate limiting error for ${identifier}:`, error);
+      this.incrementFailureCounter(identifier);
+
+      // Fail open - allow request but log the failure
+      this.logRateLimitEvent(identifier, 'error_failopen', error.toString());
+
       return {
         allowed: true,
         remaining: 1,
         resetTime: Date.now() + windowMs,
-        error: error.toString()
+        error: error.toString(),
+        failsafe: true,
+        identifier: identifier,
+        processing_time_ms: Date.now() - startTime
       };
+    }
+  }
+
+  /**
+   * Get and validate requests from storage with corruption detection
+   */
+  static getValidatedRequests(properties, limitKey, windowStart) {
+    try {
+      const storedData = properties.getProperty(limitKey);
+
+      if (!storedData) {
+        return [];
+      }
+
+      // Parse with error handling
+      let parsedData;
+      try {
+        parsedData = JSON.parse(storedData);
+      } catch (parseError) {
+        console.error(`Rate limit JSON corruption detected for ${limitKey}:`, parseError);
+        // Clear corrupted data
+        properties.deleteProperty(limitKey);
+        this.incrementCorruptionCounter(limitKey);
+        return [];
+      }
+
+      // Validate data structure
+      if (!Array.isArray(parsedData)) {
+        console.warn(`Rate limit data is not an array for ${limitKey}, resetting`);
+        properties.deleteProperty(limitKey);
+        return [];
+      }
+
+      // Validate and clean entries
+      const validRequests = parsedData.filter(entry => {
+        return typeof entry === 'number' &&
+               !isNaN(entry) &&
+               entry > 0 &&
+               entry <= Date.now(); // No future timestamps
+      });
+
+      // If we had to filter out invalid entries, log it
+      if (validRequests.length !== parsedData.length) {
+        console.warn(`Rate limiter filtered ${parsedData.length - validRequests.length} invalid entries from ${limitKey}`);
+        this.incrementCorruptionCounter(limitKey);
+      }
+
+      return validRequests;
+
+    } catch (error) {
+      console.error(`Failed to validate rate limit data for ${limitKey}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Save requests with retry logic and error handling
+   */
+  static saveRequestsWithRetry(properties, limitKey, requests, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const dataToSave = JSON.stringify(requests);
+
+        // Validate JSON before saving
+        JSON.parse(dataToSave); // This will throw if invalid
+
+        properties.setProperty(limitKey, dataToSave);
+        return true;
+
+      } catch (error) {
+        console.warn(`Rate limit save attempt ${attempt}/${maxRetries} failed for ${limitKey}:`, error);
+
+        if (attempt === maxRetries) {
+          console.error(`All save attempts failed for ${limitKey}`);
+          return false;
+        }
+
+        // Brief delay before retry
+        Utilities.sleep(50 * attempt); // 50ms, 100ms, 150ms delays
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Circuit breaker logic - bypass rate limiting if too many failures
+   */
+  static shouldBypassRateLimit(identifier) {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const failureKey = `rate_limit_failures_${this.sanitizeIdentifier(identifier)}`;
+      const failures = parseInt(properties.getProperty(failureKey) || '0');
+
+      // If more than 5 failures in recent time, activate circuit breaker
+      const bypassThreshold = 5;
+      if (failures > bypassThreshold) {
+        // Reset failure counter after some time
+        const lastResetKey = `rate_limit_last_reset_${this.sanitizeIdentifier(identifier)}`;
+        const lastReset = parseInt(properties.getProperty(lastResetKey) || '0');
+
+        // Reset every 5 minutes
+        if (Date.now() - lastReset > 300000) {
+          properties.setProperty(failureKey, '0');
+          properties.setProperty(lastResetKey, Date.now().toString());
+          return false;
+        }
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Circuit breaker check failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Increment failure counter for circuit breaker
+   */
+  static incrementFailureCounter(identifier) {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const failureKey = `rate_limit_failures_${this.sanitizeIdentifier(identifier)}`;
+      const currentFailures = parseInt(properties.getProperty(failureKey) || '0');
+      properties.setProperty(failureKey, (currentFailures + 1).toString());
+    } catch (error) {
+      console.error('Failed to increment failure counter:', error);
+    }
+  }
+
+  /**
+   * Increment corruption counter for monitoring
+   */
+  static incrementCorruptionCounter(limitKey) {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const corruptionKey = 'rate_limit_corruption_count';
+      const currentCount = parseInt(properties.getProperty(corruptionKey) || '0');
+      properties.setProperty(corruptionKey, (currentCount + 1).toString());
+    } catch (error) {
+      console.error('Failed to increment corruption counter:', error);
+    }
+  }
+
+  /**
+   * Sanitize identifier for safe use as property key
+   */
+  static sanitizeIdentifier(identifier) {
+    return identifier.replace(/[^a-zA-Z0-9_@.-]/g, '_').substring(0, 100);
+  }
+
+  /**
+   * Create standardized success response
+   */
+  static createSuccessResponse(maxRequests, now, windowMs, startTime) {
+    return {
+      allowed: true,
+      remaining: maxRequests - 1,
+      resetTime: now + windowMs,
+      current: 1,
+      limit: maxRequests,
+      processing_time_ms: Date.now() - startTime,
+      bypass_reason: 'circuit_breaker'
+    };
+  }
+
+  /**
+   * Log rate limit events for monitoring and debugging
+   */
+  static logRateLimitEvent(identifier, action, details) {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      identifier: this.sanitizeIdentifier(identifier),
+      action: action,
+      details: details
+    };
+
+    console.log(`[RATE_LIMIT] ${action.toUpperCase()}: ${identifier} - ${details}`);
+
+    // Store in rotating log for analysis (optional)
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const logKey = 'rate_limit_events_log';
+      const existingLog = properties.getProperty(logKey);
+      let logs = existingLog ? JSON.parse(existingLog) : [];
+
+      logs.push(logEntry);
+      if (logs.length > 50) {
+        logs = logs.slice(-50); // Keep last 50 events
+      }
+
+      properties.setProperty(logKey, JSON.stringify(logs));
+    } catch (error) {
+      console.error('Failed to log rate limit event:', error);
     }
   }
 

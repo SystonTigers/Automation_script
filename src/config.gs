@@ -2097,16 +2097,37 @@ function exportConfig() {
 
 /**
  * Get runtime configuration for UI and health checks
- * Returns sanitized configuration without secrets
- * @returns {Object} Runtime configuration
+ * Enterprise-grade security with authentication, rate limiting, and audit trail
+ * @param {string} requestSource - Source of the request for audit purposes
+ * @returns {Object} Sanitized runtime configuration
  */
-function getRuntimeConfig() {
+function getRuntimeConfig(requestSource = 'unknown') {
+  const startTime = Date.now();
+
   try {
+    // Security Layer 1: Authentication check
+    const userEmail = Session.getActiveUser().getEmail();
+    if (!userEmail || !userEmail.includes('@')) {
+      console.error('getRuntimeConfig: Authentication failed - no valid user session');
+      throw new Error('Authentication required for configuration access');
+    }
+
+    // Security Layer 2: Rate limiting (5 requests per minute per user)
+    const rateLimitKey = `config_access_${userEmail}`;
+    const rateLimit = this.checkConfigRateLimit(rateLimitKey, 5, 60000);
+    if (!rateLimit.allowed) {
+      console.warn(`getRuntimeConfig: Rate limit exceeded for ${userEmail}: ${rateLimit.current}/${rateLimit.limit}`);
+      throw new Error(`Rate limit exceeded. Try again in ${Math.ceil((rateLimit.resetTime - Date.now()) / 1000)} seconds`);
+    }
+
+    // Security Layer 3: Audit logging
+    this.logConfigAccess(userEmail, requestSource, 'success');
+
     const properties = PropertiesService.getScriptProperties().getProperties();
 
-    // Build runtime config from script properties and system config
+    // Build sanitized runtime config (NO SECRETS)
     const runtimeConfig = {
-      // System information
+      // System information (safe to expose)
       version: properties['SYSTEM.VERSION'] || getConfigValue('SYSTEM.VERSION'),
       environment: properties['SYSTEM.ENVIRONMENT'] || getConfigValue('SYSTEM.ENVIRONMENT'),
       club_name: properties['SYSTEM.CLUB_NAME'] || getConfigValue('SYSTEM.CLUB_NAME'),
@@ -2114,46 +2135,168 @@ function getRuntimeConfig() {
       league: properties['SYSTEM.LEAGUE_NAME'] || getConfigValue('SYSTEM.LEAGUE'),
       season: properties['SYSTEM.SEASON'] || getConfigValue('SYSTEM.SEASON'),
 
-      // Installation info
+      // Installation info (anonymized)
       installed: !!properties['INSTALL.COMPLETED_AT'],
       installed_at: properties['INSTALL.COMPLETED_AT'],
-      installed_by: properties['INSTALL.INSTALLED_BY'],
+      // REMOVED: installed_by (privacy leak prevention)
 
-      // Feature flags (no secrets)
+      // Feature flags (boolean values only - no secrets)
       features: {
         live_match_processing: getConfigValue('FEATURES.LIVE_MATCH_PROCESSING'),
         batch_posting: getConfigValue('FEATURES.BATCH_POSTING'),
         player_statistics: getConfigValue('FEATURES.PLAYER_STATISTICS'),
-        make_integration: !!properties['MAKE.WEBHOOK_URL'],
+        make_integration: !!properties['MAKE.WEBHOOK_URL'], // Boolean only
         video_integration: getConfigValue('FEATURES.VIDEO_INTEGRATION'),
         weekly_schedule: getConfigValue('FEATURES.WEEKLY_CONTENT_AUTOMATION'),
         monthly_summaries: getConfigValue('FEATURES.MONTHLY_SUMMARIES')
       },
 
-      // System status
-      sheet_configured: !!properties['SPREADSHEET_ID'],
+      // System status (boolean values only)
+      sheet_configured: !!(properties['SYSTEM.SPREADSHEET_ID'] || properties['SPREADSHEET_ID']),
       webhook_configured: !!properties['MAKE.WEBHOOK_URL'],
 
-      // Configuration timestamp
-      last_updated: new Date().toISOString()
+      // Metadata
+      last_updated: new Date().toISOString(),
+      response_time_ms: Date.now() - startTime,
+      accessed_by: this.hashEmail(userEmail), // Privacy-safe identifier
+      request_source: requestSource
     };
 
-    // Remove any null or undefined values
+    // Clean null/undefined values
     Object.keys(runtimeConfig).forEach(key => {
       if (runtimeConfig[key] === null || runtimeConfig[key] === undefined) {
         delete runtimeConfig[key];
       }
     });
 
+    console.log(`getRuntimeConfig: Success for ${userEmail} from ${requestSource} (${Date.now() - startTime}ms)`);
     return runtimeConfig;
 
   } catch (error) {
-    console.error('Failed to get runtime configuration:', error);
+    // Security audit: Log all failures
+    const userEmail = Session.getActiveUser().getEmail() || 'anonymous';
+    this.logConfigAccess(userEmail, requestSource, 'failed', error.toString());
+
+    console.error('getRuntimeConfig failed:', error);
+
+    // Return minimal error response (no details leaked)
     return {
-      error: 'Failed to load configuration',
+      success: false,
+      error: 'Configuration access denied',
       version: getConfigValue('SYSTEM.VERSION', '6.2.0'),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      request_id: Utilities.getUuid().substring(0, 8)
     };
+  }
+}
+
+/**
+ * Rate limiting specifically for configuration access
+ * @param {string} key - Rate limit key
+ * @param {number} maxRequests - Maximum requests allowed
+ * @param {number} windowMs - Time window in milliseconds
+ * @returns {Object} Rate limit status
+ */
+function checkConfigRateLimit(key, maxRequests, windowMs) {
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    const now = Date.now();
+    const windowStart = now - windowMs;
+
+    const storedData = properties.getProperty(key);
+    let requests = [];
+
+    if (storedData) {
+      try {
+        const parsed = JSON.parse(storedData);
+        if (Array.isArray(parsed)) {
+          requests = parsed.filter(time => typeof time === 'number' && time > windowStart);
+        }
+      } catch (parseError) {
+        console.warn(`Rate limit data corruption for ${key}:`, parseError);
+        properties.deleteProperty(key);
+      }
+    }
+
+    if (requests.length >= maxRequests) {
+      return {
+        allowed: false,
+        current: requests.length,
+        limit: maxRequests,
+        resetTime: requests[0] + windowMs
+      };
+    }
+
+    // Add current request
+    requests.push(now);
+    properties.setProperty(key, JSON.stringify(requests));
+
+    return {
+      allowed: true,
+      current: requests.length,
+      limit: maxRequests,
+      resetTime: now + windowMs
+    };
+
+  } catch (error) {
+    console.error('Config rate limiting error:', error);
+    // Fail open for availability
+    return { allowed: true, error: error.toString() };
+  }
+}
+
+/**
+ * Audit log for configuration access
+ * @param {string} userEmail - User email
+ * @param {string} source - Request source
+ * @param {string} status - Access status
+ * @param {string} details - Additional details
+ */
+function logConfigAccess(userEmail, source, status, details = null) {
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      user_hash: this.hashEmail(userEmail),
+      source: source,
+      status: status,
+      details: details,
+      ip: 'apps_script_limitation'
+    };
+
+    // Store in rotating log (keep last 100 entries)
+    const logKey = 'config_access_log';
+    const existingLog = properties.getProperty(logKey);
+    let logs = existingLog ? JSON.parse(existingLog) : [];
+
+    logs.push(logEntry);
+    if (logs.length > 100) {
+      logs = logs.slice(-100); // Keep only last 100 entries
+    }
+
+    properties.setProperty(logKey, JSON.stringify(logs));
+
+    // Also log to console for immediate monitoring
+    console.log(`[CONFIG_ACCESS] ${status.toUpperCase()}: ${this.hashEmail(userEmail)} from ${source}`);
+
+  } catch (error) {
+    console.error('Config access logging failed:', error);
+    // Don't throw - logging failure shouldn't break main functionality
+  }
+}
+
+/**
+ * Hash email for privacy-compliant logging
+ * @param {string} email - Email to hash
+ * @returns {string} SHA-256 hash of email (first 8 chars)
+ */
+function hashEmail(email) {
+  if (!email) return 'anonymous';
+  try {
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email);
+    return Utilities.base64Encode(digest).substring(0, 8);
+  } catch (error) {
+    return 'hash_error';
   }
 }
 

@@ -5,39 +5,86 @@
  */
 
 /**
- * Get system version and deployment info from Script Properties
- * @returns {Object} Current system version and metadata
+ * Get system version and deployment info - Privacy-compliant public API
+ * @returns {Object} Sanitized system version and metadata (no sensitive data)
  */
 function SA_Version() {
   try {
     const properties = PropertiesService.getScriptProperties();
 
-    // Read version from Script Properties
-    const version = properties.getProperty('SYSTEM.VERSION') || '6.2.0';
-    const installDate = properties.getProperty('INSTALL.COMPLETED_AT');
-    const installedBy = properties.getProperty('INSTALL.INSTALLED_BY');
-
-    // Dynamic file count and build info
-    const dynamicInfo = {
-      version: version,
-      deployedAt: installDate || new Date().toISOString(),
-      status: 'operational',
-      installedBy: installedBy || 'unknown',
+    // Build privacy-safe response with NO sensitive information
+    const versionInfo = {
+      version: properties.getProperty('SYSTEM.VERSION') || '6.2.0',
       environment: properties.getProperty('SYSTEM.ENVIRONMENT') || 'production',
-      lastCheck: new Date().toISOString()
+      status: 'operational',
+      deployed_at: properties.getProperty('INSTALL.COMPLETED_AT') || new Date().toISOString(),
+      // REMOVED: installedBy (privacy leak)
+      // REMOVED: specific user emails or identifying information
+      last_check: new Date().toISOString(),
+      system_id: this.getSystemFingerprint(), // Anonymous system identifier
+      api_version: 'v1',
+      uptime_check: this.calculateUptimeStatus()
     };
 
-    return dynamicInfo;
+    return versionInfo;
 
   } catch (error) {
-    // Fallback if Script Properties aren't available
+    // Fallback with minimal information exposure
     return {
       version: '6.2.0',
-      deployedAt: new Date().toISOString(),
       status: 'operational',
-      error: 'Could not read from Script Properties',
-      lastCheck: new Date().toISOString()
+      last_check: new Date().toISOString(),
+      error: 'limited_info_mode', // Don't expose actual error details
+      api_version: 'v1'
     };
+  }
+}
+
+/**
+ * Generate anonymous system fingerprint for tracking without privacy issues
+ * @returns {string} Anonymous system identifier
+ */
+function getSystemFingerprint() {
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    let fingerprint = properties.getProperty('SYSTEM.FINGERPRINT');
+
+    if (!fingerprint) {
+      // Generate new anonymous fingerprint
+      fingerprint = `sys_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+      properties.setProperty('SYSTEM.FINGERPRINT', fingerprint);
+    }
+
+    return fingerprint;
+  } catch (error) {
+    return 'sys_unknown';
+  }
+}
+
+/**
+ * Calculate system uptime status without exposing sensitive details
+ * @returns {string} Uptime status indicator
+ */
+function calculateUptimeStatus() {
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    const installDate = properties.getProperty('INSTALL.COMPLETED_AT');
+
+    if (!installDate) {
+      return 'unknown';
+    }
+
+    const installed = new Date(installDate);
+    const now = new Date();
+    const daysSinceInstall = Math.floor((now - installed) / (1000 * 60 * 60 * 24));
+
+    if (daysSinceInstall < 1) return 'new_installation';
+    if (daysSinceInstall < 7) return 'recent';
+    if (daysSinceInstall < 30) return 'stable';
+    return 'mature';
+
+  } catch (error) {
+    return 'unknown';
   }
 }
 
