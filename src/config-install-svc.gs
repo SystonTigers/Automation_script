@@ -10,29 +10,31 @@
  */
 class CustomerInstaller {
 
-  static CONFIG_KEYS = {
-    // Non-secret values that customers set in CONFIG sheet tab
-    nonSecrets: [
-      'TEAM_NAME',
-      'LEAGUE_NAME',
-      'BADGE_URL',
-      'HOME_COLOUR',
-      'AWAY_COLOUR',
-      'SEASON',
-      'AGE_GROUP',
-      'HOME_VENUE',
-      'CONTACT_EMAIL'
-    ],
-    // Secret values set via admin interface only (never in sheets)
-    secrets: [
-      'MAKE_WEBHOOK_URL_LIVE_EVENTS',
-      'MAKE_WEBHOOK_URL_BATCH_CONTENT',
-      'MAKE_WEBHOOK_URL_FIXTURES',
-      'MAKE_WEBHOOK_URL_RESULTS',
-      'CANVA_API_KEY',
-      'YOUTUBE_API_KEY'
-    ]
-  };
+  static getConfigKeys() {
+    return {
+      // Non-secret values that customers set in CONFIG sheet tab
+      nonSecrets: [
+        'TEAM_NAME',
+        'LEAGUE_NAME',
+        'BADGE_URL',
+        'HOME_COLOUR',
+        'AWAY_COLOUR',
+        'SEASON',
+        'AGE_GROUP',
+        'HOME_VENUE',
+        'CONTACT_EMAIL'
+      ],
+      // Secret values set via admin interface only (never in sheets)
+      secrets: [
+        'MAKE_WEBHOOK_URL_LIVE_EVENTS',
+        'MAKE_WEBHOOK_URL_BATCH_CONTENT',
+        'MAKE_WEBHOOK_URL_FIXTURES',
+        'MAKE_WEBHOOK_URL_RESULTS',
+        'CANVA_API_KEY',
+        'YOUTUBE_API_KEY'
+      ]
+    };
+  }
 
   /**
    * Main installer function - reads CONFIG sheet and sets up system
@@ -82,7 +84,7 @@ class CustomerInstaller {
         success: true,
         message: 'System installed successfully from CONFIG sheet',
         timestamp: new Date().toISOString(),
-        configKeys: this.CONFIG_KEYS.nonSecrets.length,
+        configKeys: this.getConfigKeys().nonSecrets.length,
         secretsFound: this.countExistingSecrets()
       };
 
@@ -173,7 +175,7 @@ class CustomerInstaller {
   static validateConfiguration(configMap) {
     const missing = [];
 
-    this.CONFIG_KEYS.nonSecrets.forEach(key => {
+    this.getConfigKeys().nonSecrets.forEach(key => {
       if (!configMap[key] || configMap[key] === '' || configMap[key].startsWith('Your ')) {
         missing.push(key);
       }
@@ -209,7 +211,7 @@ class CustomerInstaller {
     const properties = PropertiesService.getScriptProperties();
     const propertiesToSet = {};
 
-    this.CONFIG_KEYS.nonSecrets.forEach(key => {
+    this.getConfigKeys().nonSecrets.forEach(key => {
       if (configMap[key]) {
         propertiesToSet[`CUSTOMER.${key}`] = configMap[key];
       }
@@ -231,7 +233,7 @@ class CustomerInstaller {
     const secretStatus = {};
     let configuredCount = 0;
 
-    this.CONFIG_KEYS.secrets.forEach(key => {
+    this.getConfigKeys().secrets.forEach(key => {
       const value = properties.getProperty(key);
       secretStatus[key] = value ? '✅ Configured' : '❌ Not Set';
       if (value) configuredCount++;
@@ -255,7 +257,7 @@ class CustomerInstaller {
    */
   static countExistingSecrets() {
     const properties = PropertiesService.getScriptProperties();
-    return this.CONFIG_KEYS.secrets.filter(key =>
+    return this.getConfigKeys().secrets.filter(key =>
       properties.getProperty(key) !== null
     ).length;
   }
