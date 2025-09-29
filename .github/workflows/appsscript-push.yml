@@ -159,15 +159,16 @@ jobs:
           echo "WEBAPP_DEPLOYMENT_ID length: ${#WEBAPP_DEPLOYMENT_ID}"
           echo "WEBAPP_DEPLOYMENT_ID_ALT length: ${#WEBAPP_DEPLOYMENT_ID_ALT}"
 
+          # Fix: Hard-code the deployment ID until GitHub variable access is resolved
           if [ -n "$WEBAPP_DEPLOYMENT_ID" ]; then
             echo "✅ WEBAPP_DEPLOYMENT_ID is set (${#WEBAPP_DEPLOYMENT_ID} chars)"
           elif [ -n "$WEBAPP_DEPLOYMENT_ID_ALT" ]; then
             echo "✅ WEBAPP_DEPLOYMENT_ID_ALT is set, using alternative (${#WEBAPP_DEPLOYMENT_ID_ALT} chars)"
             export WEBAPP_DEPLOYMENT_ID="$WEBAPP_DEPLOYMENT_ID_ALT"
           else
-            echo "❌ Both WEBAPP_DEPLOYMENT_ID and ALT are empty or unset"
-            echo "Available env vars starting with WEBAPP:"
-            env | grep WEBAPP || echo "No WEBAPP env vars found"
+            echo "⚠️ GitHub variables not accessible, using known deployment ID"
+            export WEBAPP_DEPLOYMENT_ID="AKfycbzNgKU9vaGM-TloSlV-CH8FawsN2gy_BEn10MrVPmc"
+            echo "✅ Set WEBAPP_DEPLOYMENT_ID to known value (${#WEBAPP_DEPLOYMENT_ID} chars)"
           fi
 
           # Create a version label for tracking
