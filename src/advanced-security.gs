@@ -384,11 +384,20 @@ class AdvancedSecurity {
   }
 
   /**
-   * Write to security log sheet
+   * Write to security log sheet using spreadsheet ID from Script Properties
    */
   static writeSecurityLog(logEntry) {
     try {
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      // Get spreadsheet ID from Script Properties instead of getActiveSpreadsheet()
+      const properties = PropertiesService.getScriptProperties();
+      const spreadsheetId = properties.getProperty('SPREADSHEET_ID') || properties.getProperty('SHEET.MAIN_SHEET_ID');
+
+      if (!spreadsheetId) {
+        console.warn('Security log skipped: No spreadsheet ID configured in Script Properties');
+        return;
+      }
+
+      const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
       let sheet = spreadsheet.getSheetByName('Security Log');
 
       if (!sheet) {
@@ -413,6 +422,7 @@ class AdvancedSecurity {
 
     } catch (error) {
       console.error('Failed to write security log:', error);
+      // Continue execution - don't fail the entire request due to logging issues
     }
   }
 

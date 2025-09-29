@@ -179,39 +179,110 @@ function createSecureResponse(data, success = true) {
 }
 
 /**
- * Rate limiting helper (basic implementation)
+ * Rate limiting helper using persistent storage (Script Properties)
  */
 class RateLimiter {
-  static getLimits() {
-    if (!this._limits) this._limits = new Map();
-    return this._limits;
-  }
 
   static checkLimit(identifier, maxRequests = 10, windowMs = 60000) {
-    const now = Date.now();
-    const windowStart = now - windowMs;
+    try {
+      const now = Date.now();
+      const windowStart = now - windowMs;
+      const properties = PropertiesService.getScriptProperties();
+      const limitKey = `rate_limit_${identifier}`;
 
-    // Clean old entries
-    this.getLimits().forEach((requests, key) => {
-      this.getLimits().set(key, requests.filter(time => time > windowStart));
-    });
+      // Get existing requests from persistent storage
+      const storedData = properties.getProperty(limitKey);
+      let requests = storedData ? JSON.parse(storedData) : [];
 
-    // Check current identifier
-    const requests = this.getLimits().get(identifier) || [];
+      // Clean old entries (outside the current window)
+      requests = requests.filter(time => time > windowStart);
 
-    if (requests.length >= maxRequests) {
-      return { allowed: false, remaining: 0, resetTime: requests[0] + windowMs };
+      // Check if limit exceeded
+      if (requests.length >= maxRequests) {
+        return {
+          allowed: false,
+          remaining: 0,
+          resetTime: requests[0] + windowMs,
+          current: requests.length,
+          limit: maxRequests
+        };
+      }
+
+      // Add current request and save back to storage
+      requests.push(now);
+      properties.setProperty(limitKey, JSON.stringify(requests));
+
+      return {
+        allowed: true,
+        remaining: maxRequests - requests.length,
+        resetTime: now + windowMs,
+        current: requests.length,
+        limit: maxRequests
+      };
+
+    } catch (error) {
+      console.error('Rate limiting error:', error);
+      // Fail open - allow request if rate limiting is broken
+      return {
+        allowed: true,
+        remaining: 1,
+        resetTime: Date.now() + windowMs,
+        error: error.toString()
+      };
     }
+  }
 
-    // Add current request
-    requests.push(now);
-    this.getLimits().set(identifier, requests);
+  /**
+   * Clear rate limit data for an identifier (admin function)
+   */
+  static clearLimit(identifier) {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const limitKey = `rate_limit_${identifier}`;
+      properties.deleteProperty(limitKey);
+      return { success: true, cleared: identifier };
+    } catch (error) {
+      console.error('Failed to clear rate limit:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
 
-    return {
-      allowed: true,
-      remaining: maxRequests - requests.length,
-      resetTime: now + windowMs
-    };
+  /**
+   * Clean up expired rate limit entries (maintenance function)
+   */
+  static cleanupExpiredLimits() {
+    try {
+      const properties = PropertiesService.getScriptProperties();
+      const allProperties = properties.getProperties();
+      const now = Date.now();
+      let cleanedCount = 0;
+
+      Object.keys(allProperties).forEach(key => {
+        if (key.startsWith('rate_limit_')) {
+          try {
+            const requests = JSON.parse(allProperties[key]);
+            const validRequests = requests.filter(time => (now - time) < 3600000); // Keep 1 hour history
+
+            if (validRequests.length === 0) {
+              properties.deleteProperty(key);
+              cleanedCount++;
+            } else if (validRequests.length < requests.length) {
+              properties.setProperty(key, JSON.stringify(validRequests));
+            }
+          } catch (e) {
+            // Invalid data, delete it
+            properties.deleteProperty(key);
+            cleanedCount++;
+          }
+        }
+      });
+
+      return { success: true, cleanedCount: cleanedCount };
+
+    } catch (error) {
+      console.error('Rate limit cleanup failed:', error);
+      return { success: false, error: error.toString() };
+    }
   }
 }
 
@@ -226,6 +297,8 @@ function secureWebhookHandler(handlerFunction, requireAuth = true) {
       const rateLimit = RateLimiter.checkLimit(userEmail || 'anonymous', 20, 60000);
 
       if (!rateLimit.allowed) {
+        // IMPORTANT: Don't record quota usage for blocked requests to prevent quota inflation
+        console.warn(`Rate limit exceeded for ${userEmail || 'anonymous'}: ${rateLimit.current}/${rateLimit.limit}`);
         return createSecureResponse('Rate limit exceeded', false);
       }
 

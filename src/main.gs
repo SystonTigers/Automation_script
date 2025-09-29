@@ -4,21 +4,41 @@
  * @description Real integration of all advanced components
  */
 
-// System version - visible in Apps Script UI
-const SYSTEM_VERSION = '6.2.0-live';
-
 /**
- * Get system version and deployment info
- * @returns {string} Current system version
+ * Get system version and deployment info from Script Properties
+ * @returns {Object} Current system version and metadata
  */
 function SA_Version() {
-  return {
-    version: SYSTEM_VERSION,
-    deployedAt: new Date().toISOString(),
-    status: 'operational',
-    fileCount: 79,
-    buildTag: 'v6.2.0-live'
-  };
+  try {
+    const properties = PropertiesService.getScriptProperties();
+
+    // Read version from Script Properties
+    const version = properties.getProperty('SYSTEM.VERSION') || '6.2.0';
+    const installDate = properties.getProperty('INSTALL.COMPLETED_AT');
+    const installedBy = properties.getProperty('INSTALL.INSTALLED_BY');
+
+    // Dynamic file count and build info
+    const dynamicInfo = {
+      version: version,
+      deployedAt: installDate || new Date().toISOString(),
+      status: 'operational',
+      installedBy: installedBy || 'unknown',
+      environment: properties.getProperty('SYSTEM.ENVIRONMENT') || 'production',
+      lastCheck: new Date().toISOString()
+    };
+
+    return dynamicInfo;
+
+  } catch (error) {
+    // Fallback if Script Properties aren't available
+    return {
+      version: '6.2.0',
+      deployedAt: new Date().toISOString(),
+      status: 'operational',
+      error: 'Could not read from Script Properties',
+      lastCheck: new Date().toISOString()
+    };
+  }
 }
 
 /**

@@ -215,9 +215,14 @@ function setupScriptProperties(config) {
       'SYSTEM.VERSION': config.SYSTEM_VERSION || '6.2.0',
       'SYSTEM.ENVIRONMENT': config.ENVIRONMENT || 'production',
 
-      // Sheet properties
+      // Sheet properties (new dotted keys)
       'SHEET.MAIN_SHEET_ID': config.SHEET_ID,
       'SHEET.MAIN_SHEET_URL': config.SHEET_URL,
+
+      // Legacy sheet properties (required by config.gs runtime)
+      'SPREADSHEET_ID': config.SHEET_ID,
+      'SHEET_ID': config.SHEET_ID,
+      'SHEET_URL': config.SHEET_URL,
 
       // Make.com integration
       'MAKE.WEBHOOK_URL': config.MAKE_WEBHOOK_URL,
@@ -277,13 +282,13 @@ function setupCustomerTriggers() {
       description: 'Cache cleanup and maintenance'
     },
     {
-      functionName: 'runWeeklySchedule',
+      functionName: 'runWeeklyScheduleAutomation',
       type: 'time',
       schedule: { weekly: { day: 'monday', hour: 9 } },
       description: 'Weekly content scheduling'
     },
     {
-      functionName: 'runMonthlySchedule',
+      functionName: 'runMonthlyScheduledTasks',
       type: 'time',
       schedule: { monthly: { day: 1, hour: 8 } },
       description: 'Monthly content scheduling'

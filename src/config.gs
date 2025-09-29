@@ -564,10 +564,30 @@ const SYSTEM_CONFIG = {
     WEBHOOK_RETRY_ATTEMPTS: 3,
     WEBHOOK_RETRY_DELAY_MS: 2000,
     WEBHOOK_URL_FALLBACK: 'MAKE_WEBHOOK_URL_FALLBACK',
+    WEBHOOK_SECRET: getConfigProperty('MAKE_WEBHOOK_SECRET'), // For signature validation
     IDEMPOTENCY: {
       ENABLED: true,
       TTL_SECONDS: 86400,
       CACHE_PREFIX: 'MAKE_IDEMPOTENCY_'
+    },
+
+    // Webhook security settings
+    SECURITY: {
+      SIGNATURE_VALIDATION: {
+        ENABLED: true,
+        REQUIRED: false, // Don't fail if secret not configured
+        ALGORITHM: 'SHA256',
+        HEADER_NAME: 'X-Make-Signature'
+      },
+      TIMESTAMP_VALIDATION: {
+        ENABLED: true,
+        TOLERANCE_SECONDS: 300, // 5 minutes
+        HEADER_NAME: 'X-Make-Timestamp'
+      },
+      USER_AGENT_VALIDATION: {
+        ENABLED: true,
+        REQUIRED_SUBSTRING: 'Make.com'
+      }
     },
     
     // Event type mappings for router
@@ -1583,6 +1603,49 @@ const SYSTEM_CONFIG = {
     ]
   },
 
+  // ==================== SECURITY SETTINGS ====================
+  SECURITY: {
+    // Authentication settings
+    AUTHENTICATION: {
+      ENABLED: true,
+      MIN_PASSWORD_LENGTH: 12,
+      REQUIRE_PASSWORD_COMPLEXITY: true,
+      MAX_LOGIN_ATTEMPTS: 5,
+      LOCKOUT_DURATION_MS: 900000 // 15 minutes
+    },
+
+    // Session timeout configuration
+    SESSION_TIMEOUT: {
+      HARD_TIMEOUT_MS: 14400000, // 4 hours
+      INACTIVITY_TIMEOUT_MS: 1800000, // 30 minutes
+      WARNING_THRESHOLD_MS: 300000, // 5 minutes before timeout
+      EXTENSION_INCREMENT_MS: 1800000, // 30 minutes extension
+      MAX_CONCURRENT_SESSIONS: 3,
+      CLEANUP_INTERVAL_MS: 3600000 // 1 hour
+    },
+
+    // Input validation settings
+    INPUT_VALIDATION: {
+      ENABLED: true,
+      XSS_PROTECTION: true,
+      SQL_INJECTION_PROTECTION: true,
+      MAX_INPUT_LENGTH: 1000,
+      ALLOWED_HTML_TAGS: []
+    },
+
+    // Access control
+    ACCESS_CONTROL: {
+      REQUIRE_HTTPS: true,
+      ALLOWED_DOMAINS: [],
+      BLOCKED_IPS: [],
+      RATE_LIMITING: {
+        ENABLED: true,
+        REQUESTS_PER_MINUTE: 60,
+        REQUESTS_PER_HOUR: 1000
+      }
+    }
+  },
+
   // ==================== DEVELOPMENT SETTINGS ====================
   DEVELOPMENT: {
     DEBUG_MODE: false,
@@ -2030,6 +2093,68 @@ function initializeConfig() {
  */
 function exportConfig() {
   return SYSTEM_CONFIG;
+}
+
+/**
+ * Get runtime configuration for UI and health checks
+ * Returns sanitized configuration without secrets
+ * @returns {Object} Runtime configuration
+ */
+function getRuntimeConfig() {
+  try {
+    const properties = PropertiesService.getScriptProperties().getProperties();
+
+    // Build runtime config from script properties and system config
+    const runtimeConfig = {
+      // System information
+      version: properties['SYSTEM.VERSION'] || getConfigValue('SYSTEM.VERSION'),
+      environment: properties['SYSTEM.ENVIRONMENT'] || getConfigValue('SYSTEM.ENVIRONMENT'),
+      club_name: properties['SYSTEM.CLUB_NAME'] || getConfigValue('SYSTEM.CLUB_NAME'),
+      club_short_name: properties['SYSTEM.CLUB_SHORT_NAME'] || getConfigValue('SYSTEM.CLUB_SHORT_NAME'),
+      league: properties['SYSTEM.LEAGUE_NAME'] || getConfigValue('SYSTEM.LEAGUE'),
+      season: properties['SYSTEM.SEASON'] || getConfigValue('SYSTEM.SEASON'),
+
+      // Installation info
+      installed: !!properties['INSTALL.COMPLETED_AT'],
+      installed_at: properties['INSTALL.COMPLETED_AT'],
+      installed_by: properties['INSTALL.INSTALLED_BY'],
+
+      // Feature flags (no secrets)
+      features: {
+        live_match_processing: getConfigValue('FEATURES.LIVE_MATCH_PROCESSING'),
+        batch_posting: getConfigValue('FEATURES.BATCH_POSTING'),
+        player_statistics: getConfigValue('FEATURES.PLAYER_STATISTICS'),
+        make_integration: !!properties['MAKE.WEBHOOK_URL'],
+        video_integration: getConfigValue('FEATURES.VIDEO_INTEGRATION'),
+        weekly_schedule: getConfigValue('FEATURES.WEEKLY_CONTENT_AUTOMATION'),
+        monthly_summaries: getConfigValue('FEATURES.MONTHLY_SUMMARIES')
+      },
+
+      // System status
+      sheet_configured: !!properties['SPREADSHEET_ID'],
+      webhook_configured: !!properties['MAKE.WEBHOOK_URL'],
+
+      // Configuration timestamp
+      last_updated: new Date().toISOString()
+    };
+
+    // Remove any null or undefined values
+    Object.keys(runtimeConfig).forEach(key => {
+      if (runtimeConfig[key] === null || runtimeConfig[key] === undefined) {
+        delete runtimeConfig[key];
+      }
+    });
+
+    return runtimeConfig;
+
+  } catch (error) {
+    console.error('Failed to get runtime configuration:', error);
+    return {
+      error: 'Failed to load configuration',
+      version: getConfigValue('SYSTEM.VERSION', '6.2.0'),
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 /**
