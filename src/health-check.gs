@@ -73,7 +73,8 @@ class HealthCheck {
    */
   static checkSpreadsheetAccess() {
     try {
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+      const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
       const id = spreadsheet.getId();
       const name = spreadsheet.getName();
 
@@ -95,7 +96,8 @@ class HealthCheck {
    */
   static checkRequiredSheets() {
     try {
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+      const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
       const requiredSheets = ['Config', 'Live Match Updates', 'Fixtures', 'Players'];
 
       const existingSheets = spreadsheet.getSheets().map(sheet => sheet.getName());
@@ -227,7 +229,8 @@ class HealthCheck {
    */
   static quickHealthCheck() {
     try {
-      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+      const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
       const dynamicConfig = getDynamicConfig();
       const version = getConfigValue('SYSTEM.VERSION', 'unknown');
 
@@ -256,30 +259,7 @@ function doHealthCheck() {
   return HealthCheck.performHealthCheck();
 }
 
-/**
- * Webapp handler for health check - DISABLED
- * Routing moved to main.gs to prevent conflicts
- */
-function healthCheck_doGet_DISABLED(e) {
-  if (e.parameter && e.parameter.action === 'health') {
-    const health = HealthCheck.quickHealthCheck();
-
-    return ContentService
-      .createTextOutput(JSON.stringify(health))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // Default response
-  return ContentService
-    .createTextOutput(JSON.stringify({
-      message: 'Football Automation System API',
-      timestamp: new Date().toISOString(),
-      endpoints: {
-        health: '?action=health'
-      }
-    }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+// Disabled function removed - routing handled in main.gs
 
 /**
  * Monitor system health and log warnings

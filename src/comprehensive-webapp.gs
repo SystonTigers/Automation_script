@@ -4,81 +4,7 @@
  * @version 6.2.0
  */
 
-/**
- * Enhanced doGet handler with full admin interface - DISABLED
- * Routing moved to main.gs to prevent conflicts
- */
-function comprehensive_doGet_DISABLED(e) {
-  try {
-    const path = (e && e.pathInfo) ? e.pathInfo : '';
-
-    // Route to different admin sections
-    switch (path) {
-      case 'players':
-        return createPlayerManagementInterface();
-      case 'fixtures':
-        return createFixtureManagementInterface();
-      case 'season':
-        return createSeasonSetupInterface();
-      case 'historical':
-        return createHistoricalDataInterface();
-      case 'live':
-        return createLiveMatchInterface();
-      case 'health':
-        return createHealthResponse();
-      case 'test':
-        return createTestResponse();
-      default:
-        return createMainDashboard();
-    }
-  } catch (error) {
-    return HtmlService.createHtmlOutput(`
-      <div style="text-align: center; padding: 50px; font-family: Arial;">
-        <h2>⚠️ Web App Error</h2>
-        <p>Error: ${error.toString()}</p>
-        <p><a href="?">Try again</a></p>
-      </div>
-    `);
-  }
-}
-
-/**
- * Enhanced doPost handler for all form submissions - DISABLED
- * Routing moved to main.gs to prevent conflicts
- */
-function comprehensive_doPost_DISABLED(e) {
-  try {
-    const params = e.parameter || {};
-    const action = params.action || 'unknown';
-
-    Logger.log('POST received', { action: action, params: params });
-
-    switch (action) {
-      case 'add_player':
-        return handleAddPlayer(params);
-      case 'add_fixture':
-        return handleAddFixture(params);
-      case 'setup_season':
-        return handleSeasonSetup(params);
-      case 'live_event':
-        return handleLiveEvent(params);
-      case 'historical_data':
-        return handleHistoricalData(params);
-      default:
-        return ContentService.createTextOutput(JSON.stringify({
-          success: false,
-          error: 'Unknown action: ' + action
-        })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-  } catch (error) {
-    Logger.log('POST error: ' + error.toString());
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
+// Disabled functions removed - routing handled in main.gs
 
 /**
  * Create main admin dashboard
@@ -201,11 +127,35 @@ function createMainDashboard() {
 
   <script>
     // Load dashboard stats
-    function loadStats() {
-      // TODO: Load actual stats from Google Sheets
-      document.getElementById('playerCount').textContent = '25';
-      document.getElementById('fixtureCount').textContent = '12';
-      document.getElementById('resultCount').textContent = '8';
+    async function loadStats() {
+      try {
+        // Fetch actual stats from backend
+        const response = await fetch(window.location.href.split('?')[0] + '?action=dashboard_stats', {
+          method: 'GET'
+        });
+
+        if (response.ok) {
+          const stats = await response.json();
+          if (stats.success && stats.data) {
+            document.getElementById('playerCount').textContent = stats.data.players || '0';
+            document.getElementById('fixtureCount').textContent = stats.data.fixtures || '0';
+            document.getElementById('resultCount').textContent = stats.data.results || '0';
+            return;
+          }
+        }
+
+        // Fallback to placeholder values if API fails
+        document.getElementById('playerCount').textContent = '-';
+        document.getElementById('fixtureCount').textContent = '-';
+        document.getElementById('resultCount').textContent = '-';
+
+      } catch (error) {
+        console.warn('Failed to load dashboard stats:', error);
+        // Show placeholder values on error
+        document.getElementById('playerCount').textContent = '-';
+        document.getElementById('fixtureCount').textContent = '-';
+        document.getElementById('resultCount').textContent = '-';
+      }
     }
 
     loadStats();
@@ -388,23 +338,53 @@ function createPlayerManagementInterface() {
       }
     });
 
-    function loadPlayers() {
-      // TODO: Load players from Google Sheets
+    async function loadPlayers() {
       const playerList = document.getElementById('playerList');
-      playerList.innerHTML = \`
-        <div class="player-item">
-          <div class="player-info">
-            <h4>Example Player</h4>
-            <p>Midfielder • Age 25 • #10</p>
+
+      try {
+        // Fetch player data from backend
+        const response = await fetch(window.location.href.split('?')[0] + '?action=get_players', {
+          method: 'GET'
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data && result.data.length > 0) {
+            // Display actual players
+            playerList.innerHTML = result.data.map(player => \`
+              <div class="player-item">
+                <div class="player-info">
+                  <h4>\${player.name || 'Unknown Player'}</h4>
+                  <p>\${player.position || 'Unknown'} • Age \${player.age || '?'} • #\${player.number || 'N/A'}</p>
+                </div>
+              </div>
+            \`).join('');
+            return;
+          }
+        }
+
+        // No players found - show empty state
+        playerList.innerHTML = \`
+          <div class="player-item">
+            <div class="player-info">
+              <h4>No players found</h4>
+              <p>Use the form to add your first player to the squad</p>
+            </div>
           </div>
-        </div>
-        <div class="player-item">
-          <div class="player-info">
-            <h4>Add your first player!</h4>
-            <p>Use the form to add players to your squad</p>
+        \`;
+
+      } catch (error) {
+        console.warn('Failed to load players:', error);
+        // Show error state
+        playerList.innerHTML = \`
+          <div class="player-item">
+            <div class="player-info">
+              <h4>Error loading players</h4>
+              <p>Please refresh the page or try again later</p>
+            </div>
           </div>
-        </div>
-      \`;
+        \`;
+      }
     }
 
     loadPlayers();
@@ -659,24 +639,54 @@ function createFixtureManagementInterface() {
       }
     });
 
-    function loadFixtures() {
-      // TODO: Load fixtures from Google Sheets
+    async function loadFixtures() {
       const fixtureList = document.getElementById('fixtureList');
-      fixtureList.innerHTML = \`
-        <div class="fixture-item">
-          <div class="fixture-info">
-            <h4>vs Example FC</h4>
-            <p>Saturday 15th Dec, 3:00 PM • Home • League</p>
+
+      try {
+        // Fetch fixture data from backend
+        const response = await fetch(window.location.href.split('?')[0] + '?action=get_fixtures', {
+          method: 'GET'
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data && result.data.length > 0) {
+            // Display actual fixtures
+            fixtureList.innerHTML = result.data.map(fixture => \`
+              <div class="fixture-item">
+                <div class="fixture-info">
+                  <h4>vs \${fixture.opponent || 'Unknown Opponent'}</h4>
+                  <p>\${fixture.date || 'TBD'} • \${fixture.venue || 'TBD'} • \${fixture.competition || 'League'}</p>
+                </div>
+                <span class="fixture-status \${fixture.status === 'completed' ? 'completed' : 'upcoming'}">\${fixture.status === 'completed' ? 'Completed' : 'Upcoming'}</span>
+              </div>
+            \`).join('');
+            return;
+          }
+        }
+
+        // No fixtures found - show empty state
+        fixtureList.innerHTML = \`
+          <div class="fixture-item">
+            <div class="fixture-info">
+              <h4>No fixtures found</h4>
+              <p>Use the form to add your first match to the season</p>
+            </div>
           </div>
-          <span class="fixture-status upcoming">Upcoming</span>
-        </div>
-        <div class="fixture-item">
-          <div class="fixture-info">
-            <h4>Add your first fixture!</h4>
-            <p>Use the form to add matches to your season</p>
+        \`;
+
+      } catch (error) {
+        console.warn('Failed to load fixtures:', error);
+        // Show error state
+        fixtureList.innerHTML = \`
+          <div class="fixture-item">
+            <div class="fixture-info">
+              <h4>Error loading fixtures</h4>
+              <p>Please refresh the page or try again later</p>
+            </div>
           </div>
-        </div>
-      \`;
+        \`;
+      }
     }
 
     // Set minimum date to today

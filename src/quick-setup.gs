@@ -288,7 +288,8 @@ function setupAutonomousCustomer() {
  */
 function createConfigSheetDirect() {
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
     let configSheet = spreadsheet.getSheetByName('Config');
 
     if (!configSheet) {
@@ -365,7 +366,8 @@ function createCustomerTriggerDirect() {
  */
 function createConfigSheetInCurrentSpreadsheet() {
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
     let configSheet = spreadsheet.getSheetByName('Config');
 
     if (!configSheet) {
@@ -531,7 +533,8 @@ function runAutonomousSetup() {
  */
 function readConfigFromCurrentSheetDirect() {
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
     const configSheet = spreadsheet.getSheetByName('Config');
 
     if (!configSheet) {
@@ -564,7 +567,9 @@ function readConfigFromCurrentSheetDirect() {
  */
 function readConfigFromCurrentSheet() {
   try {
-    const configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
+    const configSheet = spreadsheet.getSheetByName('Config');
     const data = configSheet.getDataRange().getValues();
 
     const config = {};
@@ -587,7 +592,9 @@ function readConfigFromCurrentSheet() {
  */
 function findConfigRowByKey(key) {
   try {
-    const configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
+    const configSheet = spreadsheet.getSheetByName('Config');
     const data = configSheet.getDataRange().getValues();
 
     for (let i = 0; i < data.length; i++) {

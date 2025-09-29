@@ -99,8 +99,9 @@ function installForCustomer() {
  */
 function readConfigFromSheet(tabName = 'Config') {
   try {
-    // Get the active spreadsheet (the customer's sheet where this script is bound)
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    // Get the spreadsheet using stored ID or fallback to active
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
     const configSheet = spreadsheet.getSheetByName(tabName);
 
     if (!configSheet) {
@@ -418,7 +419,8 @@ function validateAndCreateRequiredSheets() {
     }
   ];
 
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
   const results = {
     existing: 0,
     created: 0,
@@ -512,7 +514,8 @@ function performInstallationHealthCheck() {
 
   // Check 3: Required Sheets
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
     const requiredSheets = ['Live Match Updates', 'Players', 'Fixtures', 'Results', 'Config'];
     const existingSheets = requiredSheets.filter(name => spreadsheet.getSheetByName(name));
     const allSheetsExist = existingSheets.length === requiredSheets.length;
@@ -593,7 +596,8 @@ function getInstallationStatus() {
  */
 function createBasicConfigSheet() {
   try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
     let configSheet = spreadsheet.getSheetByName('Config');
 
     if (configSheet) {

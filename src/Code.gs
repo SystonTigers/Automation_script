@@ -30,7 +30,7 @@ function createMainDashboard() {
 
 /**
  * Legacy function - creates hardcoded dashboard (DEPRECATED)
- * TODO: Remove after template migration complete
+ * This function is kept for backward compatibility
  */
 function createMainDashboard_LEGACY() {
   const html = `

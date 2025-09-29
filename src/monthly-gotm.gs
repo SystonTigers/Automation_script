@@ -146,10 +146,25 @@ if (typeof MonthlySummariesManager !== 'undefined') {
         return noVoting;
       }
 
-      // For now, select first goal as winner (TODO: implement actual voting)
-      const winner = storedVoting.goals[0];
-      const idempotencyKey = this.generateIdempotencyKey('gotm_winner', monthKey);
-      const payload = this.createGOTMWinnerPayload(winner, storedVoting.goals, monthNumber, yearNumber, idempotencyKey);
+      // Only auto-select winner if there's exactly one goal
+      let payload;
+      if (storedVoting.goals.length === 1) {
+        const winner = storedVoting.goals[0];
+        const idempotencyKey = this.generateIdempotencyKey('gotm_winner', monthKey);
+        payload = this.createGOTMWinnerPayload(winner, storedVoting.goals, monthNumber, yearNumber, idempotencyKey);
+      } else {
+        // Multiple goals - require manual winner selection
+        const multipleGoalsResult = {
+          success: false,
+          reason: 'Multiple goals require manual winner selection',
+          goalCount: storedVoting.goals.length,
+          goals: storedVoting.goals.map(g => ({ player: g.player_name, minute: g.minute })),
+          message: 'GOTM voting with multiple goals not yet implemented - please select winner manually'
+        };
+        this.logger.warn('GOTM auto-announcement skipped - multiple goals', multipleGoalsResult);
+        this.logger.exitFunction('announceGOTMWinner', multipleGoalsResult);
+        return multipleGoalsResult;
+      }
 
       const webhookResult = this.makeIntegration.sendWebhook(payload);
 

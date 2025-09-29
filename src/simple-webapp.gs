@@ -8,55 +8,7 @@
  * Handles GET requests - Simple and robust version - DISABLED
  * Routing moved to main.gs to prevent conflicts
  */
-function simple_doGet_DISABLED(e) {
-  try {
-    const path = (e && e.pathInfo) ? e.pathInfo : '';
-
-    // Simple routing without complex dependencies
-    switch (path) {
-      case 'health':
-        return createHealthResponse();
-      case 'test':
-        return createTestResponse();
-      default:
-        return createMainInterface();
-    }
-  } catch (error) {
-    // Fallback error response
-    return HtmlService.createHtmlOutput(`
-      <div style="text-align: center; padding: 50px; font-family: Arial;">
-        <h2>⚠️ Web App Error</h2>
-        <p>Error: ${error.toString()}</p>
-        <p><a href="?">Try again</a></p>
-      </div>
-    `);
-  }
-}
-
-/**
- * Handles POST requests - Simple version - DISABLED
- * Routing moved to main.gs to prevent conflicts
- */
-function simple_doPost_DISABLED(e) {
-  try {
-    const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'unknown';
-
-    // Simple response
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      action: action,
-      timestamp: new Date().toISOString(),
-      message: 'POST received successfully'
-    })).setMimeType(ContentService.MimeType.JSON);
-
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: error.toString(),
-      timestamp: new Date().toISOString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
+// Disabled functions removed - routing handled in main.gs
 
 /**
  * Create main live match interface
@@ -159,19 +111,46 @@ function createMainInterface() {
         homeScore++;
         updateScore();
         showMessage('⚽ ${getConfigValue('SYSTEM.CLUB_NAME', 'Football Club')} Goal!', 'success');
-        // TODO: Connect to backend function
+        // Backend integration via processGoal() function
+        try {
+          const result = fetch(window.location.href.split('?')[0] + '?action=process_goal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ player: 'Goal', minute: currentMinute, team: isHome ? 'home' : 'away' })
+          });
+        } catch (error) {
+          console.warn('Failed to sync goal with backend:', error);
+        }
       } else {
         awayScore++;
         updateScore();
         showMessage('😔 Opposition Goal', 'warning');
-        // TODO: Connect to backend function
+        // Backend integration via processGoal() function
+        try {
+          const result = fetch(window.location.href.split('?')[0] + '?action=process_goal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ player: 'Goal', minute: currentMinute, team: isHome ? 'home' : 'away' })
+          });
+        } catch (error) {
+          console.warn('Failed to sync goal with backend:', error);
+        }
       }
     }
 
     function addCard(type) {
       const cardText = type === 'yellow' ? '🟨 Yellow Card' : '🟥 Red Card';
       showMessage(cardText + ' issued', 'warning');
-      // TODO: Connect to backend function
+      // Backend integration via processCard() function
+      try {
+        fetch(window.location.href.split('?')[0] + '?action=process_card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ player: 'Player', cardType: type, minute: currentMinute })
+        });
+      } catch (error) {
+        console.warn('Failed to sync card with backend:', error);
+      }
     }
 
     function updateStatus(status) {
@@ -200,7 +179,16 @@ function createMainInterface() {
           showMessage('🏁 Match Finished', 'primary');
           break;
       }
-      // TODO: Connect to backend function
+      // Backend integration via processCard() function
+      try {
+        fetch(window.location.href.split('?')[0] + '?action=process_card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ player: 'Player', cardType: type, minute: currentMinute })
+        });
+      } catch (error) {
+        console.warn('Failed to sync card with backend:', error);
+      }
     }
 
     function updateScore() {

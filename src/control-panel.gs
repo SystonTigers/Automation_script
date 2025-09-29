@@ -1431,12 +1431,7 @@ function controlPanelTriggerAction(actionType) {
     logger.exitFunction('controlPanelTriggerAction', { success: true });
     return result;
   }
-/** Serve the web UI (ControlPanel.html) as a Web App - DISABLED */
-function controlPanel_doGet_DISABLED() {
-  return HtmlService
-    .createHtmlOutputFromFile('controlPanel')
-    .setTitle(`${getConfigValue('SYSTEM.CLUB_NAME', 'Football Club')} – Control Panel`);
-}
+// Disabled function removed - routing handled in main.gs
 
 /** State for ControlPanel.html on load */
 function getControlPanelState() {

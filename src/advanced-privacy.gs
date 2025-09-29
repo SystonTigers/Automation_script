@@ -505,7 +505,8 @@ class AdvancedPrivacyManager {
    */
 
   static getOrCreateConsentSheet() {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+    const spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
     let sheet = spreadsheet.getSheetByName('Advanced Consents');
 
     if (!sheet) {
