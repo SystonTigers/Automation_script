@@ -7,15 +7,19 @@
 /**
  * Routes requests for PWA assets (manifest and service worker).
  * @param {string} path Path segment from the incoming request.
+ * @param {!Object<string, string>=} parameters Query parameters from the request.
  * @returns {ContentService.TextOutput|null} Response when handled.
  */
-function handlePwaAssetRequest(path) {
-  if (!path) {
+function handlePwaAssetRequest(path, parameters) {
+  const assetParam = parameters && parameters.asset ? String(parameters.asset) : '';
+  const selector = assetParam || path;
+  if (!selector) {
     return null;
   }
 
   try {
-    switch (String(path)) {
+    const normalized = String(selector).replace(/^\/+/, '');
+    switch (normalized) {
       case 'manifest.json':
         return createPwaManifestResponse_();
       case 'service-worker.js':

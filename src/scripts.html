@@ -52,7 +52,11 @@ function primePwaLifecycle() {
         return;
     }
 
-    const serviceWorkerUrl = new URL('service-worker.js', window.location.href).href;
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const existingQuery = window.location.search || '';
+    const connector = existingQuery ? '&' : '?';
+    const serviceWorkerUrl = `${origin}${pathname}${existingQuery}${connector}asset=service-worker.js`;
 
     window.addEventListener('load', () => {
         navigator.serviceWorker.register(serviceWorkerUrl, { scope: './' })
