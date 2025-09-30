@@ -11,7 +11,22 @@
     <meta name="apple-mobile-web-app-title" content="Club Console">
 
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" id="pwa-manifest-link">
+    <script>
+        (function updateManifestLink() {
+            const manifestLink = document.querySelector('#pwa-manifest-link');
+            if (!manifestLink) {
+                return;
+            }
+
+            const { origin, pathname, search } = window.location;
+            const trimmedPath = pathname.replace(/\/+$/, '');
+            const baseUrl = trimmedPath ? `${origin}${trimmedPath}` : origin;
+            const manifestUrl = `${baseUrl}/manifest.json${search || ''}`;
+
+            manifestLink.setAttribute('href', manifestUrl);
+        })();
+    </script>
     <meta name="theme-color" content="#ff6600">
 
     <style>
