@@ -117,6 +117,12 @@ function doGet(e) {
 
     // PUBLIC ROUTES (no authentication required)
 
+    // Progressive Web App assets
+    const pwaResponse = handlePwaAssetRequest(path);
+    if (pwaResponse) {
+      return pwaResponse;
+    }
+
     // Landing page - default route
     if (!path && !action) {
       return HtmlService.createTemplateFromFile('index').evaluate()

@@ -29,6 +29,9 @@ function initializeApp() {
     // Set up event listeners
     setupEventListeners();
 
+    // Prepare service worker lifecycle hooks
+    primePwaLifecycle();
+
     // Load initial data
     loadConfiguration()
         .then(() => loadPlayers())
@@ -41,6 +44,25 @@ function initializeApp() {
             showStatus('Error initializing app: ' + error.message, 'error');
             hideLoading();
         });
+}
+
+function primePwaLifecycle() {
+    if (!('serviceWorker' in navigator)) {
+        console.info('Service workers are not supported in this browser.');
+        return;
+    }
+
+    const serviceWorkerUrl = new URL('service-worker.js', window.location.href).href;
+
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register(serviceWorkerUrl, { scope: './' })
+            .then(registration => {
+                console.info('Service worker registered:', registration.scope);
+            })
+            .catch(error => {
+                console.error('Service worker registration failed:', error);
+            });
+    }, { once: true });
 }
 
 function hideLoading() {
@@ -301,6 +323,11 @@ function updateUIWithConfig(config) {
     if (clubBadge && config.BADGE_URL) {
         clubBadge.src = config.BADGE_URL;
         clubBadge.style.display = 'block';
+    }
+
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta && config.PRIMARY_HEX) {
+        themeMeta.setAttribute('content', config.PRIMARY_HEX);
     }
 
     // Update CSS variables
