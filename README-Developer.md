@@ -2,6 +2,20 @@
 
 This document explains how to maintain and update the SystonAutomationLib library system.
 
+## 🛠️ Runtime & Tooling Baselines
+
+- **Node.js**: Use version `22` locally (`nvm use` will read from `.nvmrc`). This matches the CI runtime used by the GitHub Action that deploys the Apps Script project.
+- **Formatting**: Run `npx prettier --write .` before committing. The repo's `.prettierrc` enforces a 2-space indent, single quotes, trailing commas, and LF line endings so our server and worker code render consistently in GAS and browser bundles.
+- **Linting**: Run `npx eslint .` to lint Cloudflare Worker, PWA, and Apps Script code. The `.eslintrc.cjs` profile enables JSX/TypeScript-aware rules, Cloudflare Worker globals, and overrides that understand Apps Script globals.
+- **Recommended dev dependencies** (install in a local clone once):
+  ```bash
+  npm install --save-dev \
+    eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin \
+    eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-jsx-a11y \
+    eslint-config-prettier prettier
+  ```
+- **VS Code integration**: Enable "Format on Save" and point ESLint to the workspace folder so both tools run automatically as you edit Apps Script, worker, or UI code.
+
 ## 📁 Project Structure
 
 ```
