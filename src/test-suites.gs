@@ -170,6 +170,244 @@ suite('PII Protection', function() {
   });
 });
 
+suite('Payments and Subscriptions', function() {
+  function createMockSheet(initialHeaders) {
+    const sheetData = [];
+    const sheet = {
+      data: sheetData,
+      getName: () => 'MockSheet',
+      getLastRow: () => sheetData.length,
+      getLastColumn: () => sheetData[0] ? sheetData[0].length : 0,
+      getRange(row, column, numRows, numColumns) {
+        const range = {
+          getValues() {
+            const values = [];
+            for (let r = 0; r < numRows; r++) {
+              const rowIndex = row - 1 + r;
+              const source = sheetData[rowIndex] || [];
+              const rowValues = [];
+              for (let c = 0; c < numColumns; c++) {
+                const colIndex = column - 1 + c;
+                rowValues.push(source[colIndex] !== undefined ? source[colIndex] : '');
+              }
+              values.push(rowValues);
+            }
+            return values;
+          },
+          setValues(values) {
+            for (let r = 0; r < numRows; r++) {
+              const rowIndex = row - 1 + r;
+              if (!sheetData[rowIndex]) {
+                sheetData[rowIndex] = [];
+              }
+              for (let c = 0; c < numColumns; c++) {
+                const colIndex = column - 1 + c;
+                sheetData[rowIndex][colIndex] = values[r][c];
+              }
+            }
+            return range;
+          },
+          setFontWeight() { return range; },
+          setBackground() { return range; }
+        };
+        return range;
+      }
+    };
+    if (Array.isArray(initialHeaders) && initialHeaders.length) {
+      sheet.getRange(1, 1, 1, initialHeaders.length).setValues([initialHeaders]);
+    }
+    return sheet;
+  }
+
+  function stubProperties(overrides) {
+    const original = PropertiesService.getScriptProperties;
+    PropertiesService.getScriptProperties = function() {
+      return {
+        getProperty(key) {
+          return Object.prototype.hasOwnProperty.call(overrides, key) ? overrides[key] : '';
+        },
+        getProperties() {
+          return Object.assign({}, overrides);
+        }
+      };
+    };
+    return function restore() {
+      PropertiesService.getScriptProperties = original;
+    };
+  }
+
+  function stubFetch(handler) {
+    const original = UrlFetchApp.fetch;
+    UrlFetchApp.fetch = handler;
+    return function restore() {
+      UrlFetchApp.fetch = original;
+    };
+  }
+
+  function stubSheets() {
+    const sheetMap = {};
+    const original = SheetUtils.getOrCreateSheet;
+    SheetUtils.getOrCreateSheet = function(name, headers) {
+      if (!sheetMap[name]) {
+        sheetMap[name] = createMockSheet(headers || []);
+      } else if (headers && headers.length && sheetMap[name].data.length === 0) {
+        sheetMap[name].getRange(1, 1, 1, headers.length).setValues([headers]);
+      }
+      return sheetMap[name];
+    };
+    return {
+      restore() {
+        SheetUtils.getOrCreateSheet = original;
+      },
+      sheets: sheetMap
+    };
+  }
+
+  function baseConfig() {
+    return {
+      PRINTIFY_API_BASE_URL: 'https://printify.example.com',
+      PRINTIFY_SHOP_ID: 'shop_123',
+      PRINTIFY_API_KEY: 'printify_test',
+      STRIPE_API_BASE_URL: 'https://stripe.example.com',
+      STRIPE_SECRET_KEY: 'sk_test_secret',
+      STRIPE_WEBHOOK_SECRET: 'whsec_test_secret',
+      PAYPAL_API_BASE_URL: 'https://paypal.example.com',
+      PAYPAL_CLIENT_ID: 'paypal_client',
+      PAYPAL_SECRET: 'paypal_secret',
+      PAYPAL_WEBHOOK_ID: 'wh_paypal_test',
+      APPLE_RECEIPT_VERIFY_URL: 'https://apple.example.com/verifyReceipt',
+      APPLE_SHARED_SECRET: 'apple_shared_secret',
+      GOOGLE_PLAY_RECEIPT_PROXY_URL: 'https://google.example.com/verify',
+      GOOGLE_PLAY_API_KEY: 'google_key',
+      GOOGLE_PLAY_PACKAGE_NAME: 'com.example.app'
+    };
+  }
+
+  test('should create Stripe checkout session', function() {
+    const restoreProps = stubProperties(baseConfig());
+    const restoreFetch = stubFetch(function(url, options) {
+      if (url.indexOf('/checkout/sessions') !== -1) {
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            id: 'cs_test_123',
+            url: 'https://checkout.stripe.test/session',
+            expires_at: Math.floor(Date.now() / 1000) + 1800
+          }),
+          getAllHeaders: () => ({})
+        };
+      }
+      throw new Error('Unexpected URL: ' + url);
+    });
+
+    try {
+      const result = ShopOperationsService.createHostedCheckout({
+        provider: 'stripe',
+        priceId: 'price_123',
+        quantity: 2,
+        successUrl: 'https://example.com/success',
+        cancelUrl: 'https://example.com/cancel',
+        metadata: { order: 'abc123' }
+      });
+
+      equal(result.provider, 'stripe', 'Should return stripe provider');
+      ok(result.checkoutUrl, 'Should return Stripe hosted checkout URL');
+    } finally {
+      restoreFetch();
+      restoreProps();
+    }
+  });
+
+  test('should process Stripe webhook idempotently', function() {
+    const config = baseConfig();
+    const restoreProps = stubProperties(config);
+    const sheetStub = stubSheets();
+
+    try {
+      const event = {
+        id: 'evt_test_1',
+        type: 'checkout.session.completed',
+        created: Math.floor(Date.now() / 1000),
+        data: {
+          object: {
+            id: 'cs_test_123',
+            amount_total: 5000,
+            currency: 'usd',
+            payment_status: 'paid',
+            customer_details: { email: 'buyer@example.com' },
+            metadata: { order: 'abc123' }
+          }
+        }
+      };
+      const rawBody = JSON.stringify(event);
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signedPayload = `${timestamp}.${rawBody}`;
+      const signatureBytes = Utilities.computeHmacSha256Signature(signedPayload, config.STRIPE_WEBHOOK_SECRET);
+      const signature = signatureBytes.map(byte => (`0${(byte & 0xff).toString(16)}`).slice(-2)).join('');
+      const headers = { 'Stripe-Signature': `t=${timestamp},v1=${signature}` };
+
+      const first = PaymentWebhookService.handleStripeWebhook(rawBody, headers);
+      ok(first.success, 'First webhook should succeed');
+
+      const second = PaymentWebhookService.handleStripeWebhook(rawBody, headers);
+      ok(second.duplicate, 'Second webhook should be treated as duplicate');
+
+      const ordersSheet = sheetStub.sheets.Orders;
+      equal(ordersSheet.data.length, 2, 'Orders sheet should contain header and one data row');
+    } finally {
+      sheetStub.restore();
+      restoreProps();
+    }
+  });
+
+  test('should verify Apple receipt and update sheets', function() {
+    const config = baseConfig();
+    const restoreProps = stubProperties(config);
+    const sheetStub = stubSheets();
+    const restoreFetch = stubFetch(function(url, options) {
+      if (url === config.APPLE_RECEIPT_VERIFY_URL) {
+        return {
+          getResponseCode: () => 200,
+          getContentText: () => JSON.stringify({
+            status: 0,
+            environment: 'Sandbox',
+            bundle_id: 'com.example.app',
+            application_version: '1.0.0',
+            latest_receipt_info: [{
+              product_id: 'plan_pro',
+              expires_date_ms: String(Date.now() + 86400000),
+              original_transaction_id: 'order_001'
+            }]
+          }),
+          getAllHeaders: () => ({})
+        };
+      }
+      throw new Error('Unexpected URL: ' + url);
+    });
+
+    try {
+      const result = SubscriptionService.verifySubscription({
+        provider: 'apple',
+        receiptData: 'test_receipt',
+        userId: 'user_123',
+        email: 'user@example.com'
+      });
+
+      ok(result.success, 'Verification should succeed');
+
+      const plansSheet = sheetStub.sheets.Plans;
+      const userSubsSheet = sheetStub.sheets.UserSubs;
+
+      ok(plansSheet && plansSheet.data.length >= 2, 'Plans sheet should have persisted plan');
+      ok(userSubsSheet && userSubsSheet.data.length >= 2, 'UserSubs sheet should have persisted subscription');
+    } finally {
+      restoreFetch();
+      sheetStub.restore();
+      restoreProps();
+    }
+  });
+});
+
 // ==================== CONTROL PANEL TESTS ====================
 
 suite('Control Panel Functionality', function() {
