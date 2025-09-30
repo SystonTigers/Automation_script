@@ -35,6 +35,37 @@ submit a high-quality pull request.
 - For outbound HTTP requests, apply the enterprise client pattern (timeouts,
   retries with exponential backoff, and structured error handling).
 
+## API Standards
+
+- Treat the Sheet Config tab and Script Properties as the canonical sources for
+  runtime configuration; never hardcode URLs, secrets, or environment-specific
+  identifiers.
+- All mutating HTTP endpoints **must** enforce an `Idempotency-Key` header.
+  Reject missing keys with a `400` response and reuse keys to make retries
+  safe. Surface the header value in downstream logs for correlation, but do not
+  log request bodies containing PII.
+- Use shared utilities such as [`src/http_util_svc.gs`](src/http_util_svc.gs)
+  and the idempotency helpers in [`src/enterprise-operations.gs`](src/enterprise-operations.gs)
+  to standardize retries, logging, and duplicate suppression. Regression tests
+  covering these behaviors live in [`src/edge-case-tests.gs`](src/edge-case-tests.gs).
+
+**Example**
+
+```
+POST https://example.com/api/sync
+Idempotency-Key: 84d8e27c-4c41-4b1f-b705-c7317c7a6ce5
+Content-Type: application/json
+
+{"sheetId":"abc123","action":"sync"}
+```
+
+```
+HTTP/1.1 202 Accepted
+Content-Type: application/json
+
+{"status":"queued","idempotencyKey":"84d8e27c-4c41-4b1f-b705-c7317c7a6ce5"}
+```
+
 ## Testing and Validation
 
 - Use the Apps Script editor or clasp-driven tests to validate new triggers,
