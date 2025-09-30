@@ -1,0 +1,16 @@
+{
+  "name": "automation-script-workers",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:fixtures": "esbuild workers/fixtures.ts --bundle --format=esm --platform=browser --outdir=dist --target=es2022",
+    "build": "npm run build:fixtures",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240329.0",
+    "esbuild": "^0.20.2",
+    "vitest": "^1.5.1"
+  }
+}
