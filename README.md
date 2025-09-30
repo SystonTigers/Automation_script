@@ -1,188 +1,93 @@
-# ⚽ Syston Tigers Football Automation System
-
-> **Professional live football automation platform** - Complete social media automation, real-time match updates, and comprehensive club management system.
+# ⚽ Syston Football — Club App + Automation
 
 [![Deploy Status](https://github.com/SystonTigers/Automation_script/workflows/Push%20to%20Apps%20Script/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
 [![Version](https://img.shields.io/github/v/tag/SystonTigers/Automation_script)](https://github.com/SystonTigers/Automation_script/tags)
 
-## 🎯 What This Is
-
-A complete **Google Apps Script-based automation system** that transforms manual football club management into a professional, automated workflow. Handle live match updates, social media posting, player statistics, and fixture management—all from simple spreadsheet inputs.
-
-## ✨ Key Features
-
-- **🔴 Live Match Updates** - Real-time goal, card, and substitution tracking with automatic social media posting
-- **📱 Multi-Platform Social Media** - Automated posts to Facebook, Instagram, Twitter via Make.com integration
-- **📊 Player Statistics** - Comprehensive tracking of goals, assists, minutes, cards, and appearances
-- **📅 Fixture Management** - Automated fixture and result posting with batch processing
-- **🎥 Video Integration** - Seamless integration with video clip generation and YouTube automation
-- **🔒 GDPR Compliance** - Built-in consent management and privacy controls
-- **⚡ Performance Optimized** - Multi-tier caching and monitoring for enterprise-grade reliability
-- **🛡️ Security Enhanced** - Multi-factor authentication and comprehensive input validation
-
-## 🚀 Quick Start
-
-**For Club Administrators (Customer Setup):**
-
-1. **Copy the Google Sheet template** (provided by your system administrator)
-2. **Configure your club in the CONFIG tab:**
-   - Team name, league, colors, badge URL, home venue
-   - Contact email and season information
-3. **Run the installer:** Apps Script menu → "Install Club Configuration"
-4. **Set up secrets:** Use the Admin panel to add webhook URLs (one-time setup)
-
-**System deploys automatically via CI/CD** - no manual Apps Script editing required!
-
-## 🔄 Deployment Pipeline (Developers Only)
-
-This project uses **GitHub Actions** for automatic deployment:
-
-1. **Edit locally** in VS Code or your preferred editor
-2. **Commit & push** to `main` branch
-3. **GitHub Action** automatically deploys to Google Apps Script
-4. **Single web app deployment** is updated (never multiplied)
-
-**Customers never need to access Apps Script console!** 🎉
-
-## ⚙️ Configuration
-
-### Required Google Sheets Tabs:
-- `Live Match Updates` - Real-time match data entry
-- `Players` - Squad roster and statistics
-- `Fixtures` - Season fixture list
-- `Results` - Match results and scores
-- `Config` - System configuration settings
-
-### Required Make.com Webhooks:
-- **Live Events**: Goals, cards, substitutions → Social media posting
-- **Batch Content**: Weekly fixtures/results → Scheduled posting
-- **Player Stats**: Monthly summaries → Statistics posting
-
-### Configuration Method:
-
-**Club Information (Google Sheet CONFIG tab):**
-```
-TEAM_NAME = "Your Team Name"
-LEAGUE_NAME = "Your League"
-HOME_COLOUR = "#FF0000"
-AWAY_COLOUR = "#FFFFFF"
-BADGE_URL = "https://your-badge-url.png"
-HOME_VENUE = "Your Ground Name"
-CONTACT_EMAIL = "admin@yourclub.com"
-```
-
-**Webhook URLs (Admin Sidebar - Secure):**
-```
-MAKE_WEBHOOK_URL_LIVE_EVENTS = "https://hook.integromat.com/..."
-MAKE_WEBHOOK_URL_BATCH_CONTENT = "https://hook.integromat.com/..."
-```
-
-**No manual Script Properties editing required!**
-
-### Initial Setup Functions (Apps Script Console - One Time Only):
-
-**For Club Administrators (Customer Setup):**
-- `SA_INSTALL()` - Install club configuration from CONFIG sheet
-- `SA_ADMIN_SECRETS()` - Open admin panel to set webhook URLs
-
-**For System Maintenance (Optional):**
-- `SA_INSTALL_TRIGGERS()` - Set up all system triggers
-- `SA_TRIG_RECONCILE()` - Clean up orphaned triggers (maintenance)
-- `SA_QUEUE_STATUS()` - Check event queue status (monitoring)
-
-**Note:** Customers only need SA_INSTALL() and SA_ADMIN_SECRETS() - the system handles everything else automatically! 🚀
-
-## 🏗️ Architecture
-
-```
-Google Sheets → Apps Script → Make.com → Canva → Social Media
-     ↑              ↓           ↓          ↓
-Live Match     Player Stats   Templates  Facebook
-  Input       Calculations   Generation  Instagram
-                                         Twitter
-```
-
-- **Input Layer**: Google Sheets for data entry
-- **Processing**: Google Apps Script (79 files, 6.2.0-live)
-- **Automation**: Make.com workflow triggers
-- **Graphics**: Canva template generation
-- **Output**: Multi-platform social media posting
-
-## 📁 Project Structure
-
-```
-├── src/                    # Main source code (deployed to Apps Script)
-│   ├── main.gs            # Entry points and version info
-│   ├── enhanced-events.gs # Live match event processing
-│   ├── player-management-svc.gs # Player statistics
-│   ├── config.gs          # System configuration
-│   └── ...               # 75+ additional modules
-├── archive/              # Legacy code (preserved but not deployed)
-├── .github/             # GitHub Actions and templates
-└── README.md           # This file
-```
-
-## 🔧 Development
-
-### Local Development:
-```bash
-# Pull latest changes
-git pull origin main
-
-# Make your changes in src/
-# Test locally if possible
-
-# Commit and push
-git add -A
-git commit -m "Add new feature"
-git push origin main
-
-# GitHub Action deploys automatically
-```
-
-### Check Deployed Version:
-In Google Apps Script console, run:
-```javascript
-SA_Version()
-// Returns: { version: "6.2.0-live", deployedAt: "...", status: "operational" }
-```
-
-## 🎬 Enterprise Features (v6.2.0)
-
-### **Highlights Bot - Professional Video Processing**
-- **Smart Video Processing**: OpenCV-based editing with zoom tracking and professional graphics
-- **Multi-Format Output**: Automatic generation of 16:9 master, 1:1 square, and 9:16 vertical variants
-- **AI-Powered Detection**: Audio analysis, scene cuts, goal area activity, and celebration detection
-- **Make.com Integration**: Complete webhook server for automated social media distribution
-
-### **🔒 ConsentGate Privacy System - GDPR Compliant**
-- **Real-time Privacy Evaluation**: Every post automatically checked against player consent
-- **Automated Anonymization**: Face blurring, name redaction, and initials-only modes
-- **Data Lifecycle Management**: Automatic retention policies and one-click deletion
-- **Audit Trail**: Complete logging of all privacy decisions and data access
-
-### **⚡ Multi-Tier Performance Architecture**
-- **87% Cache Hit Rate**: Significant performance improvements achieved
-- **Real-time Monitoring**: Automatic alerting and quota management
-- **Level 1-3 Caching**: Memory, script, and document-level caching
-
-### **🧪 Comprehensive Testing Suite**
-- **150+ Test Cases**: Unit, integration, and end-to-end testing
-- **92% Code Coverage**: Extensive coverage of all critical functions
-- **QUnit-Style Framework**: Professional testing with detailed reporting
-
-## 🐛 Support & Issues
-
-- **GitHub Issues**: [Report bugs and request features](https://github.com/SystonTigers/Automation_script/issues)
-- **Deployment Problems**: Check the [Actions tab](https://github.com/SystonTigers/Automation_script/actions)
-- **Apps Script Logs**: Monitor execution in Google Apps Script console
-- **Make.com**: Verify webhook triggers in Make.com dashboard
-
-## 📄 License
-
-MIT License - Share, improve, and help automate grassroots football worldwide.
+Full-stack automation for grassroots football clubs. This Google Apps Script project powers the live **Syston Football** club app, delivering real-time match coverage, automated media workflows, and self-serve admin tools backed by CI/CD.
 
 ---
 
-**Professional football automation that just works.** ⚽✨# Workflow test
-# Test secret update
+## 🧱 Architecture Overview
+
+```
+Google Sheets (Config & Data Entry)
+        ↓
+Apps Script Services (Automation + API Orchestration)
+        ↓
+Make.com Scenarios → Canva Templates → Social + Email Channels
+        ↓
+Club App UI (deployed via single Apps Script web app)
+```
+
+**Core layers**
+- **Data Source**: Structured Google Sheets tabs for fixtures, players, results, config, and media planning.
+- **Automation Runtime**: Modular Apps Script services (V8) with caching, logging, and enterprise-grade HTTP utilities.
+- **Integration Hub**: Make.com workflows triggered from Apps Script to generate graphics, distribute posts, and sync external systems.
+- **Presentation**: HTML service web app surfaces dashboards, consent tooling, and match control panels.
+
+## 🌟 Key Features
+
+- **Live Match Console** – One-click goal, card, and substitution events with instant social + graphics workflows.
+- **Content Automation** – Weekly fixture/results packs, player spotlights, and highlights videos produced end-to-end.
+- **Squad Intelligence** – Player minutes, availability, GDPR consent status, and medical flags tracked centrally.
+- **Ops Command Centre** – Admin sidebar for secure secrets management, trigger reconciliation, and health checks.
+- **Performance & Monitoring** – Multi-layer caching, quota guardrails, structured logging, and automated alerts.
+- **Security & Compliance** – ConsentGate privacy engine, audit trails, redaction tooling, and hardened OAuth scopes.
+
+## 🚀 Quickstart (Club Admins)
+
+1. **Copy the master Google Sheet** provided by your Syston Football system lead.
+2. **Fill the `Config` tab** with club metadata (name, league, colours, badge URL, contact email, etc.).
+3. **Populate core tabs**: `Players`, `Fixtures`, `Results`, and any optional content planners.
+4. **Run the installer** from the custom menu → **⚽ Syston Automation → Install Club Configuration**.
+5. **Open the Admin sidebar** to enter secure Make.com webhook URLs and other secrets.
+6. **Launch the web app** via the provided link; the CI/CD pipeline keeps it on the latest version automatically.
+
+_No direct Apps Script edits required—everything syncs from Git on deploy._
+
+## 🛠️ Development Workflow (Maintainers)
+
+1. Clone the repository and work inside the `src/` directory (Apps Script root defined in `.clasp.json`).
+2. Follow the modular naming convention (`*_svc.gs` for server logic, `*_ui.html` for templates).
+3. Reuse shared helpers for triggers, HTTP backoff, and configuration loading—avoid duplicating logic.
+4. Validate sheet headers in code and map values by header name to keep customer config flexible.
+5. Commit changes with clear messages; never introduce new deployments, secrets, or hard-coded IDs.
+
+### Local Tooling
+- **Testing**: Run ad-hoc validations with clasp (`npx clasp pull/push --dry-run`) or Apps Script execution logs.
+- **Version probe**: `SA_Version()` in Apps Script editor confirms the deployed build.
+
+## 🔁 CI/CD Pipeline
+
+The **Push to Apps Script** GitHub Action manages deployments:
+
+1. Checkout & setup Node 22.
+2. Install `@google/clasp` globally.
+3. Materialise `~/.clasprc.json` from the encrypted `CLASPRC_JSON` secret.
+4. Execute `npx clasp status` to verify repo structure.
+5. Push sources with `npx clasp push --force`.
+6. Stamp a version (`npx clasp version "<branch> @ <commit>"`).
+7. Redeploy the existing web app via `npx clasp deploy --deploymentId $WEBAPP_DEPLOYMENT_ID`.
+
+The workflow fails fast if credentials are missing or the deployment ID is unset, preventing partial releases.
+
+## 🏪 Store & Launch Readiness
+
+- **Deployment model**: Single managed web app tied to `WEBAPP_DEPLOYMENT_ID`; no extra deployments permitted.
+- **Config philosophy**: Customers edit the Sheet Config tab → installer writes Script Properties → triggers remain idempotent.
+- **Scopes**: Apps Script manifest locked to spreadsheet, drive.file, external request, and container UI scopes (re-auth required on scope changes).
+- **Quality gates**: Automated tests + manual matchday rehearsals documented in `/TEST-REPORT.md` and `/COMPREHENSIVE-TEST-REPORT.md`.
+- **Support**: Troubleshooting playbook and security audits bundled within repo (`TROUBLESHOOTING.md`, `SECURITY.md`).
+
+## 🔗 Useful Links
+
+- **Issues & Roadmap** – [GitHub Issues](https://github.com/SystonTigers/Automation_script/issues)
+- **CI Status** – [Actions Dashboard](https://github.com/SystonTigers/Automation_script/actions)
+- **Developer Guide** – [README-Developer.md](./README-Developer.md)
+- **Customer Guide** – [README-Customer.md](./README-Customer.md)
+- **Security Overview** – [SECURITY.md](./SECURITY.md)
+- **Deployment Checklist** – [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md)
+
+---
+
+Professional-grade automation so Syston Football can focus on the pitch. ⚽
