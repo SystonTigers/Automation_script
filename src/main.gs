@@ -302,131 +302,94 @@ function handleQueryParameterRouting(e) {
  * WEBAPP ENTRY POINT - POST handler with security integration
  */
 function doPost(e) {
-  try {
-    // 1. QUOTA CHECK - Prevent quota exhaustion
-    const quotaCheck = QuotaMonitor.checkQuotaLimits();
-    if (!quotaCheck.allowed) {
-      // FIXED: DO NOT record usage for blocked requests to prevent quota inflation
-      console.warn('Request blocked due to quota limits:', quotaCheck);
-      return ContentService.createTextOutput(JSON.stringify({
-        success: false,
-        error: 'System quota limits exceeded',
-        blocked_reason: quotaCheck.blocked_reason,
-        retry_after: quotaCheck.retry_after,
-        violations: quotaCheck.violations
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
+  var request = buildApiRequest(e);
+  var originDecision = resolveAllowedOrigin(request.origin);
 
-    // 2. SECURITY - Advanced validation
-    const userEmail = Session.getActiveUser().getEmail() || 'anonymous';
-    const rateCheck = AdvancedSecurity.checkAdvancedRateLimit(userEmail, { perMinute: 10 });
-
-    if (!rateCheck.allowed) {
-      // FIXED: DO NOT record quota usage for rate-limited requests
-      console.warn('Request blocked due to rate limiting:', rateCheck);
-      return ContentService.createTextOutput(JSON.stringify({
-        success: false,
-        error: 'Rate limit exceeded',
-        retry_after: rateCheck.resetTime,
-        current_usage: rateCheck.current
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 3. PARSE AND VALIDATE DATA
-    let requestData = {};
-    if (e.postData && e.postData.contents) {
-      requestData = JSON.parse(e.postData.contents);
-    }
-
-    const validation = AdvancedSecurity.validateInput(requestData, 'webhook_data', { source: 'webapp_post' });
-    if (!validation.valid) {
-      return ContentService.createTextOutput(JSON.stringify({
-        success: false,
-        error: 'Invalid input data'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 3. PRIVACY CHECK - If posting content with player names
-    if (requestData.content && requestData.content.includes) {
-      const privacyCheck = SimplePrivacy.evaluatePostContent(requestData.content);
-      if (!privacyCheck.allowed) {
-        return ContentService.createTextOutput(JSON.stringify({
-          success: false,
-          error: 'Privacy validation failed',
-          reason: privacyCheck.warnings
-        })).setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-
-    // 4. PROCESS REQUEST - Route to appropriate handler with enhanced validation
-    const params = e.parameter || requestData;
-    const action = params.action || 'unknown';
-
-    // Enhanced action validation
-    const allowedActions = ['add_player', 'add_fixture', 'season_setup', 'add_historical_match', 'live_event'];
-    if (!allowedActions.includes(action)) {
-      return ContentService.createTextOutput(JSON.stringify({
-        success: false,
-        error: 'Invalid action: ' + action,
-        allowedActions: allowedActions
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // Action-specific input validation
-    const validationResult = validateActionParams(action, params);
-    if (!validationResult.valid) {
-      return ContentService.createTextOutput(JSON.stringify({
-        success: false,
-        error: 'Validation failed',
-        details: validationResult.errors
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    let result;
-    switch (action) {
-      case 'add_player':
-        result = handleAddPlayer(validationResult.sanitized);
-        break;
-      case 'add_fixture':
-        result = handleAddFixture(validationResult.sanitized);
-        break;
-      case 'season_setup':
-        result = handleSeasonSetup(validationResult.sanitized);
-        break;
-      case 'add_historical_match':
-        result = handleHistoricalMatch(validationResult.sanitized);
-        break;
-      case 'live_event':
-        result = handleLiveEvent(validationResult.sanitized);
-        break;
-      default:
-        result = {
-          success: false,
-          error: 'Unknown action: ' + action,
-          received: true,
-          processed: new Date().toISOString()
-        };
-    }
-
-    // Record successful request usage
-    QuotaMonitor.recordUsage('URL_FETCH', 1);
-    QuotaMonitor.recordUsage('PROPERTIES_READ', 3); // Estimate for typical request
-    QuotaMonitor.recordUsage('PROPERTIES_WRITE', 1);
-
-    return AdvancedSecurity.addSecurityHeaders(
-      ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        data: result
-      }))
-    );
-
-  } catch (error) {
-    console.error('POST handler error:', error);
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: 'Internal server error'
-    })).setMimeType(ContentService.MimeType.JSON);
+  if (request.method === 'OPTIONS') {
+    return createOptionsResponse(originDecision.origin);
   }
+
+  if (!originDecision.allowed && request.origin) {
+    return createErrorResponse(403, 'Origin not allowed.', [], originDecision.origin);
+  }
+
+  if (request.parseError) {
+    return createErrorResponse(400, 'Invalid JSON payload.', [request.parseError.message], originDecision.origin);
+  }
+
+  var tokenResult = verifyBearerJwt(request.authHeader);
+  if (!tokenResult.valid) {
+    return createErrorResponse(401, tokenResult.message, [], originDecision.origin);
+  }
+  request.user = tokenResult.claims;
+
+  var rateLimit = evaluateRateLimit({
+    ip: request.ip,
+    userId: request.user && request.user.sub
+  });
+  if (!rateLimit.allowed) {
+    var rateLimited = applyRateLimitHeaders(
+      createErrorResponse(429, 'Rate limit exceeded.', [rateLimit.reason], originDecision.origin),
+      rateLimit
+    );
+    return rateLimited;
+  }
+
+  if (request.idempotencyKey) {
+    var stored = getStoredIdempotentResponse(request.idempotencyKey);
+    if (stored) {
+      var cachedResponse = createJsonResponse(stored.status, stored.body, stored.headers, originDecision.origin);
+      return applyRateLimitHeaders(cachedResponse, rateLimit);
+    }
+  }
+
+  var resource = (request.pathSegments[0] || request.body.resource || '').toLowerCase();
+  var result;
+  switch (resource) {
+    case 'auth':
+      result = handleAuthRequest(request);
+      break;
+    case 'events':
+      result = handleEventsRequest(request);
+      break;
+    case 'attendance':
+      result = handleAttendanceRequest(request);
+      break;
+    case 'votes':
+      result = handleVotesRequest(request);
+      break;
+    case 'streams':
+      result = handleStreamsRequest(request);
+      break;
+    case 'shop':
+      result = handleShopRequest(request);
+      break;
+    case 'subs':
+      result = handleSubsRequest(request);
+      break;
+    default:
+      return createErrorResponse(404, 'Unknown API resource.', [], originDecision.origin);
+  }
+
+  var response = createJsonResponse(result.status || 200, result.body || {}, result.headers || {}, originDecision.origin);
+
+  if (result.pagination) {
+    response = applyPaginationHeaders(response, Object.assign({
+      totalPages: 0
+    }, result.pagination));
+  }
+
+  response = applyRateLimitHeaders(response, rateLimit);
+
+  if (request.idempotencyKey) {
+    storeIdempotentResponse(request.idempotencyKey, {
+      status: result.status || 200,
+      body: result.body || {},
+      headers: result.headers || {}
+    });
+  }
+
+  return response;
 }
 
 /**
