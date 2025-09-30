@@ -22,7 +22,13 @@ assignees: ''
 - **Date/Time**:
 - **Browser**:
 
+### Safeguard Check
+- [ ] Rate limits reviewed (quotas, retries, backoff impact)
+- [ ] Idempotency keys/guards evaluated (duplicate prevention in triggers & webhooks)
+- [ ] Regression tests impacted or required updates noted
+
 ### Additional Context
 **Make.com scenarios affected:**
 **Social media platforms affected:**
 **Any recent changes to the system:**
+**Docs bundle/OpenAPI updates needed:**
