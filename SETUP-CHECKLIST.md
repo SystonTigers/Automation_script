@@ -89,6 +89,18 @@ Add these 6 secrets:
 ### Configuration
 - `.clasp.json` - Updated with proper file push order
 
+## 🗂️ Weekly Automation Tabs & Named Ranges (New)
+
+The installer now provisions the weekly content automation tabs with validated headers and reusable named ranges. Confirm these appear in your customer spreadsheet after running the installer:
+
+| Sheet Tab | Required Headers | Named Ranges |
+|-----------|------------------|--------------|
+| `Weekly Content Calendar` | `Date`, `Day`, `Content Type`, `Status`, `Posted At`, `Event Type`, `Notes` | `WEEKLY_CONTENT_HEADERS`, `WEEKLY_CONTENT_TABLE` |
+| `Quotes` | `Quote`, `Author`, `Category` | `QUOTES_HEADERS`, `QUOTES_TABLE` |
+| `Historical Data` | `Title`, `Description`, `Year`, `Category`, `Image URL` | `HISTORICAL_DATA_HEADERS`, `HISTORICAL_DATA_TABLE` |
+
+> ℹ️ Re-run the installer at any time—sheet creation and named range definitions are idempotent.
+
 ## 🔧 Workflow Features
 
 ### Automatic Triggers

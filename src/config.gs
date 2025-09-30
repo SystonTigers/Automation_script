@@ -565,7 +565,28 @@ const SYSTEM_CONFIG = {
       PRIVACY_AUDIT: [
         'Timestamp', 'Player ID', 'Player Name', 'Action', 'Media Type',
         'Platform', 'Decision', 'Reason', 'Context', 'Performed By'
+      ],
+      QUOTES: [
+        'Quote', 'Author', 'Category'
+      ],
+      HISTORICAL_DATA: [
+        'Title', 'Description', 'Year', 'Category', 'Image URL'
       ]
+    },
+
+    NAMED_RANGES: {
+      WEEKLY_CONTENT: {
+        HEADERS: 'WEEKLY_CONTENT_HEADERS',
+        TABLE: 'WEEKLY_CONTENT_TABLE'
+      },
+      QUOTES: {
+        HEADERS: 'QUOTES_HEADERS',
+        TABLE: 'QUOTES_TABLE'
+      },
+      HISTORICAL_DATA: {
+        HEADERS: 'HISTORICAL_DATA_HEADERS',
+        TABLE: 'HISTORICAL_DATA_TABLE'
+      }
     }
   },
 

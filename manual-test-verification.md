@@ -90,6 +90,13 @@
 - **Security:** Input validation and authentication
 - **Error Management:** Standardized responses
 
+## 🧾 Weekly Automation Verification ✅
+
+1. Run `CustomerInstaller.installFromSheet()` from the Apps Script editor.
+2. In the customer spreadsheet, confirm the tabs **Weekly Content Calendar**, **Quotes**, and **Historical Data** exist with the headers listed in the setup checklist.
+3. Open **Data → Named ranges** and verify the ranges `WEEKLY_CONTENT_HEADERS`, `WEEKLY_CONTENT_TABLE`, `QUOTES_HEADERS`, `QUOTES_TABLE`, `HISTORICAL_DATA_HEADERS`, and `HISTORICAL_DATA_TABLE` resolve to the expected sheets.
+4. Re-run the installer to confirm the step is idempotent and the named ranges remain intact.
+
 ## 🎯 PRODUCTION READINESS ASSESSMENT
 
 ### Overall Score: 95/100 ✅
