@@ -1,0 +1,29 @@
+name = "syston-postbus"
+main = "dist/index.js"
+compatibility_date = "2025-09-30"
+minify = true
+
+[observability]
+enabled = true
+
+[vars]
+API_VERSION = "v1"
+JWT_ISSUER = "syston.app"
+JWT_AUDIENCE = "syston-mobile"
+
+[[kv_namespaces]]
+binding = "KV_IDEMP"
+id = "kv_idemp_id"
+
+[[queues.producers]]
+binding = "POST_QUEUE"
+queue = "post-queue"
+
+[[queues.consumers]]
+queue = "post-queue"
+max_batch_size = 25
+max_batch_timeout = 5
+
+[[durable_objects.bindings]]
+name = "TenantRateLimiter"
+class_name = "TenantRateLimiter"
