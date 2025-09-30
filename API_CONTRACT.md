@@ -19,12 +19,63 @@ integrators.
 
 - **Method**: `POST`
 - **Handler**: `doPost`
-- **Request Body**: Plain text or JSON payloads defined by the invoking
-  service.
-- **Response**: `text/plain` with the message `OK` for successful requests.
-- **Error Handling**: Errors should be thrown with descriptive messages and
-  will surface as HTTP 500 responses. Consumers should implement retries with
-  backoff.
+- **Routing**: Path-based routing under `/auth`, `/events`, `/attendance`,
+  `/votes`, `/streams`, `/shop`, and `/subs`.
+- **Authentication**: Requires `Authorization: Bearer <JWT>` header using the
+  shared HS256 secret stored in the `API_JWT_SECRET` Script Property. Tokens are
+  validated for signature, expiration, and not-before claims.
+- **CORS**: Origins must be listed in the `API_ALLOWED_ORIGINS` Script Property
+  (comma-separated). Requests from other origins receive `403` responses.
+- **Rate Limiting**: Per-IP and per-user (based on JWT `sub`) limits enforced
+  via `CacheService`. Limits configurable with `API_RATE_LIMIT_IP`,
+  `API_RATE_LIMIT_USER`, and `API_RATE_LIMIT_WINDOW_SECONDS`. Responses include
+  `X-RateLimit-*` headers.
+- **Idempotency**: Supplying an `Idempotency-Key` header caches responses for
+  24 hours using `CacheService` with a spreadsheet fallback defined by
+  `API_IDEMPOTENCY_SHEET`.
+- **Request/Response Format**: JSON payloads. Validation errors return HTTP
+  `400` with detailed messages. Successful responses include pagination headers
+  (`X-Page`, `X-Per-Page`, `X-Total-Count`, `X-Total-Pages`) when applicable.
+
+#### `/auth`
+
+- `POST /auth/verify`: Returns the validated JWT claims.
+- `POST /auth/introspect`: Returns token activity metadata.
+
+#### `/events`
+
+- `POST /events/list`: Returns paginated event listings honouring pagination
+  headers.
+- `POST /events/create`: Creates a new event; requires `title` and
+  ISO8601 `startTime`.
+
+#### `/attendance`
+
+- `POST /attendance/list`: Returns paginated attendance entries.
+- `POST /attendance/mark`: Marks attendance for an event using `eventId`,
+  `playerId`, and `status`.
+
+#### `/votes`
+
+- `POST /votes/results`: Returns vote tallies with pagination.
+- `POST /votes/submit`: Submits a vote (`pollId`, `selection`, optional
+  `voterId`).
+
+#### `/streams`
+
+- `POST /streams/list`: Returns registered live streams.
+- `POST /streams/register`: Registers a stream for an event (`eventId`,
+  `streamUrl`).
+
+#### `/shop`
+
+- `POST /shop/list`: Returns paginated shop orders.
+- `POST /shop/order`: Creates a new shop order (`itemId`, `quantity`).
+
+#### `/subs`
+
+- `POST /subs/list`: Returns subscription records.
+- `POST /subs/create`: Creates a subscription (`memberId`, `planId`).
 
 ## Install Function
 
