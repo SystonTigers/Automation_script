@@ -1,0 +1,10 @@
+# CODEOWNERS for critical specs, governance, and documentation
+openapi.yaml @SystonTigers
+AGENT.md @SystonTigers
+
+# Documentation bundle (current and future bundles)
+docs/** @SystonTigers
+docs-bundle/** @SystonTigers
+
+# Ensure API module changes receive review
+src/api_* @SystonTigers
