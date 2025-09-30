@@ -1,0 +1,51 @@
+name = "syston-fixtures"
+main = "../dist/fixtures.js"
+compatibility_date = "2025-09-30"
+minify = true
+
+[observability]
+enabled = true
+
+[vars]
+# Fixtures source configuration
+FIXTURES_SOURCE_URL = "https://example.com/fixtures.json"
+FIXTURES_BASE_URL = "https://example.com"
+
+# Apps Script publishing endpoint
+APPS_SCRIPT_EVENTS_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"
+APPS_SCRIPT_EVENTS_ACTION = "syncFixtures"
+
+# Club configuration
+CLUB_NAME = "Syston Tigers"
+FIXTURE_EVENT_TYPE = "fixture"
+
+# Cache configuration
+CACHE_TTL_SECONDS = "1800"
+
+# Snippet variant templates (comma-separated)
+DEFAULT_SNIPPET_VARIANTS = "match-day,fixture-card,team-sheet"
+
+# Manual fixture overrides (JSON string or empty)
+# Format: [{"id":"abc123","opposition":"Override Name","kickoff":"2025-10-01T15:00:00Z"}]
+FIXTURE_MANUAL_OVERRIDES = ""
+MANUAL_FIXTURE_OVERRIDES = ""
+MANUAL_FIXTURES = ""
+
+# IMPORTANT: Update these values before deploying
+# - FIXTURES_SOURCE_URL: URL to fetch fixtures.json from
+# - APPS_SCRIPT_EVENTS_URL: Your Apps Script web app URL
+# - APPS_SCRIPT_EVENTS_API_KEY: Store as secret via `wrangler secret put APPS_SCRIPT_EVENTS_API_KEY`
+
+[[kv_namespaces]]
+binding = "KV_FIXTURES"
+# Run: wrangler kv:namespace create KV_FIXTURES --preview false
+# Then update the line below with the returned ID
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[[kv_namespaces]]
+binding = "KV_FIXTURES"
+preview_id = "REPLACE_WITH_PREVIEW_KV_ID"
+
+# Run these commands to create namespaces:
+# wrangler kv:namespace create KV_FIXTURES --env production
+# wrangler kv:namespace create KV_FIXTURES --env production --preview
