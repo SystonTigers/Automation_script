@@ -70,6 +70,10 @@ class CustomerInstaller {
       this.initializeSystem();
       console.log('✅ System initialized');
 
+      // 6b. Ensure weekly automation sheets and named ranges exist
+      const sheetProvisionResults = this.ensureAutomationInfrastructure();
+      console.log('✅ Automation sheets verified', sheetProvisionResults);
+
       // 7. Mark installation complete
       const properties = PropertiesService.getScriptProperties();
       properties.setProperties({
@@ -280,6 +284,185 @@ class CustomerInstaller {
       console.log('✅ System components initialized');
     } catch (error) {
       console.warn('⚠️  Some system components could not be initialized:', error.message);
+    }
+  }
+
+  /**
+   * Ensure weekly automation sheets exist with headers and named ranges
+   * @returns {Object} Summary of provisioning results keyed by sheet name
+   */
+  static ensureAutomationInfrastructure() {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const provisioningPlan = this.getSheetProvisioningPlan_();
+    const results = {};
+
+    provisioningPlan.forEach(definition => {
+      results[definition.tabName] = this.ensureSheetStructure_(spreadsheet, definition);
+    });
+
+    return results;
+  }
+
+  /**
+   * Sheet provisioning plan for weekly automation support
+   * @returns {Array<Object>} Sheet definitions with headers and named ranges
+   */
+  static getSheetProvisioningPlan_() {
+    const defaults = {
+      weeklyContentHeaders: [
+        'Date', 'Day', 'Content Type', 'Status', 'Posted At', 'Event Type', 'Notes'
+      ],
+      quotesHeaders: ['Quote', 'Author', 'Category'],
+      historicalHeaders: ['Title', 'Description', 'Year', 'Category', 'Image URL']
+    };
+
+    return [
+      {
+        key: 'WEEKLY_CONTENT',
+        tabName: getConfigValue('SHEETS.TAB_NAMES.WEEKLY_CONTENT', 'Weekly Content Calendar'),
+        headers: getConfigValue('SHEETS.REQUIRED_COLUMNS.WEEKLY_CONTENT', defaults.weeklyContentHeaders),
+        namedRanges: [
+          {
+            name: getConfigValue('SHEETS.NAMED_RANGES.WEEKLY_CONTENT.HEADERS', 'WEEKLY_CONTENT_HEADERS'),
+            type: 'HEADERS'
+          },
+          {
+            name: getConfigValue('SHEETS.NAMED_RANGES.WEEKLY_CONTENT.TABLE', 'WEEKLY_CONTENT_TABLE'),
+            type: 'TABLE'
+          }
+        ]
+      },
+      {
+        key: 'QUOTES',
+        tabName: getConfigValue('SHEETS.TAB_NAMES.QUOTES', 'Quotes'),
+        headers: getConfigValue('SHEETS.REQUIRED_COLUMNS.QUOTES', defaults.quotesHeaders),
+        namedRanges: [
+          {
+            name: getConfigValue('SHEETS.NAMED_RANGES.QUOTES.HEADERS', 'QUOTES_HEADERS'),
+            type: 'HEADERS'
+          },
+          {
+            name: getConfigValue('SHEETS.NAMED_RANGES.QUOTES.TABLE', 'QUOTES_TABLE'),
+            type: 'TABLE'
+          }
+        ]
+      },
+      {
+        key: 'HISTORICAL_DATA',
+        tabName: getConfigValue('SHEETS.TAB_NAMES.HISTORICAL_DATA', 'Historical Data'),
+        headers: getConfigValue('SHEETS.REQUIRED_COLUMNS.HISTORICAL_DATA', defaults.historicalHeaders),
+        namedRanges: [
+          {
+            name: getConfigValue('SHEETS.NAMED_RANGES.HISTORICAL_DATA.HEADERS', 'HISTORICAL_DATA_HEADERS'),
+            type: 'HEADERS'
+          },
+          {
+            name: getConfigValue('SHEETS.NAMED_RANGES.HISTORICAL_DATA.TABLE', 'HISTORICAL_DATA_TABLE'),
+            type: 'TABLE'
+          }
+        ]
+      }
+    ];
+  }
+
+  /**
+   * Ensure a sheet exists with required headers and named ranges
+   * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet Active spreadsheet
+   * @param {Object} definition Sheet definition
+   * @returns {Object} Result summary for the sheet
+   */
+  static ensureSheetStructure_(spreadsheet, definition) {
+    const { tabName, headers, namedRanges } = definition;
+    const normalizedHeaders = (headers || []).map(header => String(header).trim()).filter(Boolean);
+    let sheet = spreadsheet.getSheetByName(tabName);
+    const result = {
+      created: false,
+      headersEnsured: false,
+      namedRanges: []
+    };
+
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(tabName);
+      result.created = true;
+    }
+
+    this.ensureColumnCapacity_(sheet, normalizedHeaders.length);
+    this.ensureRowCapacity_(sheet, 2);
+
+    if (normalizedHeaders.length > 0) {
+      sheet.getRange(1, 1, 1, normalizedHeaders.length).setValues([normalizedHeaders]);
+      result.headersEnsured = true;
+    }
+
+    const ranges = Array.isArray(namedRanges) ? namedRanges.filter(rangeDef => rangeDef && rangeDef.name) : [];
+
+    ranges.forEach(rangeDefinition => {
+      const range = this.getRangeForDefinition_(sheet, normalizedHeaders.length, rangeDefinition);
+      if (range) {
+        spreadsheet.setNamedRange(rangeDefinition.name, range);
+        result.namedRanges.push(rangeDefinition.name);
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * Ensure the sheet has enough columns to fit headers
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet Sheet to adjust
+   * @param {number} requiredColumns Required column count
+   */
+  static ensureColumnCapacity_(sheet, requiredColumns) {
+    if (!requiredColumns) {
+      return;
+    }
+
+    const currentColumns = sheet.getMaxColumns();
+    if (currentColumns < requiredColumns) {
+      sheet.insertColumnsAfter(currentColumns, requiredColumns - currentColumns);
+    }
+  }
+
+  /**
+   * Ensure the sheet has at least the required number of rows
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet Sheet to adjust
+   * @param {number} requiredRows Minimum row count
+   */
+  static ensureRowCapacity_(sheet, requiredRows) {
+    if (!requiredRows) {
+      return;
+    }
+
+    const currentRows = sheet.getMaxRows();
+    if (currentRows < requiredRows) {
+      sheet.insertRowsAfter(currentRows, requiredRows - currentRows);
+    }
+  }
+
+  /**
+   * Resolve range for named range definition
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet Sheet reference
+   * @param {number} headerCount Number of header columns
+   * @param {Object} definition Range definition with name and type
+   * @returns {GoogleAppsScript.Spreadsheet.Range|null} Range for named range
+   */
+  static getRangeForDefinition_(sheet, headerCount, definition) {
+    if (!definition || !definition.name) {
+      return null;
+    }
+
+    const effectiveHeaderCount = headerCount || sheet.getLastColumn() || 1;
+
+    switch (definition.type) {
+      case 'HEADERS':
+        return sheet.getRange(1, 1, 1, effectiveHeaderCount);
+      case 'TABLE': {
+        const lastRow = Math.max(sheet.getLastRow(), 2);
+        this.ensureRowCapacity_(sheet, lastRow);
+        return sheet.getRange(1, 1, lastRow, effectiveHeaderCount);
+      }
+      default:
+        return null;
     }
   }
 

@@ -205,6 +205,61 @@ function runComprehensiveSystemTest() {
     testResults.totalTests++;
   }
 
+  // Test 7: Weekly Automation Sheets & Named Ranges
+  console.log('Test 7: Weekly Automation Sheets');
+  try {
+    const provisioningResult = CustomerInstaller.ensureAutomationInfrastructure();
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+    const requiredSheets = [
+      getConfigValue('SHEETS.TAB_NAMES.WEEKLY_CONTENT', 'Weekly Content Calendar'),
+      getConfigValue('SHEETS.TAB_NAMES.QUOTES', 'Quotes'),
+      getConfigValue('SHEETS.TAB_NAMES.HISTORICAL_DATA', 'Historical Data')
+    ];
+
+    const requiredNamedRanges = [
+      getConfigValue('SHEETS.NAMED_RANGES.WEEKLY_CONTENT.HEADERS', 'WEEKLY_CONTENT_HEADERS'),
+      getConfigValue('SHEETS.NAMED_RANGES.WEEKLY_CONTENT.TABLE', 'WEEKLY_CONTENT_TABLE'),
+      getConfigValue('SHEETS.NAMED_RANGES.QUOTES.HEADERS', 'QUOTES_HEADERS'),
+      getConfigValue('SHEETS.NAMED_RANGES.QUOTES.TABLE', 'QUOTES_TABLE'),
+      getConfigValue('SHEETS.NAMED_RANGES.HISTORICAL_DATA.HEADERS', 'HISTORICAL_DATA_HEADERS'),
+      getConfigValue('SHEETS.NAMED_RANGES.HISTORICAL_DATA.TABLE', 'HISTORICAL_DATA_TABLE')
+    ];
+
+    const missingSheets = requiredSheets.filter(name => !spreadsheet.getSheetByName(name));
+    const missingRanges = requiredNamedRanges.filter(name => !spreadsheet.getRangeByName(name));
+    const missingHeaderSheets = requiredSheets.filter(name => {
+      const details = provisioningResult && provisioningResult[name];
+      return !details || details.headersEnsured !== true;
+    });
+
+    if (missingSheets.length === 0 && missingRanges.length === 0 && missingHeaderSheets.length === 0) {
+      testResults.results.push({
+        test: 'Weekly Automation Sheets',
+        status: 'PASS',
+        details: 'All automation sheets and named ranges present'
+      });
+      testResults.passedTests++;
+    } else {
+      testResults.results.push({
+        test: 'Weekly Automation Sheets',
+        status: 'FAIL',
+        details: `Missing sheets: ${missingSheets.join(', ') || 'none'}; Missing ranges: ${missingRanges.join(', ') || 'none'}; Headers ensured: ${missingHeaderSheets.length === 0 ? 'yes' : 'no (' + missingHeaderSheets.join(', ') + ')'}`
+      });
+      testResults.failedTests++;
+    }
+
+    testResults.totalTests++;
+  } catch (error) {
+    testResults.results.push({
+      test: 'Weekly Automation Sheets',
+      status: 'ERROR',
+      details: error.toString()
+    });
+    testResults.failedTests++;
+    testResults.totalTests++;
+  }
+
   // Calculate final results
   testResults.passRate = Math.round((testResults.passedTests / testResults.totalTests) * 100);
 
