@@ -1,93 +1,196 @@
-# ⚽ Syston Football — Club App + Automation
+# ⚽ Syston Football — App + Workers Automation Backend
 
-[![Deploy Status](https://github.com/SystonTigers/Automation_script/workflows/Push%20to%20Apps%20Script/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
+[![Deploy Backend](https://github.com/SystonTigers/Automation_script/workflows/Deploy%20Backend/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
+[![Deploy Apps Script](https://github.com/SystonTigers/Automation_script/workflows/Push%20to%20Apps%20Script/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
 [![Version](https://img.shields.io/github/v/tag/SystonTigers/Automation_script)](https://github.com/SystonTigers/Automation_script/tags)
+[![Implementation](https://img.shields.io/badge/implementation-82%25-yellow)](./IMPLEMENTATION_STATUS.md)
 
-Full-stack automation for grassroots football clubs. This Google Apps Script project powers the live **Syston Football** club app, delivering real-time match coverage, automated media workflows, and self-serve admin tools backed by CI/CD.
+**Full-stack automation platform for grassroots football clubs**, combining a **Cloudflare Workers** backend with **Google Apps Script** orchestration. Powers the Syston Football club mobile app with real-time match coverage, automated social media workflows, and self-serve admin tools.
 
 ---
 
 ## 🧱 Architecture Overview
 
 ```
-Google Sheets (Config & Data Entry)
+Mobile App (iOS/Android - Capacitor)
+        ↓ HTTPS + JWT
+Cloudflare Workers Backend (Post Bus API)
+        ├─ HTTP Worker (JWT auth, rate limiting, idempotency)
+        ├─ Queue Consumer (async post processing)
+        ├─ Durable Objects (rate limiting)
+        └─ Adapters (Make.com primary, YouTube/Facebook/Instagram planned)
         ↓
-Apps Script Services (Automation + API Orchestration)
+Make.com Scenarios + Canva → Social Media (all channels)
         ↓
-Make.com Scenarios → Canva Templates → Social + Email Channels
+Google Apps Script (config management, fixture parsing, scheduling)
         ↓
-Club App UI (deployed via single Apps Script web app)
+Google Sheets (data source & admin interface)
 ```
-
-**Core layers**
-- **Data Source**: Structured Google Sheets tabs for fixtures, players, results, config, and media planning.
-- **Automation Runtime**: Modular Apps Script services (V8) with caching, logging, and enterprise-grade HTTP utilities.
-- **Integration Hub**: Make.com workflows triggered from Apps Script to generate graphics, distribute posts, and sync external systems.
-- **Presentation**: HTML service web app surfaces dashboards, consent tooling, and match control panels.
-
-## 🌟 Key Features
-
-- **Live Match Console** – One-click goal, card, and substitution events with instant social + graphics workflows.
-- **Content Automation** – Weekly fixture/results packs, player spotlights, and highlights videos produced end-to-end.
-- **Squad Intelligence** – Player minutes, availability, GDPR consent status, and medical flags tracked centrally.
-- **Ops Command Centre** – Admin sidebar for secure secrets management, trigger reconciliation, and health checks.
-- **Performance & Monitoring** – Multi-layer caching, quota guardrails, structured logging, and automated alerts.
-- **Security & Compliance** – ConsentGate privacy engine, audit trails, redaction tooling, and hardened OAuth scopes.
-
-## 🚀 Quickstart (Club Admins)
-
-1. **Copy the master Google Sheet** provided by your Syston Football system lead.
-2. **Fill the `Config` tab** with club metadata (name, league, colours, badge URL, contact email, etc.).
-3. **Populate core tabs**: `Players`, `Fixtures`, `Results`, and any optional content planners.
-4. **Run the installer** from the custom menu → **⚽ Syston Automation → Install Club Configuration**.
-5. **Open the Admin sidebar** to enter secure Make.com webhook URLs and other secrets.
-6. **Launch the web app** via the provided link; the CI/CD pipeline keeps it on the latest version automatically.
-
-_No direct Apps Script edits required—everything syncs from Git on deploy._
-
-## 🛠️ Development Workflow (Maintainers)
-
-1. Clone the repository and work inside the `src/` directory (Apps Script root defined in `.clasp.json`).
-2. Follow the modular naming convention (`*_svc.gs` for server logic, `*_ui.html` for templates).
-3. Reuse shared helpers for triggers, HTTP backoff, and configuration loading—avoid duplicating logic.
-4. Validate sheet headers in code and map values by header name to keep customer config flexible.
-5. Commit changes with clear messages; never introduce new deployments, secrets, or hard-coded IDs.
-
-### Local Tooling
-- **Testing**: Run ad-hoc validations with clasp (`npx clasp pull/push --dry-run`) or Apps Script execution logs.
-- **Version probe**: `SA_Version()` in Apps Script editor confirms the deployed build.
-
-## 🔁 CI/CD Pipeline
-
-The **Push to Apps Script** GitHub Action manages deployments:
-
-1. Checkout & setup Node 22.
-2. Install `@google/clasp` globally.
-3. Materialise `~/.clasprc.json` from the encrypted `CLASPRC_JSON` secret.
-4. Execute `npx clasp status` to verify repo structure.
-5. Push sources with `npx clasp push --force`.
-6. Stamp a version (`npx clasp version "<branch> @ <commit>"`).
-7. Redeploy the existing web app via `npx clasp deploy --deploymentId $WEBAPP_DEPLOYMENT_ID`.
-
-The workflow fails fast if credentials are missing or the deployment ID is unset, preventing partial releases.
-
-## 🏪 Store & Launch Readiness
-
-- **Deployment model**: Single managed web app tied to `WEBAPP_DEPLOYMENT_ID`; no extra deployments permitted.
-- **Config philosophy**: Customers edit the Sheet Config tab → installer writes Script Properties → triggers remain idempotent.
-- **Scopes**: Apps Script manifest locked to spreadsheet, drive.file, external request, and container UI scopes (re-auth required on scope changes).
-- **Quality gates**: Automated tests + manual matchday rehearsals documented in `/TEST-REPORT.md` and `/COMPREHENSIVE-TEST-REPORT.md`.
-- **Support**: Troubleshooting playbook and security audits bundled within repo (`TROUBLESHOOTING.md`, `SECURITY.md`).
-
-## 🔗 Useful Links
-
-- **Issues & Roadmap** – [GitHub Issues](https://github.com/SystonTigers/Automation_script/issues)
-- **CI Status** – [Actions Dashboard](https://github.com/SystonTigers/Automation_script/actions)
-- **Developer Guide** – [README-Developer.md](./README-Developer.md)
-- **Customer Guide** – [README-Customer.md](./README-Customer.md)
-- **Security Overview** – [SECURITY.md](./SECURITY.md)
-- **Deployment Checklist** – [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md)
 
 ---
 
-Professional-grade automation so Syston Football can focus on the pitch. ⚽
+## 🎯 System Status (82% Complete)
+
+| Component | Status | Completeness |
+|-----------|--------|--------------|
+| **Backend Worker** | ✅ Operational | 90% |
+| **Queue Consumer** | ✅ Operational | 100% |
+| **Make.com Adapter** | ✅ Production | 100% |
+| **Idempotency & Rate Limiting** | ✅ Production | 100% |
+| **Fixtures Worker** | ⚠️ Ready | 95% - needs deployment config |
+| **Admin Endpoints** | ❌ Missing | 0% - manual KV required |
+| **Apps Script** | ✅ Operational | 90% - 110+ files |
+| **CI/CD Pipeline** | ✅ Operational | 100% |
+| **Documentation** | ✅ Complete | 100% |
+
+**See [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) for detailed breakdown.**
+
+---
+
+## 🌟 Key Features
+
+### Mobile App Backend (Cloudflare Workers)
+- **Post Bus API** – Queue-based async processing with idempotency
+- **JWT Authentication** – Tenant-scoped security
+- **Rate Limiting** – 5 req/sec per tenant via Durable Objects
+- **Livestream Metadata** – YouTube Live scheduling
+- **Fixtures & Table** – Cached FA snippet data
+- **MOTM Voting** – Anti-cheat voting system
+
+### Automation (Make.com + Apps Script)
+- **Live Match Console** – One-click events with social publishing
+- **Content Automation** – Weekly fixture/results packs
+- **Squad Intelligence** – Player tracking with GDPR compliance
+- **ConsentGate** – Privacy engine for minors
+
+---
+
+## 🚀 Quickstart
+
+### Deploy Backend (Cloudflare Workers)
+```bash
+cd backend
+npm install
+
+# Create resources
+wrangler kv:namespace create KV_CACHE
+wrangler kv:namespace create KV_IDEMP
+wrangler queues create post-queue
+
+# Set secrets
+wrangler secret put JWT_SECRET
+wrangler secret put MAKE_WEBHOOK_BASE
+
+# Deploy
+wrangler deploy
+
+# Verify
+curl https://your-worker.workers.dev/healthz
+```
+
+### Deploy Apps Script
+```bash
+npm install -g @google/clasp
+clasp login
+clasp clone <SCRIPT_ID>
+clasp push
+```
+
+---
+
+## 📂 Repository Structure
+
+```
+├── backend/                 # Cloudflare Workers (TypeScript)
+│   ├── src/
+│   │   ├── index.ts        # HTTP Worker (10 API endpoints)
+│   │   ├── queue-consumer.ts
+│   │   ├── adapters/       # Make.com ✅, YouTube ⚠️, FB/IG ⚠️
+│   │   ├── do/             # Rate limiter (Durable Object)
+│   │   └── services/       # Auth, idempotency, tenants
+│   └── wrangler.toml       # Cloudflare config
+│
+├── workers/                 # Separate Workers
+│   └── fixtures.ts         # FA snippet parser (needs wrangler.toml)
+│
+├── src/                     # Apps Script (110+ files)
+│   ├── appsscript.json
+│   ├── api_*.gs            # API endpoints
+│   └── util_*.gs           # Utilities
+│
+├── docs/                    # Documentation
+│   └── README.md           # Workers architecture
+│
+├── .github/workflows/       # CI/CD
+│   ├── deploy.yml          # Backend deployment
+│   └── appsscript-push.yml # Apps Script deployment
+│
+├── openapi.yaml            # API specification v1.0.0
+├── AGENT.md                # Automation spec v7.0
+├── IMPLEMENTATION_PLAN.md  # Roadmap
+├── IMPLEMENTATION_STATUS.md # Component breakdown
+└── NEXT_STEPS.md           # Immediate actions
+```
+
+---
+
+## 🔌 API Endpoints
+
+### Public (JWT Required)
+- `GET /healthz` — Health check
+- `GET /i18n/{locale}` — Localization
+- `GET /api/v1/events` — Fixtures list
+- `POST /api/v1/attendance` — Mark attendance
+- `POST /api/v1/votes` — MOTM vote
+- `POST /api/v1/post` — **Post Bus** (queue submission)
+- `GET /api/v1/table` — League table
+
+### Admin (Not Implemented) ⚠️
+- `PUT /api/v1/admin/tenants/{id}` — Update tenant
+- `PATCH /api/v1/admin/tenants/{id}/flags` — Toggle flags
+- `POST /api/v1/admin/tenants/{id}/youtube-token` — Store OAuth
+
+---
+
+## 📋 Roadmap
+
+### ✅ Completed (82%)
+- Backend Worker with 10 API endpoints
+- Queue-based async processing
+- Make.com adapter production-ready
+- Apps Script integration (110+ files)
+
+### 🚧 In Progress
+- Admin endpoints (Priority 1)
+- Fixtures Worker deployment config (Priority 1)
+- Backend test suite (Priority 2)
+
+### 📅 Planned
+- YouTube Direct integration (or document Make.com as primary)
+- Facebook/Instagram Direct integrations
+- Enhanced monitoring
+
+**See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for detailed roadmap.**
+
+---
+
+## 📖 Documentation
+
+- [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) — Detailed component breakdown
+- [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) — Roadmap and phases
+- [NEXT_STEPS.md](./NEXT_STEPS.md) — Immediate action items
+- [openapi.yaml](./openapi.yaml) — API specification v1.0.0
+- [AGENT.md](./AGENT.md) — Automation spec v7.0
+- [docs/README.md](./docs/README.md) — Workers architecture details
+
+---
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+
+---
+
+**Current Version:** 1.0.0-alpha  
+**Last Updated:** 2025-09-30  
+**Implementation Status:** 82% Complete (Production-Ready)
