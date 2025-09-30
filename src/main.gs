@@ -113,12 +113,13 @@ function doGet(e) {
   try {
     // Simple routing without complex dependencies
     const path = (e && e.pathInfo) ? e.pathInfo : '';
-    const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : '';
+    const params = (e && e.parameter) ? e.parameter : {};
+    const action = params && params.action ? params.action : '';
 
     // PUBLIC ROUTES (no authentication required)
 
     // Progressive Web App assets
-    const pwaResponse = handlePwaAssetRequest(path);
+    const pwaResponse = handlePwaAssetRequest(path, params);
     if (pwaResponse) {
       return pwaResponse;
     }
