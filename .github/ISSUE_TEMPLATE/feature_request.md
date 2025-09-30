@@ -25,6 +25,12 @@ assignees: ''
 
 **Configuration needed:**
 
+### Safeguard Planning
+- [ ] Rate limits evaluated (usage estimates, retries, quotas)
+- [ ] Idempotency keys/guards designed for new triggers or webhooks
+- [ ] Regression test impact assessed (new coverage or updates planned)
+- [ ] Docs bundle & OpenAPI version bump required? (note plan)
+
 ### Success Criteria
 **How will we know this feature is working correctly?**
 
