@@ -3,7 +3,9 @@
 This document summarizes the interfaces exposed by the Automation Script
 project. Although Apps Script primarily operates through triggers and
 spreadsheet interactions, several entry points are treated as public APIs for
-integrators.
+integrators. The canonical, machine-readable contract lives in
+[`openapi.yaml`](./openapi.yaml); the sections below provide a prose summary of
+key surfaces.
 
 ## Web App Endpoint
 
