@@ -1,4 +1,5 @@
 import { ensureIdempotent } from './services/idempotency';
+import { handleAdminRoute } from './admin';
 import { RateLimitError, tenantLimiter } from './services/ratelimit';
 import { AuthError, requireJWT, unauthorized } from './services/auth';
 import { listFixtures } from './services/fixtures';
@@ -197,6 +198,12 @@ export default {
         const rate = await limiter.check('table');
         const table = await getLeagueTable(env);
         return withCORS(json(success(table), 200, rateLimitHeaders(rate)), env);
+      }
+
+      // Admin routes
+      if (url.pathname.startsWith('/api/v1/admin/')) {
+        if (!user) return unauthorized(env, 'Authentication required');
+        return handleAdminRoute(request, env, user, url.pathname);
       }
 
       return withCORS(json(failure('NOT_FOUND', 'Route not found'), 404), env);
