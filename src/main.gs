@@ -142,6 +142,40 @@ function doGet(e) {
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
     }
 
+    // SHOP & SUBSCRIPTION ROUTES (public, read-only)
+    if (path === 'shop/products') {
+      const query = e && e.parameter ? e.parameter : {};
+      const options = {
+        page: query.page,
+        limit: query.limit
+      };
+      const catalog = ShopOperationsService.fetchCatalog(options);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        data: catalog
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (path === 'shop/product') {
+      const productId = e && e.parameter ? e.parameter.productId : '';
+      if (!productId) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          error: 'productId is required'
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      const product = ShopOperationsService.fetchProduct(String(productId));
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        data: product
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (path && path.indexOf('subs/') === 0) {
+      const params = (e && e.parameter) ? e.parameter : {};
+      return SubscriptionService.handleGet(path, params);
+    }
+
     // PROTECTED ROUTES (authentication required)
 
     // Handle path-based routing
@@ -302,8 +336,45 @@ function handleQueryParameterRouting(e) {
  * WEBAPP ENTRY POINT - POST handler with security integration
  */
 function doPost(e) {
+
+  try {
+    const path = (e && e.pathInfo) ? e.pathInfo : '';
+
+    if (path === 'webhook/stripe') {
+      return PaymentWebhookService.handleStripeWebhookRequest(e);
+    }
+
+    if (path === 'webhook/paypal') {
+      return PaymentWebhookService.handlePayPalWebhookRequest(e);
+    }
+
+    if (path === 'subs/verify') {
+      const body = parseJsonBody_(e);
+      const params = (e && e.parameter) ? e.parameter : {};
+      return SubscriptionService.handlePost(path, body, params);
+    }
+
+    if (path === 'shop/checkout') {
+      return handleShopCheckoutPost_(e);
+    }
+
+    // 1. QUOTA CHECK - Prevent quota exhaustion
+    const quotaCheck = QuotaMonitor.checkQuotaLimits();
+    if (!quotaCheck.allowed) {
+      // FIXED: DO NOT record usage for blocked requests to prevent quota inflation
+      console.warn('Request blocked due to quota limits:', quotaCheck);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: 'System quota limits exceeded',
+        blocked_reason: quotaCheck.blocked_reason,
+        retry_after: quotaCheck.retry_after,
+        violations: quotaCheck.violations
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
   var request = buildApiRequest(e);
   var originDecision = resolveAllowedOrigin(request.origin);
+
 
   if (request.method === 'OPTIONS') {
     return createOptionsResponse(originDecision.origin);
@@ -879,6 +950,119 @@ function validateActionParams(action, params) {
       sanitized: {}
     };
   }
+}
+
+function handleShopCheckoutPost_(e) {
+  const quotaCheck = QuotaMonitor.checkQuotaLimits();
+  if (!quotaCheck.allowed) {
+    console.warn('Shop checkout blocked due to quota limits:', quotaCheck);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: 'System quota limits exceeded',
+      blocked_reason: quotaCheck.blocked_reason,
+      retry_after: quotaCheck.retry_after
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const userEmail = Session.getActiveUser().getEmail() || 'anonymous';
+  const rateCheck = AdvancedSecurity.checkAdvancedRateLimit(userEmail, { perMinute: 5 });
+  if (!rateCheck.allowed) {
+    console.warn('Shop checkout blocked due to rate limiting:', rateCheck);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: 'Rate limit exceeded',
+      retry_after: rateCheck.resetTime
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const body = parseJsonBody_(e);
+  const checkoutRequest = validateShopCheckoutRequest_(body);
+
+  const session = ShopOperationsService.createHostedCheckout(checkoutRequest);
+
+  QuotaMonitor.recordUsage('URL_FETCH', 1);
+
+  return AdvancedSecurity.addSecurityHeaders(
+    ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      checkout: session
+    })).setMimeType(ContentService.MimeType.JSON)
+  );
+}
+
+function validateShopCheckoutRequest_(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Checkout payload missing');
+  }
+
+  const provider = String(payload.provider || '').trim().toLowerCase();
+  if (!provider || ['stripe', 'paypal'].indexOf(provider) === -1) {
+    throw new Error('Unsupported checkout provider');
+  }
+
+  const successUrl = String(payload.successUrl || '').trim();
+  const cancelUrl = String(payload.cancelUrl || '').trim();
+  if (!successUrl || !cancelUrl) {
+    throw new Error('Checkout success and cancel URLs are required');
+  }
+
+  const metadata = (payload.metadata && typeof payload.metadata === 'object') ? payload.metadata : {};
+  const sanitizedMetadata = ShopOperationsService.sanitizeMetadata_(metadata);
+
+  const base = {
+    provider,
+    successUrl,
+    cancelUrl,
+    metadata: sanitizedMetadata
+  };
+
+  if (payload.customerEmail) {
+    base.customerEmail = String(payload.customerEmail).trim();
+  }
+
+  if (provider === 'stripe') {
+    const priceId = String(payload.priceId || '').trim();
+    const quantity = Math.max(1, Math.min(99, parseInt(payload.quantity, 10) || 1));
+    if (!priceId) {
+      throw new Error('Stripe priceId is required');
+    }
+    base.priceId = priceId;
+    base.quantity = quantity;
+    base.mode = payload.mode ? String(payload.mode) : 'payment';
+    if (Array.isArray(payload.lineItems)) {
+      base.lineItems = payload.lineItems
+        .filter(item => item && item.priceId && item.quantity)
+        .map(item => ({
+          priceId: String(item.priceId),
+          quantity: Math.max(1, Math.min(99, parseInt(item.quantity, 10) || 1))
+        }));
+    }
+  } else if (provider === 'paypal') {
+    const amount = Number(payload.amount);
+    const currency = String(payload.currency || '').trim();
+    if (!currency || isNaN(amount) || amount <= 0) {
+      throw new Error('PayPal amount and currency are required');
+    }
+    base.amount = amount.toFixed(2);
+    base.currency = currency.toUpperCase();
+    if (payload.customId) {
+      base.customId = String(payload.customId).substring(0, 64);
+    }
+    base.requireShipping = !!payload.requireShipping;
+  }
+
+  return base;
+}
+
+function parseJsonBody_(e) {
+  if (e && e.postData && e.postData.contents) {
+    try {
+      return JSON.parse(e.postData.contents);
+    } catch (error) {
+      throw new Error('Invalid JSON payload');
+    }
+  }
+  return {};
 }
 
 /**
