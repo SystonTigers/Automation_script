@@ -1,0 +1,705 @@
+openapi: 3.1.0
+info:
+  title: Syston Football Automation API
+  version: 1.0.0
+  description: >-
+    Canonical REST contract for the Google Apps Script web app that powers the
+    Syston Football automation platform. The API surfaces authentication,
+    live-event ingestion, attendance tracking, Goal of the Month workflows, and
+    live match console state feeds used by first-party clients.
+servers:
+  - url: https://script.google.com/macros/s/{scriptId}/exec
+    description: Deployed Apps Script web application
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate an administrator
+      description: >-
+        Validates administrator credentials (including optional MFA) and
+        returns a session token issued by the enhanced security manager.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login attempt processed
+          headers:
+            X-Total-Count:
+              $ref: '#/components/headers/PaginationTotal'
+            X-Page-Size:
+              $ref: '#/components/headers/PaginationPageSize'
+            X-Next-Page:
+              $ref: '#/components/headers/PaginationNext'
+            X-Prev-Page:
+              $ref: '#/components/headers/PaginationPrev'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /auth/logout:
+    post:
+      summary: Terminate an authenticated session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Session destroyed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /auth/session:
+    get:
+      summary: Retrieve session status metadata
+      parameters:
+        - in: header
+          name: X-Session-Token
+          schema:
+            type: string
+          required: true
+          description: Session token issued by the login endpoint
+      responses:
+        '200':
+          description: Session status payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStatusResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /auth/session/extend:
+    post:
+      summary: Refresh session activity timeout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtendSessionRequest'
+      responses:
+        '200':
+          description: Session extension result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtendSessionResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /events/live:
+    post:
+      summary: Record a live match event
+      description: Persists a live match event row and dispatches the Make.com webhook if configured.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveEventRequest'
+      responses:
+        '200':
+          description: Event ingestion result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveEventResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /attendance/minutes:
+    post:
+      summary: Track player minutes for a fixture
+      description: >-
+        Writes player appearance minutes, updates player stats, and returns the
+        calculated minutes alongside per-player update results.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackMinutesRequest'
+      responses:
+        '200':
+          description: Minutes tracking outcome
+          headers:
+            X-Total-Count:
+              $ref: '#/components/headers/PaginationTotal'
+            X-Page-Size:
+              $ref: '#/components/headers/PaginationPageSize'
+            X-Next-Page:
+              $ref: '#/components/headers/PaginationNext'
+            X-Prev-Page:
+              $ref: '#/components/headers/PaginationPrev'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackMinutesResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /votes/gotm/start:
+    post:
+      summary: Open Goal of the Month voting
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GOTMVotingRequest'
+      responses:
+        '200':
+          description: Voting initialisation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GOTMVotingResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /votes/gotm/announce:
+    post:
+      summary: Announce Goal of the Month winner
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GOTMVotingRequest'
+      responses:
+        '200':
+          description: Winner announcement result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GOTMWinnerResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+  /streams/live:
+    get:
+      summary: Fetch live match console state
+      description: >-
+        Returns the aggregated live console payload including scoreboard data,
+        configured metadata, and recent events. Responses include pagination
+        headers describing the recent event slice.
+      responses:
+        '200':
+          description: Live console state snapshot
+          headers:
+            X-Total-Count:
+              $ref: '#/components/headers/PaginationTotal'
+            X-Page-Size:
+              $ref: '#/components/headers/PaginationPageSize'
+            X-Next-Page:
+              $ref: '#/components/headers/PaginationNext'
+            X-Prev-Page:
+              $ref: '#/components/headers/PaginationPrev'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveStreamStateResponse'
+        default:
+          $ref: '#/components/responses/ErrorResponse'
+components:
+  headers:
+    PaginationTotal:
+      description: Total items available for the queried resource (when paginated).
+      schema:
+        type: integer
+        minimum: 0
+    PaginationPageSize:
+      description: Number of items returned in the current response page.
+      schema:
+        type: integer
+        minimum: 0
+    PaginationNext:
+      description: Cursor or URL for the next page when additional data exists.
+      schema:
+        type: string
+        nullable: true
+    PaginationPrev:
+      description: Cursor or URL for the previous page when applicable.
+      schema:
+        type: string
+        nullable: true
+  responses:
+    ErrorResponse:
+      description: Standard error payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+        password:
+          type: string
+          minLength: 6
+        mfaCode:
+          type: string
+          description: Optional multi-factor authentication token
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        sessionToken:
+          type: string
+        role:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    LogoutRequest:
+      type: object
+      required: [sessionToken]
+      properties:
+        sessionToken:
+          type: string
+    LogoutResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    SessionStatusResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        username:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_activity:
+          type: string
+          format: date-time
+          nullable: true
+        time_remaining_ms:
+          type: integer
+          nullable: true
+        time_remaining_minutes:
+          type: integer
+          nullable: true
+        time_since_activity_ms:
+          type: integer
+          nullable: true
+        time_since_activity_minutes:
+          type: integer
+          nullable: true
+        inactivity_timeout_minutes:
+          type: integer
+          nullable: true
+        approaching_timeout:
+          type: boolean
+          nullable: true
+        approaching_inactivity_timeout:
+          type: boolean
+          nullable: true
+        concurrent_sessions:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: true
+        code:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required: [valid]
+    ExtendSessionRequest:
+      type: object
+      required: [sessionToken]
+      properties:
+        sessionToken:
+          type: string
+    ExtendSessionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        last_activity:
+          type: string
+          format: date-time
+          nullable: true
+        time_remaining_minutes:
+          type: integer
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    LiveEventRequest:
+      type: object
+      required: [eventType, minute]
+      properties:
+        eventType:
+          type: string
+        minute:
+          type: integer
+          minimum: 0
+        player:
+          type: string
+          nullable: true
+        assist:
+          type: string
+          nullable: true
+        homeScore:
+          type: integer
+          nullable: true
+        awayScore:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    LiveEventResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          nullable: true
+        eventType:
+          type: string
+          nullable: true
+        player:
+          type: string
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    TrackMinutesRequest:
+      type: object
+      required: [matchId, startingPlayers, substitutions]
+      properties:
+        matchId:
+          type: string
+        startingPlayers:
+          type: array
+          items:
+            type: string
+        substitutions:
+          type: array
+          items:
+            type: object
+            required: [minute]
+            properties:
+              playerOn:
+                type: string
+                nullable: true
+              playerOff:
+                type: string
+                nullable: true
+              minute:
+                type: integer
+      additionalProperties: false
+    TrackMinutesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        playersTracked:
+          type: integer
+          nullable: true
+        minutesData:
+          type: array
+          items:
+            type: object
+            properties:
+              matchId:
+                type: string
+              player:
+                type: string
+              minutesPlayed:
+                type: integer
+              startTime:
+                type: integer
+              endTime:
+                type: integer
+              wasStarter:
+                type: boolean
+              subIn:
+                type: integer
+                nullable: true
+              subOut:
+                type: integer
+                nullable: true
+              date:
+                type: string
+              opposition:
+                type: string
+            required: [matchId, player, minutesPlayed]
+        updateResults:
+          type: array
+          items:
+            type: object
+            properties:
+              success:
+                type: boolean
+              player:
+                type: string
+                nullable: true
+              minutesAdded:
+                type: integer
+                nullable: true
+              newTotal:
+                type: integer
+                nullable: true
+              newPlayer:
+                type: boolean
+                nullable: true
+              error:
+                type: string
+                nullable: true
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    GOTMVotingRequest:
+      type: object
+      properties:
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        year:
+          type: integer
+    GOTMVotingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        skipped:
+          type: boolean
+          nullable: true
+        duplicate:
+          type: boolean
+          nullable: true
+        blocked:
+          type: boolean
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        goal_count:
+          type: integer
+          nullable: true
+        min_required:
+          type: integer
+          nullable: true
+        month:
+          type: integer
+          nullable: true
+        year:
+          type: integer
+          nullable: true
+        month_key:
+          type: string
+          nullable: true
+        goals:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: true
+        voting_period_days:
+          type: integer
+          nullable: true
+        make_result:
+          type: object
+          nullable: true
+          additionalProperties: true
+        idempotency_key:
+          type: string
+          nullable: true
+        consent:
+          type: object
+          nullable: true
+          additionalProperties: true
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    GOTMWinnerResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        skipped:
+          type: boolean
+          nullable: true
+        blocked:
+          type: boolean
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        winner:
+          type: object
+          nullable: true
+          additionalProperties: true
+        month:
+          type: integer
+          nullable: true
+        year:
+          type: integer
+          nullable: true
+        month_key:
+          type: string
+          nullable: true
+        total_goals:
+          type: integer
+          nullable: true
+        make_result:
+          type: object
+          nullable: true
+          additionalProperties: true
+        idempotency_key:
+          type: string
+          nullable: true
+        consent:
+          type: object
+          nullable: true
+          additionalProperties: true
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    LiveStreamStateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        info:
+          type: object
+          nullable: true
+          properties:
+            clubName:
+              type: string
+            clubShortName:
+              type: string
+            opponent:
+              type: string
+            competition:
+              type: string
+            matchId:
+              type: string
+            defaultMatchId:
+              type: string
+            homeName:
+              type: string
+        players:
+          type: array
+          nullable: true
+          items:
+            type: string
+        statusOptions:
+          type: array
+          nullable: true
+          items:
+            type: string
+        cardTypes:
+          type: array
+          nullable: true
+          items:
+            type: string
+        noteMarkers:
+          type: array
+          nullable: true
+          items:
+            type: string
+        scoreboard:
+          type: object
+          nullable: true
+          properties:
+            home:
+              type: integer
+            away:
+              type: integer
+        recentEvents:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              minute:
+                type: string
+              event:
+                type: string
+              player:
+                type: string
+              cardType:
+                type: string
+              assist:
+                type: string
+              homeScore:
+                type: integer
+              awayScore:
+                type: integer
+              timestamp:
+                type: string
+              notes:
+                type: string
+        error:
+          type: string
+          nullable: true
+      required: [success]
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: string
+        code:
+          type: string
+          nullable: true
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
