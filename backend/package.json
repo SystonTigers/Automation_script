@@ -16,5 +16,27 @@
     "esbuild": "^0.21.5",
     "typescript": "^5.4.5",
     "wrangler": "^3.58.0"
+  "description": "Cloudflare Workers backend for Syston Post Bus",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=esm --outdir=dist --platform=browser --target=es2022 && esbuild src/queue-consumer.ts --bundle --format=esm --outdir=dist --platform=browser --target=es2022",
+    "dev": "wrangler dev",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck"
+  },
+  "dependencies": {
+    "jose": "^5.3.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240329.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "esbuild": "^0.20.2",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5",
+    "wrangler": "^3.40.0"
   }
 }

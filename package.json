@@ -9,8 +9,8 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240329.0",
+    "@cloudflare/workers-types": "^4.20240919.0",
     "esbuild": "^0.20.2",
-    "vitest": "^1.5.1"
+    "vitest": "^2.0.0"
   }
 }

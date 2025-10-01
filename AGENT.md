@@ -1,59 +1,163 @@
 # Unified Automation + App Spec (v7.0)
 
-This document centralizes the automation program guardrails for the Apps Script codebase. All follow-on change requests must comply with these standards.
+This document centralizes automation guardrails for both the **Apps Script** codebase and **Cloudflare Workers** backend.
+
+---
+
+## System Architecture
+
+**Dual-Stack Design:**
+- **Cloudflare Workers Backend** — Edge compute for mobile app API (POST Bus, JWT auth, rate limiting)
+- **Apps Script Orchestration** — Automation runtime for Sheets integration and admin tooling
+- **Make.com Hub** — Social media publishing with Canva graphics generation
+
+---
 
 ## Priority Stack
 
 | Priority | Theme | Description |
 | --- | --- | --- |
-| P0 | Service Integrity | Keep production Apps Script executions green and idempotent. Fix breakages, quota issues, or security regressions before taking on feature work. |
-| P1 | Customer Trust | Preserve customer-facing automation flows, ensuring Sheet Config remains the single source of truth and setup remains zero-code. |
-| P2 | Delivery Efficiency | Optimize engineering throughput with reusable modules, declarative config, and guardrails that prevent regressions. |
-| P3 | Roadmap Velocity | Implement net-new automation capabilities that build on the unified runtime contract without violating higher priorities. |
+| P0 | Service Integrity | Keep production Workers and Apps Script green and idempotent |
+| P1 | Customer Trust | Preserve automation flows, tenant configs, and Sheet Config as source of truth |
+| P2 | Delivery Efficiency | Optimize with reusable modules and guardrails |
+| P3 | Roadmap Velocity | Implement new capabilities without violating higher priorities |
 
-## Capability Taxonomy
+---
 
-| Track | Pillar | Scope |
+## Runtime Configuration
+
+### Cloudflare Workers
+
+| Source | Key | Purpose |
 | --- | --- | --- |
-| Automation Orchestration | Schedulers & Jobs | Time-based and event-based triggers, job routing, health monitors, and retry controllers. |
-| Data Layer | Sheet Config & Persistence | Config tab schema, Script Properties projection, caching tiers, and migration pathways. |
-| Integration Surface | HTTP & Webhooks | External API contracts, Make.com payload standards, OAuth scope boundaries, and structured logging. |
-| Experience | UI & Comms | Web app HTML shells, templated email/slack payloads, and consent-aware messaging. |
-| Governance | Security & Compliance | Secret handling, audit logging, consent enforcement, and rollout governance. |
+| Env Vars | `JWT_ISSUER`, `JWT_AUDIENCE` | JWT validation (`syston.app`, `syston-mobile`) |
+| Env Vars | `FEATURE_DIRECT_YT/FB/IG` | Enable direct social publishing |
+| Secrets | `JWT_SECRET`, `YT_API_KEY`, `MAKE_WEBHOOK_BASE` | Sensitive values (never commit) |
+| KV_CACHE | `tenant:{id}` | Per-tenant configuration |
+| KV_IDEMP | `idem:{tenant}:{hash}` | Idempotency cache (24h TTL) |
 
-## Runtime Configuration Contract
+### Apps Script
 
-| Source | Key | Purpose | Notes |
-| --- | --- | --- | --- |
-| Sheet Config (tab) | `SHEET_ID` | Primary spreadsheet binding | Must be validated by installer before writing to Script Properties. |
-| Sheet Config (tab) | `ENV` | Runtime environment label | Drives logging level and test harness toggles. |
-| Sheet Config (tab) | `SYSTEM_VERSION` | Declarative version string | Bumped on each production rollout; surfaced by `SA_Version()`. |
-| Sheet Config (tab) | `WEBHOOK_MAKE_URL` | External automation endpoint | Used by job runners via safe fetch with backoff; never hardcode URLs. |
-| Script Properties | `CACHE_TTL_MINUTES` | Cache lifetime for shared datasets | Read once per execution; default to 30 if missing. |
-| Script Properties | `ALLOWED_TRIGGERS` | Comma-delimited handler list | Ensures idempotent setup avoids duplicate triggers. |
-
-## Idempotency Keys & Patterns
-
-| Context | Key / Strategy | Enforcement |
+| Source | Key | Purpose |
 | --- | --- | --- |
-| Trigger Creation | `ensureTimeTrigger(handler, spec)` | Do not create duplicates; short-circuit when trigger already exists. |
-| External Calls | `requestId = hash(eventTimestamp + payloadType)` | Attach as header to outbound requests to prevent duplicate processing upstream. |
-| Sheet Mutations | `operationId` stored in hidden log sheet | Skip updates when the latest log matches the incoming operation. |
-| Deployments | Git SHA + version string | Used in CI deploy descriptions and Script Properties to prevent mismatched pushes. |
+| Sheet Config | `SHEET_ID`, `ENV`, `WEBHOOK_MAKE_URL` | Core configuration |
+| Script Properties | `CACHE_TTL_MINUTES`, `ALLOWED_TRIGGERS` | Runtime settings |
 
-## Agent Acceptance Criteria (ACs)
+---
 
-1. Changes MUST read/write config via Sheet Config + Script Properties; no inline constants for customer-owned values.
-2. All HTTP calls implement the enterprise client pattern with exponential backoff, JSON validation, and structured error logs.
-3. Spreadsheet interactions use full-range `getValues()` / `setValues()` with header validation; never rely on positional magic numbers.
-4. Trigger management is idempotent and uses named helper functions; no duplicate triggers on repeated installs.
-5. Error handling avoids leaking PII and routes failures to central logging utilities.
-6. Unit or integration hooks are updated when behavior changes, and CI must remain green.
+## Idempotency Patterns
 
-## Deployment Notes
+### Workers
+- POST requests: `idempotency-key` header or SHA-256(body)
+- KV_IDEMP storage with 24h TTL
+- Queue consumer updates final results
 
-- CI/CD uses `@google/clasp` with a single `WEBAPP_DEPLOYMENT_ID`; never create extra deployments.
-- Committing to `main` triggers CI that pushes the Apps Script project, bumps the clasp version with branch + SHA, and redeploys the existing web app.
-- When OAuth scopes change, flag it in the PR body; expect manual re-auth inside the Apps Script editor.
-- Version increments are captured via `SYSTEM_VERSION` and must align with `SA_Version()` responses post-deploy.
-- Install flows must remain idempotent: rerunning installers should refresh Script Properties and triggers without duplication.
+### Apps Script
+- Trigger creation: `ensureTimeTrigger()` prevents duplicates
+- External calls: attach `requestId` header
+- Sheet mutations: `operationId` in log sheet
+
+---
+
+## Agent Acceptance Criteria
+
+### Cloudflare Workers ACs
+
+1. All mutating endpoints MUST require `idempotency-key` or auto-hash payload
+2. JWT authentication MUST be enforced on `/api/v1/*` (except `/healthz`, `/i18n`)
+3. Rate limiting MUST apply per-tenant via Durable Objects (HTTP 429 with headers)
+4. Queue consumer MUST retry (max 5) with DLQ handling
+5. Adapter failures MUST fall back to Make.com
+6. Responses MUST follow: `{ success: boolean, data?: any, error?: string }`
+7. Secrets MUST use `wrangler secret put` (never commit)
+8. Feature flags MUST gate direct integrations
+9. Tenant isolation MUST enforce via JWT `tenant_id`
+10. Observability MUST be enabled in wrangler.toml
+
+### Apps Script ACs
+
+1. Read/write config via Sheet Config + Script Properties (no inline constants)
+2. HTTP calls use exponential backoff + JSON validation
+3. Spreadsheet ops use `getValues()`/`setValues()` with header validation
+4. Trigger management is idempotent
+5. Error handling avoids PII leakage
+6. Tests updated when behavior changes
+
+---
+
+## Testing Requirements
+
+### Workers Testing
+- Unit tests (Vitest): services, adapters (mock KV/Queue/DO)
+- Integration tests: full `/api/v1/post` flow
+- Synthetics (nightly): health check, sandbox post, queue drain
+- Coverage target: 70%+
+
+### Apps Script Testing
+- Unit tests: `TestRunner.runAll()` in editor
+- API tests: `api_tests.gs`
+- Manual: control panel UI, triggers
+
+---
+
+## Security
+
+### Workers
+- JWT: issuer `syston.app`, audience `syston-mobile`
+- Rate limiting: 5 req/sec per tenant per bucket
+- Tenant isolation: all KV keys tenant-scoped
+- Secrets: `wrangler secret put` only
+
+### Apps Script
+- OAuth scopes: minimal (Spreadsheets, Drive file, External Requests)
+- ConsentGate: GDPR consent for minors
+- Audit logging: all admin actions logged
+
+---
+
+## Deployment
+
+### Workers
+- CI/CD: `.github/workflows/deploy.yml` via Wrangler
+- Secrets: managed via `wrangler secret put`
+- Bindings: KV_CACHE, KV_IDEMP, POST_QUEUE, TenantRateLimiter (DO), R2_MEDIA
+
+### Apps Script
+- CI/CD: `.github/workflows/appsscript-push.yml` via clasp
+- Web app: single `WEBAPP_DEPLOYMENT_ID`
+- OAuth: flag scope changes in PR, manual re-auth required
+
+---
+
+## Feature Flags
+
+### Workers
+- `direct_yt` (true) — YouTube direct publishing (stub)
+- `direct_fb/ig/tt` (false) — Future social integrations
+- `use_make` (true) — Make.com fallback (always enabled)
+
+### Apps Script
+- `ENABLE_MAKE_WEBHOOKS` (true)
+- `ENABLE_CONSENT_GATE` (true)
+
+---
+
+## Adapter Strategy
+
+**Hierarchy:**
+1. Make.com (Primary) — Always available
+2. YouTube Direct (Planned) — OAuth required
+3. Facebook/Instagram/TikTok Direct (Future)
+
+**Fallback:** Direct adapter failure → route to Make.com
+
+**Current Status:**
+- ✅ Make.com: 100%
+- ⚠️ YouTube: 30% stub
+- ⚠️ Facebook/Instagram/TikTok: 30-40% stubs
+
+---
+
+**AGENT.md Version:** v7.0  
+**Last Updated:** 2025-09-30  
+**Next Review:** Quarterly or on major architecture changes

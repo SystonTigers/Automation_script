@@ -1,0 +1,25 @@
+name: Synthetics
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check health endpoint
+        run: |
+          curl -fsS "$SYSTON_BASE_URL/healthz"
+        env:
+          SYSTON_BASE_URL: ${{ secrets.SYSTON_POSTBUS_URL }}
+      - name: Smoke test post queue
+        run: |
+          curl -fsS -X POST "$SYSTON_BASE_URL/api/v1/post" \
+            -H "Authorization: Bearer $SYSTON_SYNTH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"tenant":"sandbox","template":"ping","channels":["yt"],"data":{"message":"synthetic"}}'
+        env:
+          SYSTON_BASE_URL: ${{ secrets.SYSTON_POSTBUS_URL }}
+          SYSTON_SYNTH_TOKEN: ${{ secrets.SYSTON_SYNTH_TOKEN }}

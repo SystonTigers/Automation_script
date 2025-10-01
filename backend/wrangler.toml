@@ -11,6 +11,15 @@ API_VERSION = "v1"
 JWT_ISSUER = "syston.app"
 JWT_AUDIENCE = "syston-mobile"
 
+FEATURE_DIRECT_FB = "false"
+FEATURE_DIRECT_IG = "false"
+FEATURE_DIRECT_YT = "true"
+FEATURE_USE_MAKE = "true"
+
+[[kv_namespaces]]
+binding = "KV_CACHE"
+id = "kv_cache_id"
+
 [[kv_namespaces]]
 binding = "KV_IDEMP"
 id = "kv_idemp_id"
@@ -27,3 +36,7 @@ max_batch_timeout = 5
 [[durable_objects.bindings]]
 name = "TenantRateLimiter"
 class_name = "TenantRateLimiter"
+
+[[r2_buckets]]
+binding = "R2_MEDIA"
+bucket_name = "media-bucket"
