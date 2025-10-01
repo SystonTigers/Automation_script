@@ -1,6 +1,21 @@
 {
   "name": "syston-postbus",
   "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=esm --outdir=dist && esbuild src/queue-consumer.ts --bundle --format=esm --outdir=dist",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240620.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.4.5",
+    "wrangler": "^3.58.0"
   "description": "Cloudflare Workers backend for Syston Post Bus",
   "type": "module",
   "scripts": {

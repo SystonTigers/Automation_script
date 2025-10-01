@@ -1,3 +1,12 @@
+ type PostJob = {
+  tenant: string;
+  template: string;
+  channels: string[]; // e.g., ["yt","fb","ig"]
+  data: Record<string, unknown>;
+  createdAt: number;
+  idemKey: string;
+};
+
 import type { DurableObjectNamespace } from '@cloudflare/workers-types';
 
 export type Channel = 'fb' | 'ig' | 'yt' | 'tt' | 'make';
@@ -129,3 +138,4 @@ export interface SyntheticResult {
   ok: boolean;
   message: string;
 }
+

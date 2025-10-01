@@ -10,6 +10,7 @@ enabled = true
 API_VERSION = "v1"
 JWT_ISSUER = "syston.app"
 JWT_AUDIENCE = "syston-mobile"
+
 FEATURE_DIRECT_FB = "false"
 FEATURE_DIRECT_IG = "false"
 FEATURE_DIRECT_YT = "true"

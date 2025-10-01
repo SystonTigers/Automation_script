@@ -2,6 +2,16 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
+
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "types": ["@cloudflare/workers-types"],
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"]
     "moduleResolution": "Bundler",
     "lib": ["ES2022"],
     "allowJs": false,
