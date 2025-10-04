@@ -1,4 +1,4 @@
-/**
+﻿/**
  * match-events.gs - Complete Match Event Logger
  * @version 6.2.0
  * Logs ALL match events with timestamps for video editing
@@ -10,10 +10,8 @@
 function logMatchKickOff(matchId, opponent, venue, competition) {
   const logger = getLogger();
   logger.enterFunction('logMatchKickOff', { matchId });
-ECHO is off.
   try {
     const timestamp = new Date();
-ECHO is off.
     logMatchEvent(matchId, {
       timestamp: timestamp,
       minute: 0,
@@ -22,10 +20,8 @@ ECHO is off.
       videoTimestamp: '00:00:00',
       clipMarker: true
     });
-ECHO is off.
     logger.exitFunction('logMatchKickOff', { success: true });
     return { success: true };
-ECHO is off.
   } catch (error) {
     logger.error('logMatchKickOff failed', { error: error.toString() });
     return { success: false, error: error.toString() };
@@ -38,11 +34,9 @@ ECHO is off.
 function logGoalWithTimestamp(matchId, scorer, minute, assist = null, isPenalty = false) {
   const logger = getLogger();
   logger.enterFunction('logGoalWithTimestamp', { matchId, scorer, minute });
-ECHO is off.
   try {
     const timestamp = new Date();
     const videoTime = calculateVideoTimestamp(matchId, minute);
-ECHO is off.
     logMatchEvent(matchId, {
       timestamp: timestamp,
       minute: minute,
@@ -50,16 +44,14 @@ ECHO is off.
       player: scorer,
       assist: assist,
       isPenalty: isPenalty,
-      description: `⚽ GOAL - ${scorer}${assist ? ` (Assist: ${assist})` : ''}${isPenalty ? ' [PEN]' : ''}`,
+      description: `âš½ GOAL - ${scorer}${assist ? ` (Assist: ${assist})` : ''}${isPenalty ? ' [PEN]' : ''}`,
       videoTimestamp: videoTime,
       clipMarker: true,
       clipStart: Math.max(0, minute * 60 - 5),
       clipEnd: minute * 60 + 10
     });
-ECHO is off.
     logger.exitFunction('logGoalWithTimestamp', { success: true });
     return { success: true };
-ECHO is off.
   } catch (error) {
     logger.error('logGoalWithTimestamp failed', { error: error.toString() });
     return { success: false, error: error.toString() };
@@ -72,7 +64,6 @@ ECHO is off.
 function logHalfTime(matchId, homeScore, awayScore) {
   const logger = getLogger();
   logger.enterFunction('logHalfTime', { matchId });
-ECHO is off.
   try {
     logMatchEvent(matchId, {
       timestamp: new Date(),
@@ -82,10 +73,8 @@ ECHO is off.
       videoTimestamp: calculateVideoTimestamp(matchId, 45),
       clipMarker: false
     });
-ECHO is off.
     logger.exitFunction('logHalfTime', { success: true });
     return { success: true };
-ECHO is off.
   } catch (error) {
     logger.error('logHalfTime failed', { error: error.toString() });
     return { success: false, error: error.toString() };
@@ -98,7 +87,6 @@ ECHO is off.
 function logFullTime(matchId, finalHomeScore, finalAwayScore) {
   const logger = getLogger();
   logger.enterFunction('logFullTime', { matchId });
-ECHO is off.
   try {
     logMatchEvent(matchId, {
       timestamp: new Date(),
@@ -108,10 +96,8 @@ ECHO is off.
       videoTimestamp: calculateVideoTimestamp(matchId, 90),
       clipMarker: false
     });
-ECHO is off.
     logger.exitFunction('logFullTime', { success: true });
     return { success: true };
-ECHO is off.
   } catch (error) {
     logger.error('logFullTime failed', { error: error.toString() });
     return { success: false, error: error.toString() };
@@ -125,7 +111,6 @@ ECHO is off.
 function logMatchEvent(matchId, event) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName('Match Events');
-ECHO is off.
   if (!sheet) {
     sheet = ss.insertSheet('Match Events');
     sheet.getRange('A1:M1').setValues([[
@@ -136,7 +121,6 @@ ECHO is off.
     sheet.getRange('A1:M1').setFontWeight('bold');
     sheet.setFrozenRows(1);
   }
-ECHO is off.
   sheet.appendRow([
     event.timestamp || new Date(),
     matchId,
@@ -163,7 +147,6 @@ function calculateVideoTimestamp(matchId, minute) {
   const hours = Math.floor(matchSeconds / 3600);
   const minutes = Math.floor((matchSeconds % 3600) / 60);
   const seconds = matchSeconds % 60;
-ECHO is off.
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
@@ -173,12 +156,9 @@ ECHO is off.
 function exportMatchEventsForVideo(matchId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Match Events');
-ECHO is off.
   if (!sheet) return '';
-ECHO is off.
   const data = sheet.getDataRange().getValues();
   let csv = 'Minute,Event,Player,Description,Video Start,Duration\n';
-ECHO is off.
   for (let i = 1; i < data.length; i++) {
     if (data[i][1] === matchId && data[i][10]) {
       const minute = data[i][2];
@@ -188,11 +168,9 @@ ECHO is off.
       const clipStart = data[i][11];
       const clipEnd = data[i][12];
       const duration = clipEnd - clipStart;
-ECHO is off.
       csv += `${minute},${eventType},${player},"${description}",${clipStart},${duration}\n`;
     }
   }
-ECHO is off.
   return csv;
 }
 
@@ -202,12 +180,9 @@ ECHO is off.
 function getMatchEvents(matchId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Match Events');
-ECHO is off.
   if (!sheet) return [];
-ECHO is off.
   const data = sheet.getDataRange().getValues();
   const events = [];
-ECHO is off.
   for (let i = 1; i < data.length; i++) {
     if (data[i][1] === matchId) {
       events.push({
@@ -227,6 +202,5 @@ ECHO is off.
       });
     }
   }
-ECHO is off.
   return events;
 }
