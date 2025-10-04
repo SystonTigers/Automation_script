@@ -342,8 +342,7 @@ function handleQueryParameterRouting(e) {
 /**
  * WEBAPP ENTRY POINT - POST handler with security integration
  */
-function doPost(e)
-
+function doPost(e) {
   try {
     const path = (e && e.pathInfo) ? e.pathInfo : '';
 
@@ -368,7 +367,7 @@ function doPost(e)
     // 1. QUOTA CHECK - Prevent quota exhaustion
     const quotaCheck = QuotaMonitor.checkQuotaLimits();
     if (!quotaCheck.allowed) {
-      // FIXED: DO NOT record usage for blocked requests to prevent quota inflation
+      // DO NOT record usage for blocked requests to prevent quota inflation
       console.warn('Request blocked due to quota limits:', quotaCheck);
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
@@ -379,95 +378,114 @@ function doPost(e)
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-  var request = buildApiRequest(e);
-  var originDecision = resolveAllowedOrigin(request.origin);
+    var request = buildApiRequest(e);
+    var originDecision = resolveAllowedOrigin(request.origin);
 
+    if (request.method === 'OPTIONS') {
+      return createOptionsResponse(originDecision.origin);
+    }
 
-  if (request.method === 'OPTIONS') {
-    return createOptionsResponse(originDecision.origin);
-  }
+    if (!originDecision.allowed && request.origin) {
+      return createErrorResponse(403, 'Origin not allowed.', [], originDecision.origin);
+    }
 
-  if (!originDecision.allowed && request.origin) {
-    return createErrorResponse(403, 'Origin not allowed.', [], originDecision.origin);
-  }
+    if (request.parseError) {
+      return createErrorResponse(400, 'Invalid JSON payload.', [request.parseError.message], originDecision.origin);
+    }
 
-  if (request.parseError) {
-    return createErrorResponse(400, 'Invalid JSON payload.', [request.parseError.message], originDecision.origin);
-  }
+    var tokenResult = verifyBearerJwt(request.authHeader);
+    if (!tokenResult.valid) {
+      return createErrorResponse(401, tokenResult.message, [], originDecision.origin);
+    }
+    request.user = tokenResult.claims;
 
-  var tokenResult = verifyBearerJwt(request.authHeader);
-  if (!tokenResult.valid) {
-    return createErrorResponse(401, tokenResult.message, [], originDecision.origin);
-  }
-  request.user = tokenResult.claims;
+    var rateLimit = evaluateRateLimit({
+      ip: request.ip,
+      userId: request.user && request.user.sub
+    });
+    if (!rateLimit.allowed) {
+      var rateLimited = applyRateLimitHeaders(
+        createErrorResponse(429, 'Rate limit exceeded.', [rateLimit.reason], originDecision.origin),
+        rateLimit
+      );
+      return rateLimited;
+    }
 
-  var rateLimit = evaluateRateLimit({
-    ip: request.ip,
-    userId: request.user && request.user.sub
-  });
-  if (!rateLimit.allowed) {
-    var rateLimited = applyRateLimitHeaders(
-      createErrorResponse(429, 'Rate limit exceeded.', [rateLimit.reason], originDecision.origin),
-      rateLimit
-    );
-    return rateLimited;
-  }
+    if (request.idempotencyKey) {
+      var stored = getStoredIdempotentResponse(request.idempotencyKey);
+      if (stored) {
+        var cachedResponse = createJsonResponse(stored.status, stored.body, stored.headers, originDecision.origin);
+        return applyRateLimitHeaders(cachedResponse, rateLimit);
+      }
+    }
 
-  if (request.idempotencyKey) {
-    var stored = getStoredIdempotentResponse(request.idempotencyKey);
-    if (stored) {
-      var cachedResponse = createJsonResponse(stored.status, stored.body, stored.headers, originDecision.origin);
-      return applyRateLimitHeaders(cachedResponse, rateLimit);
+    var resource = (request.pathSegments[0] || request.body.resource || '').toLowerCase();
+    var result;
+    switch (resource) {
+      case 'auth':
+        result = handleAuthRequest(request);
+        break;
+      case 'events':
+        result = handleEventsRequest(request);
+        break;
+      case 'attendance':
+        result = handleAttendanceRequest(request);
+        break;
+      case 'votes':
+        result = handleVotesRequest(request);
+        break;
+      case 'streams':
+        result = handleStreamsRequest(request);
+        break;
+      case 'shop':
+        result = handleShopRequest(request);
+        break;
+      case 'subs':
+        result = handleSubsRequest(request);
+        break;
+      default:
+        return createErrorResponse(404, 'Unknown API resource.', [], originDecision.origin);
+    }
+
+    var response = createJsonResponse(result.status || 200, result.body || {}, result.headers || {}, originDecision.origin);
+
+    if (result.pagination) {
+      response = applyPaginationHeaders(response, Object.assign({
+        totalPages: 0
+      }, result.pagination));
+    }
+
+    response = applyRateLimitHeaders(response, rateLimit);
+
+    if (request.idempotencyKey) {
+      storeIdempotentResponse(request.idempotencyKey, {
+        status: result.status || 200,
+        body: result.body || {},
+        headers: result.headers || {}
+      });
+    }
+
+    return response;
+
+  } catch (error) {
+    // Standardized error response for doPost
+    console.error('doPost error:', error);
+    try {
+      return createErrorResponse
+        ? createErrorResponse(500, 'Internal server error.', [String(error)], (typeof resolveAllowedOrigin === 'function' ? (resolveAllowedOrigin('').origin) : ''))
+        : ContentService.createTextOutput(JSON.stringify({
+            success: false,
+            error: 'Internal server error',
+            detail: String(error)
+          })).setMimeType(ContentService.MimeType.JSON);
+    } catch (fallbackErr) {
+      // last-resort fallback
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: 'Internal server error'
+      })).setMimeType(ContentService.MimeType.JSON);
     }
   }
-
-  var resource = (request.pathSegments[0] || request.body.resource || '').toLowerCase();
-  var result;
-  switch (resource) {
-    case 'auth':
-      result = handleAuthRequest(request);
-      break;
-    case 'events':
-      result = handleEventsRequest(request);
-      break;
-    case 'attendance':
-      result = handleAttendanceRequest(request);
-      break;
-    case 'votes':
-      result = handleVotesRequest(request);
-      break;
-    case 'streams':
-      result = handleStreamsRequest(request);
-      break;
-    case 'shop':
-      result = handleShopRequest(request);
-      break;
-    case 'subs':
-      result = handleSubsRequest(request);
-      break;
-    default:
-      return createErrorResponse(404, 'Unknown API resource.', [], originDecision.origin);
-  }
-
-  var response = createJsonResponse(result.status || 200, result.body || {}, result.headers || {}, originDecision.origin);
-
-  if (result.pagination) {
-    response = applyPaginationHeaders(response, Object.assign({
-      totalPages: 0
-    }, result.pagination));
-  }
-
-  response = applyRateLimitHeaders(response, rateLimit);
-
-  if (request.idempotencyKey) {
-    storeIdempotentResponse(request.idempotencyKey, {
-      status: result.status || 200,
-      body: result.body || {},
-      headers: result.headers || {}
-    });
-  }
-
-  return response;
 }
 
 /**
