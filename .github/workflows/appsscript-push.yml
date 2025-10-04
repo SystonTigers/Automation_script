@@ -194,8 +194,8 @@ jobs:
           npx clasp version "prod-${{ github.ref_name }} @ ${{ github.sha }}"
 
           # Require deployment script (no fallback to enforce single-deployment contract)
-          if [ ! -f "./scripts/update-single-deployment.js" ]; then
-            echo "❌ ERROR: Deployment script not found at ./scripts/update-single-deployment.js"
+          if [ ! -f "./scripts/update-single-deployment.cjs" ]; then
+            echo "❌ ERROR: Deployment script not found at ./scripts/update-single-deployment.cjs"
             echo ""
             echo "This workflow requires the single-deployment script to prevent"
             echo "accidental creation of multiple deployments."
@@ -205,4 +205,4 @@ jobs:
           fi
 
           echo "✅ Found deployment script, executing..."
-          node ./scripts/update-single-deployment.js
+          node ./scripts/update-single-deployment.cjs
