@@ -1,7 +1,7 @@
 # ⚽ Syston Football — App + Workers Automation Backend
 
 [![Deploy Backend](https://github.com/SystonTigers/Automation_script/workflows/Deploy%20Backend/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
-[![Deploy Apps Script](https://github.com/SystonTigers/Automation_script/workflows/Push%20to%20Apps%20Script/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
+[![Apps Script CI](https://github.com/SystonTigers/Automation_script/workflows/Apps%20Script%20CI/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
 [![Version](https://img.shields.io/github/v/tag/SystonTigers/Automation_script)](https://github.com/SystonTigers/Automation_script/tags)
 [![Implementation](https://img.shields.io/badge/implementation-82%25-yellow)](./IMPLEMENTATION_STATUS.md)
 
@@ -96,6 +96,12 @@ clasp clone <SCRIPT_ID>
 clasp push
 ```
 
+> Keep a single Web App deployment live in Apps Script.
+> CI runs `scripts/update-webapp.mjs` to resolve the deployment ID automatically.
+> `npx clasp deployments --json` must return exactly one `webApp` entry.
+> Delete extra deployments in the Apps Script UI before rerunning the workflow.
+> Never create manual test deployments; rely on the `Apps Script CI` workflow.
+
 ---
 
 ## 📂 Repository Structure
@@ -123,7 +129,10 @@ clasp push
 │
 ├── .github/workflows/       # CI/CD
 │   ├── deploy.yml          # Backend deployment
-│   └── appsscript-push.yml # Apps Script deployment
+│   └── ci-appsscript.yml   # Apps Script deployment
+│
+├── scripts/                 # Deployment helpers
+│   └── update-webapp.mjs   # Resolves the single Web App deployment and reuses it
 │
 ├── openapi.yaml            # API specification v1.0.0
 ├── AGENT.md                # Automation spec v7.0
