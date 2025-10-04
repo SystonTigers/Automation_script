@@ -3,31 +3,7 @@ name: Documentation Bundle Check
 on:
   push:
     branches: [main]
-    paths:
-      - 'README.md'
-      - 'AGENT.md'
-      - 'CONTRIBUTING.md'
-      - 'PRIVACY.md'
-      - 'API_CONTRACT.md'
-      - 'CODEX_INSTRUCTIONS.md'
-      - 'CODEX_STEPS.md'
-      - 'SECURITY.md'
-      - 'i18n/**'
-      - 'openapi.yaml'
-      - '.github/workflows/docs-presence.yml'
   pull_request:
-    paths:
-      - 'README.md'
-      - 'AGENT.md'
-      - 'CONTRIBUTING.md'
-      - 'PRIVACY.md'
-      - 'API_CONTRACT.md'
-      - 'CODEX_INSTRUCTIONS.md'
-      - 'CODEX_STEPS.md'
-      - 'SECURITY.md'
-      - 'i18n/**'
-      - 'openapi.yaml'
-      - '.github/workflows/docs-presence.yml'
 
 jobs:
   docs:
@@ -105,18 +81,8 @@ jobs:
             exit 0
           fi
 
-          CURRENT_VERSION=$(python - <<'PY'
-import yaml, sys
-with open('openapi.yaml', 'r', encoding='utf-8') as fh:
-    print(yaml.safe_load(fh)['info']['version'])
-PY
-)
-          PREVIOUS_VERSION=$(python - <<'PY'
-import yaml, sys
-with open('/tmp/base_openapi.yaml', 'r', encoding='utf-8') as fh:
-    print(yaml.safe_load(fh)['info']['version'])
-PY
-)
+          CURRENT_VERSION=$(python -c "import yaml; print(yaml.safe_load(open('openapi.yaml'))['info']['version'])")
+          PREVIOUS_VERSION=$(python -c "import yaml; print(yaml.safe_load(open('/tmp/base_openapi.yaml'))['info']['version'])")
 
           echo "Base: $PREVIOUS_VERSION, Current: $CURRENT_VERSION"
           if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
