@@ -342,7 +342,7 @@ function handleQueryParameterRouting(e) {
 /**
  * WEBAPP ENTRY POINT - POST handler with security integration
  */
-function doPost(e) {
+function doPost(e)
 
   try {
     const path = (e && e.pathInfo) ? e.pathInfo : '';
