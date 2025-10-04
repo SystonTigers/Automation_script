@@ -423,6 +423,143 @@ class MakeIntegration {
     return this._logger;
   }
 
+  // ==================== BACKEND API INTEGRATION ====================
+
+  /**
+   * Check if backend API posting is enabled
+   * @returns {boolean} True if backend posting is configured
+   */
+  isBackendEnabled() {
+    const backendUrl = PropertiesService.getScriptProperties().getProperty('BACKEND_API_URL');
+    const automationJWT = PropertiesService.getScriptProperties().getProperty('AUTOMATION_JWT');
+    return !!(backendUrl && automationJWT);
+  }
+
+  /**
+   * Post event to backend API
+   * @param {Object} payload - Event payload
+   * @param {Object} options - Send options
+   * @returns {Object} Send result
+   */
+  postToBackend(payload, options = {}) {
+    this.logger.enterFunction('postToBackend', {
+      event_type: payload.event_type
+    });
+
+    try {
+      const backendUrl = PropertiesService.getScriptProperties().getProperty('BACKEND_API_URL');
+      const automationJWT = PropertiesService.getScriptProperties().getProperty('AUTOMATION_JWT');
+      const tenantId = PropertiesService.getScriptProperties().getProperty('TENANT_ID') || 'syston';
+
+      if (!backendUrl || !automationJWT) {
+        throw new Error('Backend API URL or Automation JWT not configured');
+      }
+
+      // Transform payload to backend format
+      const backendPayload = {
+        event_type: payload.event_type,
+        data: payload,
+        channels: payload.channels || ['yt', 'fb', 'ig'],
+        template: payload.event_type
+      };
+
+      const maxRetries = options.maxRetries || 3;
+      const retryDelay = options.retryDelay || 2000;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          // @testHook(backend_post_attempt_start)
+
+          const response = UrlFetchApp.fetch(`${backendUrl}/api/v1/post`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${automationJWT}`
+            },
+            payload: JSON.stringify(backendPayload),
+            muteHttpExceptions: true
+          });
+
+          const responseCode = response.getResponseCode();
+          const responseText = response.getContentText();
+
+          // @testHook(backend_post_attempt_complete)
+
+          if (responseCode >= 200 && responseCode < 300) {
+            const responseData = JSON.parse(responseText);
+
+            this.logger.exitFunction('postToBackend', {
+              success: true,
+              response_code: responseCode,
+              job_id: responseData.job_id
+            });
+
+            return {
+              success: true,
+              response_code: responseCode,
+              response_text: responseText,
+              job_id: responseData.job_id,
+              attempts: attempt
+            };
+          }
+
+          // Handle error responses
+          if (responseCode === 429) {
+            lastError = `Rate limited (429)`;
+            if (attempt < maxRetries) {
+              Utilities.sleep(retryDelay * attempt * 2);
+              continue;
+            }
+          } else if (responseCode >= 500) {
+            lastError = `Server error (${responseCode})`;
+            if (attempt < maxRetries) {
+              Utilities.sleep(retryDelay * attempt);
+              continue;
+            }
+          } else {
+            return {
+              success: false,
+              response_code: responseCode,
+              response_text: responseText,
+              error: `Backend API error (${responseCode})`,
+              attempts: attempt
+            };
+          }
+
+        } catch (error) {
+          lastError = error.toString();
+          if (attempt < maxRetries) {
+            Utilities.sleep(retryDelay * attempt);
+            continue;
+          }
+        }
+      }
+
+      // All retries failed
+      this.logger.error('Backend API post failed after retries', {
+        attempts: maxRetries,
+        last_error: lastError
+      });
+
+      return {
+        success: false,
+        error: lastError,
+        attempts: maxRetries
+      };
+
+    } catch (error) {
+      this.logger.error('Backend API post failed', {
+        error: error.toString()
+      });
+
+      return {
+        success: false,
+        error: error.toString()
+      };
+    }
+  }
+
   // ==================== ENHANCED WEBHOOK SENDING ====================
 
   /**
@@ -462,6 +599,33 @@ class MakeIntegration {
           idempotency_key: idempotencyKey,
           timestamp: DateUtils.formatISO(DateUtils.now())
         };
+      }
+
+      // Check if backend posting is enabled
+      if (this.isBackendEnabled()) {
+        this.logger.info('Backend API posting enabled, routing through backend', {
+          event_type: payload.event_type
+        });
+
+        const backendResult = this.postToBackend(payload, options);
+
+        if (backendResult.success && idempotencyKey) {
+          this.markPayloadProcessed(idempotencyKey);
+        }
+
+        if (backendResult.success) {
+          this.metrics.lastPost = DateUtils.formatISO(DateUtils.now());
+        }
+
+        this.updateMetrics(backendResult.success);
+
+        this.logger.exitFunction('sendToMake', {
+          success: backendResult.success,
+          routed_via: 'backend',
+          job_id: backendResult.job_id
+        });
+
+        return backendResult;
       }
 
       // Apply rate limiting

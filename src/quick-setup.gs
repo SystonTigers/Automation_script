@@ -146,6 +146,178 @@ function checkConfiguration() {
 }
 
 /**
+ * Configure Backend API Integration
+ * Run this function to connect Apps Script to your backend
+ */
+function configureBackendIntegration() {
+  const ui = SpreadsheetApp.getUi();
+
+  try {
+    // Welcome message
+    const welcome = ui.alert(
+      '🔗 Backend API Integration Setup',
+      'This will connect your Apps Script to the backend API.\n\n' +
+      'You need:\n' +
+      '1. Backend API URL\n' +
+      '2. Automation JWT (from signup response)\n' +
+      '3. Tenant ID\n\n' +
+      'Ready to configure?',
+      ui.ButtonSet.YES_NO
+    );
+
+    if (welcome !== ui.Button.YES) {
+      ui.alert('Setup cancelled.');
+      return { success: false, cancelled: true };
+    }
+
+    // Get Backend API URL
+    const backendUrlResponse = ui.prompt(
+      'Step 1: Backend API URL',
+      'Enter your backend API URL:\n\n' +
+      'Example: https://syston-postbus.team-platform-2025.workers.dev',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (backendUrlResponse.getSelectedButton() !== ui.Button.OK) {
+      ui.alert('Setup cancelled.');
+      return { success: false, cancelled: true };
+    }
+
+    const backendUrl = backendUrlResponse.getResponseText().trim();
+
+    // Validate URL format
+    if (!backendUrl.startsWith('https://')) {
+      ui.alert('❌ Invalid URL', 'Backend URL must start with https://', ui.ButtonSet.OK);
+      return { success: false, error: 'Invalid URL format' };
+    }
+
+    // Get Automation JWT
+    const jwtResponse = ui.prompt(
+      'Step 2: Automation JWT',
+      'Paste your automationJWT:\n\n' +
+      '(This was provided in the signup response)',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (jwtResponse.getSelectedButton() !== ui.Button.OK) {
+      ui.alert('Setup cancelled.');
+      return { success: false, cancelled: true };
+    }
+
+    const automationJWT = jwtResponse.getResponseText().trim();
+
+    // Validate JWT format (basic check)
+    if (!automationJWT || automationJWT.split('.').length !== 3) {
+      ui.alert('❌ Invalid JWT', 'The JWT token appears to be invalid. It should have 3 parts separated by dots.', ui.ButtonSet.OK);
+      return { success: false, error: 'Invalid JWT format' };
+    }
+
+    // Get Tenant ID
+    const tenantIdResponse = ui.prompt(
+      'Step 3: Tenant ID',
+      'Enter your tenant ID:\n\n' +
+      'Example: syston',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (tenantIdResponse.getSelectedButton() !== ui.Button.OK) {
+      ui.alert('Setup cancelled.');
+      return { success: false, cancelled: true };
+    }
+
+    const tenantId = tenantIdResponse.getResponseText().trim().toLowerCase();
+
+    // Test the connection
+    ui.alert('Testing Connection', 'Testing connection to backend API...', ui.ButtonSet.OK);
+
+    try {
+      const testResponse = UrlFetchApp.fetch(`${backendUrl}/healthz`, {
+        method: 'GET',
+        muteHttpExceptions: true
+      });
+
+      const testCode = testResponse.getResponseCode();
+
+      if (testCode !== 200) {
+        ui.alert('❌ Connection Test Failed', `Backend health check returned ${testCode}. Please verify the URL.`, ui.ButtonSet.OK);
+        return { success: false, error: `Health check failed with code ${testCode}` };
+      }
+
+      ui.alert('✅ Connection Successful', 'Successfully connected to backend API!', ui.ButtonSet.OK);
+
+    } catch (testError) {
+      ui.alert('❌ Connection Test Failed', `Could not connect to backend:\n\n${testError.toString()}`, ui.ButtonSet.OK);
+      return { success: false, error: testError.toString() };
+    }
+
+    // Save properties
+    const properties = PropertiesService.getScriptProperties();
+    properties.setProperties({
+      'BACKEND_API_URL': backendUrl,
+      'AUTOMATION_JWT': automationJWT,
+      'TENANT_ID': tenantId,
+      'BACKEND_INTEGRATION_CONFIGURED': 'true',
+      'BACKEND_CONFIG_DATE': new Date().toISOString()
+    });
+
+    // Success message
+    ui.alert(
+      '🎉 Backend Integration Complete!',
+      'Your Apps Script is now connected to the backend!\n\n' +
+      '✅ Backend URL: ' + backendUrl + '\n' +
+      '✅ Tenant ID: ' + tenantId + '\n' +
+      '✅ Authentication: Configured\n\n' +
+      'All events will now be routed through your backend API.',
+      ui.ButtonSet.OK
+    );
+
+    return {
+      success: true,
+      backendUrl: backendUrl,
+      tenantId: tenantId,
+      message: 'Backend integration configured successfully'
+    };
+
+  } catch (error) {
+    ui.alert('Setup Error', `Backend integration failed:\n\n${error.toString()}`, ui.ButtonSet.OK);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Check backend integration status
+ */
+function checkBackendIntegration() {
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    const backendUrl = properties.getProperty('BACKEND_API_URL');
+    const automationJWT = properties.getProperty('AUTOMATION_JWT');
+    const tenantId = properties.getProperty('TENANT_ID');
+
+    const config = {
+      backendUrl: backendUrl || '❌ Not configured',
+      tenantId: tenantId || '❌ Not configured',
+      jwtConfigured: automationJWT ? '✅ Configured' : '❌ Not configured',
+      configDate: properties.getProperty('BACKEND_CONFIG_DATE') || 'Never',
+      status: (backendUrl && automationJWT && tenantId) ? '✅ Ready' : '❌ Incomplete'
+    };
+
+    console.log('Backend Integration Status:', JSON.stringify(config, null, 2));
+    return config;
+
+  } catch (error) {
+    console.error('Backend integration check failed:', error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
  * Manual property setter (for advanced users)
  */
 function setScriptProperty(key, value) {
