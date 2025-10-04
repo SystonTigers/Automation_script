@@ -482,7 +482,94 @@ function testErrorRecoveryResilience() {
     }
   });
 
-  // Test 2: Sheet unavailable recovery
+  // Test 2: Backend rejection should fall back to Make.com
+  test('Should fall back to Make.com webhook when backend rejects payload', function() {
+    const integration = new MakeIntegration();
+    const originalIsBackendEnabled = integration.isBackendEnabled;
+    const originalPostToBackend = integration.postToBackend;
+    const originalExecuteWebhookCall = integration.executeWebhookCall;
+    const originalMarkPayloadProcessed = integration.markPayloadProcessed;
+    const originalUpdateMetrics = integration.updateMetrics;
+    const originalGetWebhookUrl = getWebhookUrl;
+
+    let backendCalls = 0;
+    let webhookCalls = 0;
+    let idempotencyMarks = 0;
+    const metricUpdates = [];
+
+    let testResult;
+
+    try {
+      integration.isBackendEnabled = function() {
+        return true;
+      };
+
+      integration.postToBackend = function(payload, options) {
+        backendCalls++;
+        return {
+          success: false,
+          response_code: 502,
+          error: 'Backend rejected payload'
+        };
+      };
+
+      integration.executeWebhookCall = function(webhookUrl, payload, options) {
+        webhookCalls++;
+        assert(webhookUrl === 'https://example.com/mock-webhook', 'Webhook URL should come from stub');
+        return {
+          success: true,
+          response_code: 202,
+          response_text: 'Accepted via fallback'
+        };
+      };
+
+      integration.markPayloadProcessed = function() {
+        idempotencyMarks++;
+      };
+
+      integration.updateMetrics = function(success) {
+        metricUpdates.push(success);
+        return originalUpdateMetrics.call(this, success);
+      };
+
+      getWebhookUrl = function() {
+        return 'https://example.com/mock-webhook';
+      };
+
+      const payload = {
+        event_type: getConfigValue('MAKE.EVENT_TYPES.FIXTURES_THIS_MONTH', 'fixtures_this_month'),
+        timestamp: new Date().toISOString(),
+        match_id: 'backend_fallback_test'
+      };
+
+      const result = integration.sendToMake(payload);
+
+      assert(result.success === true, 'Fallback send should report success');
+      assert(backendCalls === 1, 'Backend should be attempted once');
+      assert(webhookCalls === 1, 'Webhook should execute after backend failure');
+      assert(idempotencyMarks === 1, 'Idempotency should be recorded once');
+      assert(metricUpdates.length === 1 && metricUpdates[0] === true, 'Metrics should record a single successful send');
+
+      console.log('✅ Backend rejection fallback test passed');
+      testResult = { success: true };
+
+    } catch (error) {
+      console.error('❌ Backend rejection fallback test failed:', error);
+      testResult = { success: false, error: error.toString() };
+
+    } finally {
+      integration.isBackendEnabled = originalIsBackendEnabled;
+      integration.postToBackend = originalPostToBackend;
+      integration.executeWebhookCall = originalExecuteWebhookCall;
+      integration.markPayloadProcessed = originalMarkPayloadProcessed;
+      integration.updateMetrics = originalUpdateMetrics;
+      getWebhookUrl = originalGetWebhookUrl;
+    }
+
+    return testResult;
+  });
+
+  // Test 3: Sheet unavailable recovery
   test('Should handle sheet unavailability gracefully', function() {
     try {
       // Simulate sheet unavailable scenario

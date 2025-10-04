@@ -602,30 +602,44 @@ class MakeIntegration {
       }
 
       // Check if backend posting is enabled
-      if (this.isBackendEnabled()) {
+      const backendEnabled = this.isBackendEnabled();
+
+      if (backendEnabled) {
         this.logger.info('Backend API posting enabled, routing through backend', {
           event_type: payload.event_type
         });
 
         const backendResult = this.postToBackend(payload, options);
 
-        if (backendResult.success && idempotencyKey) {
-          this.markPayloadProcessed(idempotencyKey);
-        }
-
         if (backendResult.success) {
+          if (idempotencyKey) {
+            this.markPayloadProcessed(idempotencyKey);
+          }
+
           this.metrics.lastPost = DateUtils.formatISO(DateUtils.now());
+          this.updateMetrics(true);
+
+          this.logger.exitFunction('sendToMake', {
+            success: true,
+            routed_via: 'backend',
+            job_id: backendResult.job_id
+          });
+
+          return backendResult;
         }
 
-        this.updateMetrics(backendResult.success);
-
-        this.logger.exitFunction('sendToMake', {
-          success: backendResult.success,
-          routed_via: 'backend',
-          job_id: backendResult.job_id
+        // @testHook(make_backend_post_failed)
+        this.logger.warn('Backend API post failed, falling back to Make.com', {
+          event_type: payload.event_type,
+          response_code: backendResult.response_code,
+          error: backendResult.error || backendResult.response_text || 'unknown_error'
         });
+      }
 
-        return backendResult;
+      if (!backendEnabled) {
+        this.logger.info('Backend API posting disabled, using direct Make.com webhook', {
+          event_type: payload.event_type
+        });
       }
 
       // Apply rate limiting
@@ -656,13 +670,16 @@ class MakeIntegration {
       
       // @testHook(make_send_complete)
       
-      this.logger.exitFunction('sendToMake', { 
+      const routedVia = backendEnabled ? 'make_fallback' : 'make_direct';
+
+      this.logger.exitFunction('sendToMake', {
         success: sendResult.success,
-        response_code: sendResult.response_code
+        response_code: sendResult.response_code,
+        routed_via: routedVia
       });
-      
+
       return sendResult;
-      
+
     } catch (error) {
       this.logger.error('Make.com send failed', { 
         error: error.toString(),
