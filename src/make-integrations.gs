@@ -15,6 +15,61 @@
  * - Batch webhook processing
  */
 
+/**
+ * Execute registered test hooks to support unit testing without live network calls.
+ * @param {string} hookName - Identifier of the hook to execute.
+ * @param {Object} payload - Payload passed to the hook listener.
+ * @param {Object=} localHooks - Optional hook registry provided via options.
+ * @returns {*|undefined} Return value from the first hook handler that returns data.
+ */
+function invokeTestHook_(hookName, payload, localHooks) {
+  if (!hookName) {
+    return undefined;
+  }
+
+  const registries = [];
+
+  if (localHooks && typeof localHooks === 'object') {
+    registries.push(localHooks);
+  }
+
+  try {
+    const globalScope = typeof globalThis !== 'undefined'
+      ? globalThis
+      : (typeof global !== 'undefined' ? global : (typeof window !== 'undefined' ? window : null));
+
+    if (globalScope && globalScope.__testHooks && typeof globalScope.__testHooks === 'object') {
+      registries.push(globalScope.__testHooks);
+    }
+  } catch (error) {
+    console.warn('Test hook registry resolution failed', { error: error.toString() });
+  }
+
+  for (let i = 0; i < registries.length; i++) {
+    const registry = registries[i];
+    if (!registry || typeof registry !== 'object') {
+      continue;
+    }
+
+    const handler = registry[hookName];
+    if (typeof handler === 'function') {
+      try {
+        const result = handler(payload);
+        if (typeof result !== 'undefined') {
+          return result;
+        }
+      } catch (error) {
+        console.warn('Test hook execution failed', {
+          hook: hookName,
+          error: error.toString()
+        });
+      }
+    }
+  }
+
+  return undefined;
+}
+
 // ==================== TEMPLATE VARIANT BUILDER ====================
 
 /**
@@ -450,6 +505,12 @@ class MakeIntegration {
       const backendUrl = PropertiesService.getScriptProperties().getProperty('BACKEND_API_URL');
       const automationJWT = PropertiesService.getScriptProperties().getProperty('AUTOMATION_JWT');
       const tenantId = PropertiesService.getScriptProperties().getProperty('TENANT_ID') || 'syston';
+      const resolvedIdempotencyKey = options.idempotencyKey || this.resolveIdempotencyKey(payload, options);
+      const tenantScopedIdempotencyKey = resolvedIdempotencyKey
+        ? (resolvedIdempotencyKey.indexOf(`${tenantId}:`) === 0
+          ? resolvedIdempotencyKey
+          : `${tenantId}:${resolvedIdempotencyKey}`)
+        : null;
 
       if (!backendUrl || !automationJWT) {
         throw new Error('Backend API URL or Automation JWT not configured');
@@ -466,25 +527,55 @@ class MakeIntegration {
       const maxRetries = options.maxRetries || 3;
       const retryDelay = options.retryDelay || 2000;
       let lastError = null;
+      const fetchFn = typeof options.fetchImpl === 'function' ? options.fetchImpl : UrlFetchApp.fetch;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           // @testHook(backend_post_attempt_start)
+          const requestUrl = `${backendUrl}/api/v1/post`;
+          const requestHeaders = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${automationJWT}`,
+            'X-Tenant-Id': tenantId
+          };
 
-          const response = UrlFetchApp.fetch(`${backendUrl}/api/v1/post`, {
+          if (tenantScopedIdempotencyKey) {
+            requestHeaders['Idempotency-Key'] = tenantScopedIdempotencyKey;
+          }
+
+          const fetchOptions = {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${automationJWT}`
-            },
+            headers: requestHeaders,
             payload: JSON.stringify(backendPayload),
             muteHttpExceptions: true
-          });
+          };
+
+          const hookContext = {
+            attempt,
+            url: requestUrl,
+            tenantId,
+            idempotencyKey: tenantScopedIdempotencyKey,
+            headers: {
+              ...requestHeaders,
+              Authorization: 'REDACTED'
+            }
+          };
+
+          const hookResult = invokeTestHook_('backend_post_attempt_start', hookContext, options.testHooks);
+
+          const response = hookResult && hookResult.mockResponse
+            ? hookResult.mockResponse
+            : fetchFn(requestUrl, fetchOptions);
 
           const responseCode = response.getResponseCode();
           const responseText = response.getContentText();
 
           // @testHook(backend_post_attempt_complete)
+          invokeTestHook_('backend_post_attempt_complete', {
+            ...hookContext,
+            response_code: responseCode,
+            response_text: responseText
+          }, options.testHooks);
 
           if (responseCode >= 200 && responseCode < 300) {
             const responseData = JSON.parse(responseText);
@@ -609,7 +700,12 @@ class MakeIntegration {
           event_type: payload.event_type
         });
 
-        const backendResult = this.postToBackend(payload, options);
+        const backendOptions = { ...options };
+        if (idempotencyKey) {
+          backendOptions.idempotencyKey = idempotencyKey;
+        }
+
+        const backendResult = this.postToBackend(payload, backendOptions);
 
         if (backendResult.success) {
           if (idempotencyKey) {

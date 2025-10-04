@@ -142,3 +142,67 @@ suite('API Helpers - Idempotency', function() {
     equal(stored.body.ok, true, 'Stored payload should match.');
   });
 });
+
+suite('Make Integration - Backend headers', function() {
+  test('scopes idempotency key per tenant and sets headers', function() {
+    var props = PropertiesService.getScriptProperties();
+    var original = {
+      backendUrl: props.getProperty('BACKEND_API_URL'),
+      automationJwt: props.getProperty('AUTOMATION_JWT'),
+      tenantId: props.getProperty('TENANT_ID')
+    };
+
+    props.setProperty('BACKEND_API_URL', 'https://example.test');
+    props.setProperty('AUTOMATION_JWT', 'unit-test-token');
+    props.setProperty('TENANT_ID', 'tenant-unit');
+
+    var capturedHeaders;
+
+    try {
+      var integration = new MakeIntegration();
+      var payload = { event_type: 'unit_test_event' };
+      var resolvedKey = integration.resolveIdempotencyKey(payload, {});
+
+      var hooks = {
+        backend_post_attempt_start: function(context) {
+          capturedHeaders = context && context.headers;
+          return {
+            mockResponse: {
+              getResponseCode: function() { return 200; },
+              getContentText: function() { return JSON.stringify({ job_id: 'mock-job' }); }
+            }
+          };
+        }
+      };
+
+      var result = integration.postToBackend(payload, {
+        idempotencyKey: resolvedKey,
+        testHooks: hooks
+      });
+
+      ok(result.success, 'Mocked backend call should succeed.');
+      ok(capturedHeaders, 'Hook should capture headers.');
+      equal(capturedHeaders['Idempotency-Key'], 'tenant-unit:' + resolvedKey,
+        'Scoped idempotency key should include tenant.');
+      equal(capturedHeaders['X-Tenant-Id'], 'tenant-unit', 'Tenant header should be set.');
+    } finally {
+      if (original.backendUrl) {
+        props.setProperty('BACKEND_API_URL', original.backendUrl);
+      } else {
+        props.deleteProperty('BACKEND_API_URL');
+      }
+
+      if (original.automationJwt) {
+        props.setProperty('AUTOMATION_JWT', original.automationJwt);
+      } else {
+        props.deleteProperty('AUTOMATION_JWT');
+      }
+
+      if (original.tenantId) {
+        props.setProperty('TENANT_ID', original.tenantId);
+      } else {
+        props.deleteProperty('TENANT_ID');
+      }
+    }
+  });
+});
