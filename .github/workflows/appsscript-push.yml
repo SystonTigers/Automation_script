@@ -3,6 +3,12 @@ name: Push to Apps Script
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'src/**'
+      - 'appsscript.json'
+      - '.clasp.json'
+      - 'scripts/update-single-deployment.cjs'
+      - '.github/workflows/appsscript-push.yml'
 
 # Concurrency: prevent race conditions from overlapping deployments
 concurrency:

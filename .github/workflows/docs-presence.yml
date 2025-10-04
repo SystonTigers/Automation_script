@@ -3,7 +3,31 @@ name: Documentation Bundle Check
 on:
   push:
     branches: [main]
+    paths:
+      - 'README.md'
+      - 'AGENT.md'
+      - 'CONTRIBUTING.md'
+      - 'PRIVACY.md'
+      - 'API_CONTRACT.md'
+      - 'CODEX_INSTRUCTIONS.md'
+      - 'CODEX_STEPS.md'
+      - 'SECURITY.md'
+      - 'i18n/**'
+      - 'openapi.yaml'
+      - '.github/workflows/docs-presence.yml'
   pull_request:
+    paths:
+      - 'README.md'
+      - 'AGENT.md'
+      - 'CONTRIBUTING.md'
+      - 'PRIVACY.md'
+      - 'API_CONTRACT.md'
+      - 'CODEX_INSTRUCTIONS.md'
+      - 'CODEX_STEPS.md'
+      - 'SECURITY.md'
+      - 'i18n/**'
+      - 'openapi.yaml'
+      - '.github/workflows/docs-presence.yml'
 
 jobs:
   docs:

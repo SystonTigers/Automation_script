@@ -3,7 +3,15 @@ name: API Contract Validation
 on:
   push:
     branches: [main]
+    paths:
+      - 'openapi.yaml'
+      - '.spectral.yaml'
+      - '.github/workflows/api-contract.yml'
   pull_request:
+    paths:
+      - 'openapi.yaml'
+      - '.spectral.yaml'
+      - '.github/workflows/api-contract.yml'
 
 jobs:
   lint:
