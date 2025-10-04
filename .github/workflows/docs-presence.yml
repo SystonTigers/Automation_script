@@ -16,6 +16,7 @@ jobs:
           fetch-depth: 0
 
       - name: Ensure required documentation files exist
+        shell: bash
         run: |
           set -euo pipefail
           files=(
@@ -41,52 +42,61 @@ jobs:
             echo "Documentation bundle validation failed." >&2
             exit 1
           fi
+          echo "All required docs present."
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PyYAML
+        run: python -m pip install --upgrade pip pyyaml
 
       - name: Verify OpenAPI version bump on spec changes
+        shell: bash
         run: |
           set -euo pipefail
+          # Determine base SHA depending on event
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_SHA='${{ github.event.pull_request.base.sha }}'
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            BASE_SHA='${{ github.event.before }}'
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
           else
-            BASE_SHA=""
+            BASE_SHA="${{ github.event.before }}"
           fi
 
-          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          # If we can't determine a base, skip
+          if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
             echo "No base revision available; skipping OpenAPI version check."
             exit 0
           fi
 
+          # If openapi.yaml didn't change, we're done
           if git diff --quiet "$BASE_SHA"..HEAD -- openapi.yaml; then
             echo "No OpenAPI changes detected."
             exit 0
           fi
 
+          # Try to read previous version of the spec
           if ! git show "$BASE_SHA:openapi.yaml" > /tmp/base_openapi.yaml 2>/dev/null; then
             echo "Base openapi.yaml not found; skipping version check."
             exit 0
           fi
 
-          python -m pip install --quiet pyyaml
-
           CURRENT_VERSION=$(python - <<'PY'
-import yaml
+import yaml, sys
 with open('openapi.yaml', 'r', encoding='utf-8') as fh:
     print(yaml.safe_load(fh)['info']['version'])
 PY
 )
-
           PREVIOUS_VERSION=$(python - <<'PY'
-import sys, yaml
+import yaml, sys
 with open('/tmp/base_openapi.yaml', 'r', encoding='utf-8') as fh:
     print(yaml.safe_load(fh)['info']['version'])
 PY
 )
 
+          echo "Base: $PREVIOUS_VERSION, Current: $CURRENT_VERSION"
           if [ "$CURRENT_VERSION" = "$PREVIOUS_VERSION" ]; then
             echo "openapi.yaml changed but info.version was not bumped." >&2
             exit 1
           fi
-
-          echo "OpenAPI version bumped from $PREVIOUS_VERSION to $CURRENT_VERSION."
+          echo "✅ OpenAPI version bumped from $PREVIOUS_VERSION to $CURRENT_VERSION."
