@@ -29,5 +29,13 @@
   },
   "executionApi": {
     "access": "DOMAIN"
-  }
+  },
+  "filePushOrder": [
+    "video/clips-manager",
+    "video/drive-organization",
+    "video/graphics-generator",
+    "video/youtube-integration",
+    "video/processing-queue",
+    "video-clips"
+  ]
 }
