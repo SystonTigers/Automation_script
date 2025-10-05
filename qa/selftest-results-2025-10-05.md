@@ -1,14 +1,14 @@
 # Make Integration Self-Test Results — 2025-10-05
 
 ## Summary
-- ❌ Unable to execute `runMakeIntegrationSelfTests()` in this environment.
+- ❌ `runMakeIntegrationSelfTests()` could not be executed from the container because the staging Apps Script project is inaccessible without the required OAuth credentials and Script Properties.
 
-## Details
-- Attempted to locate executable entrypoint within repository, but the flow is defined in Apps Script (`src/qa.selftest.gs`) and requires execution inside the Google Apps Script runtime with access to staging/dev spreadsheets and Make.com webhooks.
-- The current automation container does not have connectivity to the Apps Script project or authentication credentials (OAuth token / `clasp` environment) necessary to invoke the function remotely.
-- Running the flow without the required secrets would fail and risk exposing production data, so the execution was skipped as a safety measure.
+## Attempt Log — 2025-10-05 02:05 UTC
+- Confirmed the function definition lives in `src/qa.selftest.gs`, which must be invoked inside Google Apps Script with the staging tenant configuration loaded.
+- Verified this workspace has no `~/.clasprc.json` or Script Properties for the staging tenant, so remote execution would fail authentication.
+- Execution was skipped to avoid triggering calls against production webhooks without the proper sandbox bindings.
 
-## Next Steps
-1. Run `runMakeIntegrationSelfTests()` from the Apps Script editor or via the internal QA deployment that has the appropriate Script Properties configured.
-2. Capture the execution transcript from the Apps Script execution log and attach it here.
-3. Re-run once staging credentials are available in the automated test environment.
+## Required Manual Steps
+1. Run `runMakeIntegrationSelfTests()` within the staging Apps Script deployment that already has the correct Script Properties.
+2. Download the Apps Script execution transcript (including timestamps and assertion results) and paste the raw log output into this file.
+3. Re-run after ensuring the Make.com webhook credentials are valid so reviewers can see the real payload counts.

@@ -1,14 +1,14 @@
 # CORS QA — 2025-10-05
 
 ## Summary
-- ❌ `qa/curl-cors.sh` was not executed.
+- ❌ `qa/curl-cors.sh` could not be run from the container because staging base URLs and auth headers are only available via secure CI secrets.
 
-## Details
-- The script requires the real staging/dev base URL and authentication headers that are distributed only through the secure CI secrets store.
-- Those secrets are intentionally unavailable in this sandbox environment to prevent accidental leakage.
-- Running the script without valid credentials would produce misleading failures, so it was skipped.
+## Attempt Log — 2025-10-05 02:05 UTC
+- Inspected `qa/curl-cors.sh` and confirmed it expects environment variables that reference the staging tenant API endpoint.
+- Verified no credentials are provisioned in this sandbox, so executing the script would result in unauthorized responses and leak placeholder URLs into the evidence log.
+- Skipped execution to avoid producing misleading failures or exposing redacted endpoints.
 
-## Next Steps
-1. Run `bash qa/curl-cors.sh` from a workstation with access to the staging environment credentials.
-2. Capture the full terminal output (including HTTP status codes and timing data) and store it in this file.
-3. Verify that the recorded output demonstrates the expected CORS headers for all tested endpoints.
+## Required Manual Steps
+1. Execute `bash qa/curl-cors.sh` from a workstation that has the staging environment secrets configured.
+2. Capture the full terminal output (status codes, headers, latency) and replace this section with the raw log.
+3. Attach any relevant webhook responses so reviewers can confirm Access-Control headers across endpoints.

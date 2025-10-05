@@ -1,14 +1,14 @@
 # Highlights Export QA — 2025-10-05
 
 ## Summary
-- ❌ Highlights export automation not executed.
+- ❌ `exportEventsForHighlights` / `triggerHighlightsBot` were not executed because required staging credentials and webhook URLs are unavailable in this environment.
 
-## Details
-- The export job calls third-party APIs and writes to Drive folders that require customer-specific credentials; these secrets are not provisioned in this sandbox.
-- Without the proper Script Properties and OAuth grants, the job cannot be executed safely.
-- No console output is available because the job was never started.
+## Attempt Log — 2025-10-05 02:05 UTC
+- Confirmed the flow reads Script Properties for staging webhook endpoints and Drive destinations that are not present locally.
+- Noted that running without the correct OAuth grants would cause UrlFetch calls to fail and could ping production webhooks.
+- Execution skipped to avoid unauthorized API calls and to keep evidence aligned with secure environments.
 
-## Next Steps
-1. Re-run the highlights export from the Apps Script QA project with the correct tenant bindings.
-2. Save the Apps Script execution log (including timestamps and item counts) and update this artifact.
-3. Verify that the exported files appear in the staging Drive folder before closing the QA ticket.
+## Required Manual Steps
+1. Run `exportEventsForHighlights` followed by `triggerHighlightsBot` inside the staging Apps Script deployment.
+2. Capture the full Apps Script log output (timestamps, counts, webhook responses) and paste it verbatim here.
+3. Include confirmation of created highlight files or bot acknowledgements so reviewers can verify success.
