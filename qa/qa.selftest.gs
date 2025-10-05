@@ -289,6 +289,322 @@ function installSelfTestEnvironment(options) {
   };
 }
 
+function createMockSpreadsheet(initialSheets) {
+  const state = {
+    map: {},
+    order: []
+  };
+
+  (initialSheets || []).forEach(function(definition) {
+    const sheet = createMockSheet(definition.name);
+    state.map[definition.name] = sheet;
+    state.order.push(sheet);
+
+    if (definition.headers && definition.headers.length) {
+      sheet.getRange(1, 1, 1, definition.headers.length).setValues([definition.headers.slice()]);
+    }
+
+    if (definition.rows && definition.rows.length) {
+      sheet.getRange(2, 1, definition.rows.length, definition.rows[0].length).setValues(definition.rows.map(function(row) {
+        return row.slice();
+      }));
+    }
+  });
+
+  return {
+    getSheetByName: function(name) {
+      return state.map[name] || null;
+    },
+    insertSheet: function(name) {
+      const sheet = createMockSheet(name);
+      state.map[name] = sheet;
+      state.order.push(sheet);
+      return sheet;
+    },
+    getSheets: function() {
+      return state.order.slice();
+    }
+  };
+}
+
+function createMockSheet(name) {
+  const state = {
+    name: name,
+    data: []
+  };
+
+  return {
+    getName: function() {
+      return state.name;
+    },
+    getLastRow: function() {
+      return state.data.length;
+    },
+    getLastColumn: function() {
+      if (!state.data.length) {
+        return 0;
+      }
+      return state.data.reduce(function(max, row) {
+        return Math.max(max, row.length || 0);
+      }, 0);
+    },
+    getRange: function(row, col, numRows, numCols) {
+      return createMockRange(state, row, col, numRows, numCols);
+    },
+    _getData: function() {
+      return state.data;
+    }
+  };
+}
+
+function createMockRange(state, startRow, startCol, numRows, numCols) {
+  return {
+    getValues: function() {
+      const values = [];
+      for (let r = 0; r < numRows; r++) {
+        const rowIndex = startRow + r - 1;
+        const sourceRow = state.data[rowIndex] || [];
+        const rowValues = [];
+        for (let c = 0; c < numCols; c++) {
+          const colIndex = startCol + c - 1;
+          rowValues.push(typeof sourceRow[colIndex] === 'undefined' ? '' : sourceRow[colIndex]);
+        }
+        values.push(rowValues);
+      }
+      return values;
+    },
+    setValues: function(values) {
+      for (let r = 0; r < numRows; r++) {
+        const rowIndex = startRow + r - 1;
+        if (!state.data[rowIndex]) {
+          state.data[rowIndex] = [];
+        }
+        for (let c = 0; c < numCols; c++) {
+          const colIndex = startCol + c - 1;
+          state.data[rowIndex][colIndex] = values[r][c];
+        }
+      }
+      return this;
+    },
+    clear: function() {
+      for (let r = 0; r < numRows; r++) {
+        const rowIndex = startRow + r - 1;
+        if (!state.data[rowIndex]) {
+          continue;
+        }
+        for (let c = 0; c < numCols; c++) {
+          const colIndex = startCol + c - 1;
+          state.data[rowIndex][colIndex] = '';
+        }
+      }
+      return this;
+    },
+    setFontWeight: function() {
+      return this;
+    },
+    setBackground: function() {
+      return this;
+    },
+    getNumRows: function() {
+      return numRows;
+    }
+  };
+}
+
+function setupHistoricalImportEnvironment(csvText, options) {
+  const configOverrides = {
+    'SHEETS.TAB_NAMES.RESULTS': 'Team Results',
+    'SHEETS.TAB_NAMES.PLAYER_EVENTS': 'Player_Events',
+    ...(options && options.config ? options.config : {})
+  };
+
+  const env = installSelfTestEnvironment({
+    properties: { SPREADSHEET_ID: 'selftest-sheet' },
+    config: configOverrides
+  });
+
+  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', 'selftest-sheet');
+
+  const spreadsheet = createMockSpreadsheet(options && options.initialSheets);
+  const globalScope = typeof globalThis !== 'undefined' ? globalThis : this;
+  const originalSpreadsheetApp = globalScope.SpreadsheetApp;
+  globalScope.SpreadsheetApp = {
+    openById: function() {
+      return spreadsheet;
+    },
+    getUi: function() {
+      return {
+        prompt: function() {
+          return {
+            getResponseText: function() { return ''; },
+            getSelectedButton: function() { return { }; }
+          };
+        }
+      };
+    }
+  };
+
+  const utilities = globalScope.Utilities;
+  const originalParseCsv = utilities.parseCsv;
+  const originalFormatDate = utilities.formatDate;
+
+  utilities.parseCsv = function(text) {
+    return String(text || '')
+      .split(/\r?\n/)
+      .filter(function(line) { return line !== ''; })
+      .map(function(line) { return line.split(','); });
+  };
+
+  utilities.formatDate = function(date, timezone, pattern) {
+    const value = date instanceof Date ? date : new Date(date);
+    if (isNaN(value.getTime())) {
+      return '';
+    }
+    if (pattern === 'yyyy-MM-dd') {
+      const year = value.getUTCFullYear();
+      const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(value.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    if (pattern === 'dd/MM/yyyy') {
+      const day = String(value.getDate()).padStart(2, '0');
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const year = value.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+    return value.toISOString();
+  };
+
+  return {
+    env: env,
+    spreadsheet: spreadsheet,
+    restore: function() {
+      utilities.parseCsv = originalParseCsv;
+      utilities.formatDate = originalFormatDate;
+      if (typeof originalSpreadsheetApp === 'undefined') {
+        delete globalScope.SpreadsheetApp;
+      } else {
+        globalScope.SpreadsheetApp = originalSpreadsheetApp;
+      }
+      env.restore();
+    },
+    runImport: function(importOptions) {
+      const optionsWithContent = importOptions || {};
+      if (typeof optionsWithContent.fileContent !== 'string') {
+        optionsWithContent.fileContent = csvText;
+      }
+      if (!optionsWithContent.fileId) {
+        optionsWithContent.fileId = 'historical-test-file';
+      }
+      return importHistoricalCSV(optionsWithContent);
+    }
+  };
+}
+
+function test_historical_import_missing_headers() {
+  SelfTestHooks.ensure(['historical.csv.import.start', 'historical.csv.import.end']);
+  SelfTestHooks.reset(['historical.csv.import.start', 'historical.csv.import.end']);
+
+  const csv = 'date,home,away,comp,venue,hs,as,scorers\n2023-09-10,Self Test FC,Example FC,League,Home,3,1,Alex Smith 12\'';
+  const setup = setupHistoricalImportEnvironment(csv, {});
+
+  try {
+    const result = setup.runImport();
+    assert(result && result.success === false, 'Import should fail when headers are missing');
+    assert(result.error && result.error.indexOf('headers') !== -1, 'Error should mention headers');
+    assertEqual(SelfTestHooks.counters['historical.csv.import.start'], 1, 'Start hook once');
+    assertEqual(SelfTestHooks.counters['historical.csv.import.end'], 1, 'End hook once');
+    assertEqual(setup.spreadsheet.getSheets().length, 0, 'No sheets should be created on failure');
+    console.log('✅ test_historical_import_missing_headers passed');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ test_historical_import_missing_headers failed', error);
+    return { success: false, error: error.toString() };
+  } finally {
+    setup.restore();
+  }
+}
+
+function test_historical_import_deduplicates_rows() {
+  SelfTestHooks.ensure(['historical.csv.import.start', 'historical.csv.import.end']);
+  SelfTestHooks.reset(['historical.csv.import.start', 'historical.csv.import.end']);
+
+  const csv = [
+    'date,home,away,comp,venue,hs,as,scorers,cards',
+    '2023-09-10,Self Test FC,Example FC,League,Home,2,1,Alex Smith 12\';,Alex Smith yellow 70\'',
+    '2023-09-10,Self Test FC,Example FC,League,Home,2,1,Alex Smith 12\';,Alex Smith yellow 70\''
+  ].join('\n');
+
+  const setup = setupHistoricalImportEnvironment(csv, {});
+
+  try {
+    const result = setup.runImport();
+    assert(result && result.success === true, 'Import should succeed');
+    assertEqual(result.results.inserted, 1, 'One match inserted');
+    assertEqual(result.duplicatesInFile, 1, 'Duplicate row skipped');
+
+    const seasonSheet = setup.spreadsheet.getSheetByName('Team Results 2023/24');
+    assert(seasonSheet, 'Season sheet should exist');
+    assertEqual(seasonSheet._getData().length, 2, 'Header plus one row');
+
+    const eventsSheet = setup.spreadsheet.getSheetByName('Player_Events 2023/24');
+    assert(eventsSheet, 'Player events sheet should exist');
+    assertEqual(eventsSheet._getData().length, 2, 'Header plus one event');
+
+    assertEqual(SelfTestHooks.counters['historical.csv.import.start'], 1, 'Start hook once');
+    assertEqual(SelfTestHooks.counters['historical.csv.import.end'], 1, 'End hook once');
+
+    console.log('✅ test_historical_import_deduplicates_rows passed');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ test_historical_import_deduplicates_rows failed', error);
+    return { success: false, error: error.toString() };
+  } finally {
+    setup.restore();
+  }
+}
+
+function test_historical_import_mixed_seasons() {
+  SelfTestHooks.ensure(['historical.csv.import.start', 'historical.csv.import.end']);
+  SelfTestHooks.reset(['historical.csv.import.start', 'historical.csv.import.end']);
+
+  const csv = [
+    'date,home,away,comp,venue,hs,as,scorers,cards',
+    '2023-04-15,Example FC,Self Test FC,Cup,Away,1,2,Jamie Lane 55\',Chris Gray yellow 40\'',
+    '2024-09-01,Self Test FC,Example Town,League,Home,3,0,Alex Smith 20\'; Ben King 68\';,Ben King yellow 80\''
+  ].join('\n');
+
+  const setup = setupHistoricalImportEnvironment(csv, {});
+
+  try {
+    const result = setup.runImport();
+    assert(result && result.success === true, 'Import should succeed for mixed seasons');
+    assertEqual(result.results.inserted, 2, 'Two matches inserted');
+    assert(result.seasons && result.seasons.indexOf('2022/23') !== -1 && result.seasons.indexOf('2024/25') !== -1, 'Summary includes both seasons');
+
+    const sheetA = setup.spreadsheet.getSheetByName('Team Results 2022/23');
+    const sheetB = setup.spreadsheet.getSheetByName('Team Results 2024/25');
+    assert(sheetA && sheetB, 'Both season sheets should exist');
+    assertEqual(sheetA._getData().length, 2, 'Season A has one data row');
+    assertEqual(sheetB._getData().length, 2, 'Season B has one data row');
+
+    const eventsA = setup.spreadsheet.getSheetByName('Player_Events 2022/23');
+    const eventsB = setup.spreadsheet.getSheetByName('Player_Events 2024/25');
+    assert(eventsA && eventsB, 'Player events sheets created for both seasons');
+
+    assertEqual(SelfTestHooks.counters['historical.csv.import.start'], 1, 'Start hook once');
+    assertEqual(SelfTestHooks.counters['historical.csv.import.end'], 1, 'End hook once');
+
+    console.log('✅ test_historical_import_mixed_seasons passed');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ test_historical_import_mixed_seasons failed', error);
+    return { success: false, error: error.toString() };
+  } finally {
+    setup.restore();
+  }
+}
+
 /**
  * Utility to create a mock UrlFetchApp response.
  * @param {number} status HTTP status code
@@ -522,6 +838,9 @@ function test_make_fallback_path() {
  */
 function runMakeIntegrationSelfTests() {
   const tests = [
+    { name: 'test_historical_import_missing_headers', fn: test_historical_import_missing_headers },
+    { name: 'test_historical_import_deduplicates_rows', fn: test_historical_import_deduplicates_rows },
+    { name: 'test_historical_import_mixed_seasons', fn: test_historical_import_mixed_seasons },
     { name: 'test_backend_enabled_route', fn: test_backend_enabled_route },
     { name: 'test_backend_retry_backoff', fn: test_backend_retry_backoff },
     { name: 'test_make_fallback_path', fn: test_make_fallback_path }
