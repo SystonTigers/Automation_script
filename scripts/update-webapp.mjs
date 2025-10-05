@@ -50,7 +50,7 @@ function selectSingleWebAppDeployment(deployments) {
 
 try {
   console.log('🔍 Inspecting Apps Script deployments...');
-  const deploymentsOutput = run('npx', ['clasp', 'deployments', '--json']);
+  const deploymentsOutput = run('npx', ['clasp', 'deployments', '--json', '--rootDir', 'src']);
   const deployments = parseDeployments(deploymentsOutput);
   const targetDeployment = selectSingleWebAppDeployment(deployments);
   const deploymentId = targetDeployment.deploymentId;
@@ -60,7 +60,7 @@ try {
     console.log(`📄 Description: ${targetDeployment.deploymentConfig.description}`);
   }
 
-  run('npx', ['clasp', 'deploy', '--deploymentId', deploymentId]);
+  run('npx', ['clasp', 'deploy', '--deploymentId', deploymentId, '--rootDir', 'src']);
   console.log('✅ Web App deployment updated successfully.');
 } catch (error) {
   console.error(`❌ ${error.message}`);
