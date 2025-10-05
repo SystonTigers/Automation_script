@@ -453,6 +453,240 @@ suite('Control Panel Functionality', function() {
   });
 });
 
+// ==================== ENHANCED EVENTS TESTS ====================
+
+suite('Enhanced Events Payloads', function() {
+
+  test('should include icon_url when configured in script properties', function() {
+    const propertyStore = { MATCHDAY_CARD_ICON_MAP: JSON.stringify({ card_yellow: 'https://cdn.example.com/yellow.png' }) };
+    const originalGetScriptProperties = PropertiesService.getScriptProperties;
+    PropertiesService.getScriptProperties = function() {
+      return {
+        getProperty(key) { return propertyStore[key] || ''; },
+        setProperty(key, value) { propertyStore[key] = value; return this; },
+        getProperties() { return Object.assign({}, propertyStore); }
+      };
+    };
+
+    try {
+      const manager = new EnhancedEventsManager();
+      manager.getMatchInfo = function() {
+        return { date: '2025-08-01', opponent: 'Test United', venue: 'Home', competition: 'League' };
+      };
+
+      const payload = manager.createCardPayload('12', 'Player One', 'Yellow Card', 'match-1', 'card_yellow');
+
+      equal(payload.icon_url, 'https://cdn.example.com/yellow.png', 'Card payload should include configured icon URL');
+
+    } finally {
+      PropertiesService.getScriptProperties = originalGetScriptProperties;
+    }
+  });
+});
+
+// ==================== WEEKLY SCHEDULER TESTS ====================
+
+suite('Weekly Scheduler Enhancements', function() {
+
+  test('validateQuoteLength should truncate when allowed by Script Property', function() {
+    const scheduler = new WeeklyScheduler();
+    const propertyStore = { WEEKLY_QUOTES_MAX_LENGTH: JSON.stringify({ maxLength: 30, allowTruncate: true }) };
+    const originalGetScriptProperties = PropertiesService.getScriptProperties;
+    PropertiesService.getScriptProperties = function() {
+      return {
+        getProperty(key) { return propertyStore[key] || ''; },
+        setProperty(key, value) { propertyStore[key] = value; return this; },
+        getProperties() { return Object.assign({}, propertyStore); }
+      };
+    };
+
+    try {
+      const validation = scheduler.validateQuoteLength('This inspirational quote should be gracefully shortened for posting.');
+      ok(validation.valid, 'Validation should pass when truncation is allowed');
+      ok(validation.wasTruncated, 'Quote should be truncated when exceeding max length');
+      equal(validation.maxLength, 30, 'Max length should respect script property override');
+      ok(validation.sanitizedText.length <= 30, 'Sanitized text should not exceed configured limit');
+    } finally {
+      PropertiesService.getScriptProperties = originalGetScriptProperties;
+    }
+  });
+
+  test('validateQuoteLength should fail when truncation disabled', function() {
+    const scheduler = new WeeklyScheduler();
+    const propertyStore = { WEEKLY_QUOTES_MAX_LENGTH: JSON.stringify({ maxLength: 20, allowTruncate: false }) };
+    const originalGetScriptProperties = PropertiesService.getScriptProperties;
+    PropertiesService.getScriptProperties = function() {
+      return {
+        getProperty(key) { return propertyStore[key] || ''; },
+        setProperty(key, value) { propertyStore[key] = value; return this; },
+        getProperties() { return Object.assign({}, propertyStore); }
+      };
+    };
+
+    try {
+      const validation = scheduler.validateQuoteLength('This quote exceeds twenty characters easily.');
+      notOk(validation.valid, 'Validation should fail when truncation is disabled and quote is too long');
+      equal(validation.reason, 'exceeds_max_length', 'Reason should indicate exceeded length');
+    } finally {
+      PropertiesService.getScriptProperties = originalGetScriptProperties;
+    }
+  });
+});
+
+// ==================== BIRTHDAY AUTOMATION TESTS ====================
+
+suite('Birthday Automation', function() {
+
+  test('should send birthday payload once per day', function() {
+    const propertyStore = { BIRTHDAY_AUTOMATION_ENABLED: 'true' };
+    const originalGetScriptProperties = PropertiesService.getScriptProperties;
+    PropertiesService.getScriptProperties = function() {
+      return {
+        getProperty(key) { return propertyStore[key] || ''; },
+        setProperty(key, value) { propertyStore[key] = value; return this; },
+        getProperties() { return Object.assign({}, propertyStore); }
+      };
+    };
+
+    const sheetStub = stubSheets();
+    const playersSheet = SheetUtils.getOrCreateSheet('Players', ['Player Name', 'Date of Birth', 'Position', 'Squad Number']);
+    playersSheet.getRange(2, 1, 1, 4).setValues([
+      ['Alex Smith', '15/03/2000', 'Midfielder', '10']
+    ]);
+
+    const originalSendToMake = MakeIntegration.prototype.sendToMake;
+    const sentPayloads = [];
+    MakeIntegration.prototype.sendToMake = function(payload) {
+      sentPayloads.push(payload);
+      return { success: true };
+    };
+
+    try {
+      const automation = new BirthdayAutomation();
+      const referenceDate = new Date('2025-03-15T09:00:00Z');
+      const firstRun = automation.runDaily(referenceDate);
+      ok(firstRun.success, 'First run should succeed');
+      equal(firstRun.processed, 1, 'Should process one birthday');
+      equal(sentPayloads.length, 1, 'Should send exactly one payload');
+      equal(sentPayloads[0].player_name, 'Alex Smith', 'Payload should include player name');
+
+      const secondRun = automation.runDaily(new Date('2025-03-15T12:00:00Z'));
+      ok(secondRun.success, 'Second run should succeed');
+      equal(secondRun.processed, 0, 'Second run should not process duplicate birthdays');
+      ok(secondRun.skipped, 'Second run should be marked as skipped');
+      equal(sentPayloads.length, 1, 'Should not send duplicate payloads');
+    } finally {
+      MakeIntegration.prototype.sendToMake = originalSendToMake;
+      sheetStub.restore();
+      PropertiesService.getScriptProperties = originalGetScriptProperties;
+    }
+  });
+});
+
+// ==================== LEAGUE TABLE PIPELINE TESTS ====================
+
+suite('League Table Pipeline', function() {
+
+  test('should build sorted sheet, canva map, and HTML file', function() {
+    const propertyStore = {};
+    const originalGetScriptProperties = PropertiesService.getScriptProperties;
+    PropertiesService.getScriptProperties = function() {
+      return {
+        getProperty(key) { return propertyStore[key] || ''; },
+        setProperty(key, value) { propertyStore[key] = value; return this; },
+        getProperties() { return Object.assign({}, propertyStore); }
+      };
+    };
+
+    const sheetStub = stubSheets();
+    const rawSheet = SheetUtils.getOrCreateSheet('League Raw', ['Team', 'Played', 'Won', 'Drawn', 'Lost', 'Goals For', 'Goals Against', 'Goal Difference', 'Points']);
+    rawSheet.getRange(2, 1, 3, 9).setValues([
+      ['Team A', 10, 7, 2, 1, 25, 10, 15, 23],
+      ['Team B', 10, 6, 3, 1, 22, 12, 10, 21],
+      ['Team C', 10, 4, 4, 2, 18, 14, 4, 16]
+    ]);
+
+    const globalContext = typeof globalThis !== 'undefined' ? globalThis : (function() { return this; })();
+    const originalDriveApp = typeof globalContext.DriveApp !== 'undefined' ? globalContext.DriveApp : undefined;
+    const folderStore = { files: {} };
+    const folder = {
+      files: folderStore.files,
+      getFilesByName(name) {
+        const file = this.files[name];
+        return {
+          hasNext() { return !!file; },
+          next() { return file; }
+        };
+      },
+      createFile(name, content) {
+        const file = {
+          name,
+          content,
+          getId() { return `${name}-id`; },
+          setContent(newContent) { this.content = newContent; }
+        };
+        this.files[name] = file;
+        return file;
+      }
+    };
+
+    globalContext.DriveApp = {
+      getRootFolder() { return folder; },
+      getFolderById() { return folder; }
+    };
+
+    const originalMimeType = typeof globalContext.MimeType !== 'undefined' ? globalContext.MimeType : undefined;
+    globalContext.MimeType = { HTML: 'text/html' };
+
+    const originalUtilities = typeof globalContext.Utilities !== 'undefined' ? globalContext.Utilities : undefined;
+    globalContext.Utilities = {
+      DigestAlgorithm: { MD5: 'MD5' },
+      Charset: { UTF_8: 'UTF_8' },
+      computeDigest() { return [1, 2, 3, 4]; }
+    };
+
+    try {
+      const pipeline = new LeagueTablePipeline();
+      const result = pipeline.refreshAndMap();
+
+      ok(result.success, 'Pipeline should complete successfully');
+      equal(result.rows, 3, 'Should process all league rows');
+
+      const sortedSheet = sheetStub.sheets['League Sorted'];
+      ok(sortedSheet, 'Sorted sheet should exist');
+      ok(sortedSheet.data.length >= 3, 'Sorted sheet should contain data rows');
+
+      const canvaSheet = sheetStub.sheets['League Canva Map'];
+      ok(canvaSheet, 'Canva sheet should exist');
+      ok(canvaSheet.data.length >= 3, 'Canva sheet should contain data rows');
+
+      const htmlFile = folder.files['table.html'];
+      ok(htmlFile, 'HTML file should be created');
+      ok(htmlFile.content.indexOf('Team A') !== -1, 'HTML should contain team names');
+
+      ok(propertyStore.LEAGUE_TABLE_LAST_BUILD, 'Last build metadata should be stored');
+    } finally {
+      sheetStub.restore();
+      PropertiesService.getScriptProperties = originalGetScriptProperties;
+      if (originalDriveApp !== undefined) {
+        globalContext.DriveApp = originalDriveApp;
+      } else {
+        delete globalContext.DriveApp;
+      }
+      if (originalMimeType !== undefined) {
+        globalContext.MimeType = originalMimeType;
+      } else {
+        delete globalContext.MimeType;
+      }
+      if (originalUtilities !== undefined) {
+        globalContext.Utilities = originalUtilities;
+      } else {
+        delete globalContext.Utilities;
+      }
+    }
+  });
+});
+
 // ==================== PERFORMANCE TESTS ====================
 
 suite('Performance Testing', function() {

@@ -14,6 +14,7 @@ class TriggerManager {
   static getAllowedTriggers() {
     return [
       'runWeeklyScheduleAutomation',
+      'runDailyBirthdayAutomation',
       'runMonthlyScheduledTasks',
       'scheduledHealthCheck',
       'cleanupExpiredCache',

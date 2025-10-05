@@ -195,8 +195,32 @@ class WeeklyScheduler {
         throw new Error('No quotes available');
       }
       
+      const validation = this.validateQuoteLength(selectedQuote.text);
+
+      if (!validation.valid) {
+        const measuredLength = validation.length || (selectedQuote?.text ? String(selectedQuote.text).length : 0);
+        this.logger.warn('Quote length validation failed', {
+          measured_length: measuredLength,
+          max_length: validation.maxLength,
+          reason: validation.reason || 'exceeds_max_length'
+        });
+        throw new Error(`Quote text exceeds maximum length (${measuredLength}/${validation.maxLength})`);
+      }
+
+      if (validation.wasTruncated) {
+        this.logger.warn('Quote text truncated to fit configured maximum', {
+          max_length: validation.maxLength
+        });
+      }
+
+      const normalizedQuote = {
+        ...selectedQuote,
+        text: validation.sanitizedText,
+        wasTruncated: validation.wasTruncated || false
+      };
+
       // Create quotes payload
-      const payload = this.createQuotesPayload(selectedQuote);
+      const payload = this.createQuotesPayload(normalizedQuote, validation);
       
       // @testHook(tuesday_quotes_webhook)
       const webhookResult = this.sendToMake(payload);
@@ -1041,7 +1065,7 @@ class WeeklyScheduler {
    * @param {Object} quote - Selected quote
    * @returns {Object} Payload object
    */
-  createQuotesPayload(quote) {
+  createQuotesPayload(quote, validation = null) {
     const inspirationTheme = this.getInspirationalTheme();
     const variantContext = {
       content_title: 'Tuesday Motivation',
@@ -1052,6 +1076,8 @@ class WeeklyScheduler {
     };
 
     const templateVariants = this.buildTemplateVariants('quotes', variantContext);
+    const maxLength = validation?.maxLength || getConfigValue('WEEKLY_SCHEDULE.QUOTE_VALIDATION.DEFAULT_MAX_LENGTH', 220);
+    const wasTruncated = validation?.wasTruncated || !!quote.wasTruncated;
 
     return {
       event_type: 'weekly_quotes',
@@ -1063,6 +1089,8 @@ class WeeklyScheduler {
       quote_author: quote.author,
       quote_category: quote.category,
       content_title: 'Tuesday Motivation',
+      quote_text_max_length: maxLength,
+      quote_text_was_truncated: wasTruncated,
 
       // Metadata
       inspiration_theme: inspirationTheme,
@@ -1073,6 +1101,99 @@ class WeeklyScheduler {
 
       // Template variants
       template_variants: templateVariants
+    };
+  }
+
+  /**
+   * Validate quote length with configurable limits
+   * @param {string} quoteText - Quote content
+   * @returns {Object} Validation result
+   */
+  validateQuoteLength(quoteText) {
+    const validationConfig = getConfigValue('WEEKLY_SCHEDULE.QUOTE_VALIDATION', {}) || {};
+    const propertyKey = validationConfig.MAX_LENGTH_PROPERTY || 'WEEKLY_QUOTES_MAX_LENGTH';
+    let maxLength = parseInt(validationConfig.DEFAULT_MAX_LENGTH, 10);
+    if (!maxLength || Number.isNaN(maxLength)) {
+      maxLength = 220;
+    }
+
+    let allowTruncation = validationConfig.ALLOW_TRUNCATION !== false;
+
+    try {
+      if (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) {
+        const scriptProperties = PropertiesService.getScriptProperties();
+        const stored = scriptProperties.getProperty(propertyKey);
+
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === 'object') {
+              if (parsed.maxLength && !Number.isNaN(parseInt(parsed.maxLength, 10))) {
+                maxLength = parseInt(parsed.maxLength, 10);
+              }
+              if (typeof parsed.allowTruncate === 'boolean') {
+                allowTruncation = parsed.allowTruncate;
+              }
+            }
+          } catch (jsonError) {
+            const numeric = parseInt(stored, 10);
+            if (!Number.isNaN(numeric) && numeric > 0) {
+              maxLength = numeric;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.warn('Failed to read quote validation settings', { error: error.toString() });
+    }
+
+    const sanitizedText = quoteText ? String(quoteText).trim().replace(/\s+/g, ' ') : '';
+    const measuredLength = sanitizedText.length;
+
+    if (!sanitizedText) {
+      return {
+        valid: false,
+        sanitizedText,
+        maxLength,
+        length: measuredLength,
+        reason: 'empty_text',
+        wasTruncated: false
+      };
+    }
+
+    if (measuredLength <= maxLength) {
+      return {
+        valid: true,
+        sanitizedText,
+        maxLength,
+        length: measuredLength,
+        wasTruncated: false
+      };
+    }
+
+    if (!allowTruncation) {
+      return {
+        valid: false,
+        sanitizedText,
+        maxLength,
+        length: measuredLength,
+        reason: 'exceeds_max_length',
+        wasTruncated: false
+      };
+    }
+
+    let truncated = sanitizedText.slice(0, maxLength);
+    if (!truncated.trim()) {
+      truncated = sanitizedText.slice(0, Math.min(maxLength, sanitizedText.length));
+    }
+
+    return {
+      valid: true,
+      sanitizedText: truncated.trim(),
+      maxLength,
+      length: Math.min(measuredLength, maxLength),
+      wasTruncated: true,
+      reason: 'truncated_to_fit'
     };
   }
 
@@ -1556,6 +1677,433 @@ class WeeklyScheduler {
   }
 }
 
+// ==================== BIRTHDAY AUTOMATION ====================
+
+class BirthdayAutomation {
+
+  constructor() {
+    this.loggerName = 'BirthdayAutomation';
+    this._logger = null;
+    this.makeIntegration = new MakeIntegration();
+  }
+
+  get logger() {
+    if (!this._logger) {
+      try {
+        this._logger = logger.scope(this.loggerName);
+      } catch (error) {
+        this._logger = {
+          enterFunction: (fn, data) => console.log(`[${this.loggerName}] → ${fn}`, data || ''),
+          exitFunction: (fn, data) => console.log(`[${this.loggerName}] ← ${fn}`, data || ''),
+          info: (msg, data) => console.log(`[${this.loggerName}] ${msg}`, data || ''),
+          warn: (msg, data) => console.warn(`[${this.loggerName}] ${msg}`, data || ''),
+          error: (msg, data) => console.error(`[${this.loggerName}] ${msg}`, data || '')
+        };
+      }
+    }
+    return this._logger;
+  }
+
+  runDaily(referenceDate = DateUtils.now()) {
+    const normalizedDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+    this.logger.enterFunction('runDaily', {
+      reference_date: DateUtils.formatISO(normalizedDate)
+    });
+
+    try {
+      const config = this.getBirthdayConfig();
+
+      if (!this.isEnabled(config)) {
+        this.logger.exitFunction('runDaily', { success: true, skipped: true, reason: 'disabled' });
+        return { success: true, skipped: true, reason: 'disabled' };
+      }
+
+      if (!config.ALLOW_MULTIPLE_PER_DAY) {
+        const lastRunDate = this.getLastRunDate(config);
+        if (lastRunDate && this.isSameDay(lastRunDate, normalizedDate)) {
+          this.logger.exitFunction('runDaily', { success: true, skipped: true, reason: 'already_ran_today' });
+          return { success: true, skipped: true, reason: 'already_ran_today' };
+        }
+      }
+
+      const scriptProperties = this.getScriptProperties();
+      const rosterSheet = this.getRosterSheet(config);
+
+      if (!rosterSheet) {
+        throw new Error('Roster sheet unavailable for birthday automation');
+      }
+
+      const headerRow = this.getHeaderRow(rosterSheet);
+      const headerMap = this.resolveHeaderMap(headerRow, config);
+
+      if (!headerMap.name || !headerMap.dob) {
+        throw new Error('Birthday automation requires name and date of birth columns');
+      }
+
+      const rosterData = SheetUtils.getAllDataAsObjects(rosterSheet);
+      const todaysBirthdays = this.findBirthdays(rosterData, normalizedDate, headerMap);
+
+      const processedKey = this.buildProcessedPropertyKey(normalizedDate, config);
+      const processedSet = this.readProcessedIds(scriptProperties, processedKey);
+
+      const pendingBirthdays = todaysBirthdays.filter(entry => !processedSet.has(entry.id));
+
+      if (pendingBirthdays.length === 0) {
+        this.updateLastRun(scriptProperties, config, normalizedDate);
+        this.logger.exitFunction('runDaily', {
+          success: true,
+          processed: 0,
+          skipped: todaysBirthdays.length > 0,
+          reason: todaysBirthdays.length > 0 ? 'already_processed' : 'no_birthdays'
+        });
+        return {
+          success: true,
+          processed: 0,
+          skipped: todaysBirthdays.length > 0,
+          reason: todaysBirthdays.length > 0 ? 'already_processed' : 'no_birthdays',
+          birthdays: todaysBirthdays.map(entry => ({
+            player_name: entry.playerName,
+            age: entry.age
+          }))
+        };
+      }
+
+      const timezone = getConfigValue('SYSTEM.TIMEZONE', 'Europe/London');
+      const results = [];
+
+      pendingBirthdays.forEach(entry => {
+        const payload = this.createBirthdayPayload(entry, normalizedDate);
+        const idempotencyKey = `birthday:${Utilities.formatDate(normalizedDate, timezone, 'yyyyMMdd')}:${entry.id}`;
+        const sendResult = this.makeIntegration.sendToMake(payload, { idempotencyKey });
+
+        results.push({
+          player_name: entry.playerName,
+          success: !!sendResult?.success,
+          response: sendResult
+        });
+
+        if (sendResult && sendResult.success) {
+          processedSet.add(entry.id);
+        }
+      });
+
+      this.writeProcessedIds(scriptProperties, processedKey, processedSet);
+      this.updateLastRun(scriptProperties, config, normalizedDate);
+
+      this.logger.exitFunction('runDaily', {
+        success: true,
+        processed: pendingBirthdays.length
+      });
+
+      return {
+        success: true,
+        processed: pendingBirthdays.length,
+        birthdays: pendingBirthdays.map(entry => ({
+          player_name: entry.playerName,
+          age: entry.age,
+          position: entry.position,
+          squad_number: entry.squadNumber
+        })),
+        results
+      };
+
+    } catch (error) {
+      this.logger.error('Birthday automation failed', { error: error.toString() });
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  getBirthdayConfig() {
+    return getConfigValue('WEEKLY_SCHEDULE.BIRTHDAYS', {}) || {};
+  }
+
+  getScriptProperties() {
+    if (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) {
+      return PropertiesService.getScriptProperties();
+    }
+    return {
+      getProperty() { return ''; },
+      setProperty() {},
+      getProperties() { return {}; }
+    };
+  }
+
+  isEnabled(config) {
+    let enabled = config.DEFAULT_ENABLED !== false;
+    try {
+      const scriptProperties = this.getScriptProperties();
+      const rawValue = scriptProperties.getProperty(config.ENABLED_PROPERTY || 'BIRTHDAY_AUTOMATION_ENABLED');
+      if (typeof rawValue === 'string' && rawValue.trim()) {
+        const normalized = rawValue.trim().toLowerCase();
+        if (['false', '0', 'no', 'disabled'].includes(normalized)) {
+          enabled = false;
+        } else if (['true', '1', 'yes', 'enabled'].includes(normalized)) {
+          enabled = true;
+        }
+      }
+    } catch (error) {
+      this.logger.warn('Failed to resolve birthday automation enabled flag', { error: error.toString() });
+    }
+    return enabled;
+  }
+
+  getRosterSheet(config) {
+    const sheetNameProperty = config.SHEET_NAME_PROPERTY || 'BIRTHDAY_SHEET_NAME';
+    const defaultSheetName = config.DEFAULT_SHEET_NAME || 'Players';
+    let sheetName = defaultSheetName;
+
+    try {
+      const scriptProperties = this.getScriptProperties();
+      const storedName = scriptProperties.getProperty(sheetNameProperty);
+      if (storedName && storedName.trim()) {
+        sheetName = storedName.trim();
+      }
+    } catch (error) {
+      this.logger.warn('Failed to resolve birthday sheet name from script properties', { error: error.toString() });
+    }
+
+    const requiredHeaders = this.getRequiredHeaders(config);
+    return SheetUtils.getOrCreateSheet(sheetName, requiredHeaders);
+  }
+
+  getRequiredHeaders(config) {
+    const nameHeaders = Array.isArray(config.NAME_HEADERS) ? config.NAME_HEADERS : ['Player Name'];
+    const dobHeaders = Array.isArray(config.DOB_HEADERS) ? config.DOB_HEADERS : ['Date of Birth'];
+    const positionHeaders = Array.isArray(config.POSITION_HEADERS) ? config.POSITION_HEADERS : ['Position'];
+    const squadHeaders = Array.isArray(config.SQUAD_NUMBER_HEADERS) ? config.SQUAD_NUMBER_HEADERS : ['Squad Number'];
+
+    return mergeUniqueArrays(nameHeaders, dobHeaders, positionHeaders, squadHeaders);
+  }
+
+  getHeaderRow(sheet) {
+    if (!sheet || typeof sheet.getLastColumn !== 'function') {
+      return [];
+    }
+    const lastColumn = sheet.getLastColumn();
+    if (lastColumn === 0) {
+      return [];
+    }
+    return sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  }
+
+  resolveHeaderMap(headerRow, config) {
+    const mapHeader = (options) => {
+      return options.find(option => headerRow.includes(option)) || null;
+    };
+
+    const nameHeader = mapHeader(Array.isArray(config.NAME_HEADERS) ? config.NAME_HEADERS : []);
+    const dobHeader = mapHeader(Array.isArray(config.DOB_HEADERS) ? config.DOB_HEADERS : []);
+    const positionHeader = mapHeader(Array.isArray(config.POSITION_HEADERS) ? config.POSITION_HEADERS : []);
+    const squadHeader = mapHeader(Array.isArray(config.SQUAD_NUMBER_HEADERS) ? config.SQUAD_NUMBER_HEADERS : []);
+
+    return {
+      name: nameHeader,
+      dob: dobHeader,
+      position: positionHeader,
+      squadNumber: squadHeader
+    };
+  }
+
+  findBirthdays(rows, referenceDate, headerMap) {
+    const targetMonth = referenceDate.getMonth();
+    const targetDay = referenceDate.getDate();
+    const birthdays = [];
+
+    rows.forEach(row => {
+      const rawName = headerMap.name ? row[headerMap.name] : '';
+      const rawDob = headerMap.dob ? row[headerMap.dob] : '';
+
+      const playerName = rawName ? String(rawName).trim() : '';
+      const birthDate = this.parseDate(rawDob);
+
+      if (!playerName || !birthDate) {
+        return;
+      }
+
+      let celebrationDay = birthDate.getDate();
+      const celebrationMonth = birthDate.getMonth();
+
+      if (celebrationMonth === 1 && celebrationDay === 29 && !this.isLeapYear(referenceDate.getFullYear())) {
+        celebrationDay = 28;
+      }
+
+      if (celebrationMonth !== targetMonth || celebrationDay !== targetDay) {
+        return;
+      }
+
+      const age = this.calculateAge(birthDate, referenceDate);
+      const position = headerMap.position ? String(row[headerMap.position] || '').trim() : '';
+      const squadNumber = headerMap.squadNumber ? String(row[headerMap.squadNumber] || '').trim() : '';
+      const id = this.buildPlayerId(playerName, birthDate);
+
+      birthdays.push({
+        id,
+        playerName,
+        birthDate,
+        age,
+        position,
+        squadNumber
+      });
+    });
+
+    return birthdays;
+  }
+
+  parseDate(value) {
+    if (!value) {
+      return null;
+    }
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return new Date(value.getTime());
+    }
+
+    const asString = String(value).trim();
+    if (!asString) {
+      return null;
+    }
+
+    const parsedUk = DateUtils.parseUK(asString);
+    if (parsedUk) {
+      return parsedUk;
+    }
+
+    const parsed = new Date(asString);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  calculateAge(birthDate, referenceDate) {
+    let age = referenceDate.getFullYear() - birthDate.getFullYear();
+    const referenceMonth = referenceDate.getMonth();
+    const birthMonth = birthDate.getMonth();
+
+    if (referenceMonth < birthMonth || (referenceMonth === birthMonth && referenceDate.getDate() < birthDate.getDate())) {
+      age -= 1;
+    }
+
+    return age;
+  }
+
+  buildPlayerId(playerName, birthDate) {
+    const timezone = getConfigValue('SYSTEM.TIMEZONE', 'Europe/London');
+    const nameSlug = playerName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const dateSlug = Utilities.formatDate(birthDate, timezone, 'yyyyMMdd');
+    return `${nameSlug || 'player'}_${dateSlug}`;
+  }
+
+  buildProcessedPropertyKey(referenceDate, config) {
+    const prefix = config.PROCESSED_PREFIX || 'BIRTHDAY_PROCESSED_';
+    const timezone = getConfigValue('SYSTEM.TIMEZONE', 'Europe/London');
+    return `${prefix}${Utilities.formatDate(referenceDate, timezone, 'yyyyMMdd')}`;
+  }
+
+  readProcessedIds(scriptProperties, propertyKey) {
+    try {
+      const stored = scriptProperties.getProperty(propertyKey);
+      if (!stored) {
+        return new Set();
+      }
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed);
+      }
+    } catch (error) {
+      this.logger.warn('Failed to parse processed birthday ids', { error: error.toString() });
+    }
+    return new Set();
+  }
+
+  writeProcessedIds(scriptProperties, propertyKey, processedSet) {
+    try {
+      const serialized = JSON.stringify(Array.from(processedSet));
+      scriptProperties.setProperty(propertyKey, serialized);
+    } catch (error) {
+      this.logger.warn('Failed to persist processed birthday ids', { error: error.toString() });
+    }
+  }
+
+  updateLastRun(scriptProperties, config, referenceDate) {
+    try {
+      const propertyKey = config.LAST_RUN_PROPERTY || 'BIRTHDAY_AUTOMATION_LAST_RUN';
+      scriptProperties.setProperty(propertyKey, DateUtils.formatISO(referenceDate));
+    } catch (error) {
+      this.logger.warn('Failed to update birthday automation last run property', { error: error.toString() });
+    }
+  }
+
+  getLastRunDate(config) {
+    try {
+      const propertyKey = config.LAST_RUN_PROPERTY || 'BIRTHDAY_AUTOMATION_LAST_RUN';
+      const scriptProperties = this.getScriptProperties();
+      const stored = scriptProperties.getProperty(propertyKey);
+      if (stored) {
+        const parsed = new Date(stored);
+        if (!isNaN(parsed.getTime())) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      this.logger.warn('Failed to read birthday automation last run property', { error: error.toString() });
+    }
+    return null;
+  }
+
+  createBirthdayPayload(entry, referenceDate) {
+    const eventType = getConfigValue('MAKE.EVENT_TYPES.birthday', 'player_birthday');
+    const timezone = getConfigValue('SYSTEM.TIMEZONE', 'Europe/London');
+    const variantContext = {
+      content_title: 'Happy Birthday!',
+      player_name: entry.playerName,
+      age: entry.age,
+      position: entry.position,
+      squad_number: entry.squadNumber,
+      celebration_date: DateUtils.formatUK(referenceDate)
+    };
+
+    const templateVariants = this.buildTemplateVariants(variantContext);
+
+    return {
+      event_type: eventType,
+      system_version: getConfigValue('SYSTEM.VERSION'),
+      club_name: getConfigValue('SYSTEM.CLUB_NAME'),
+      player_name: entry.playerName,
+      player_position: entry.position,
+      squad_number: entry.squadNumber,
+      age: entry.age,
+      date_of_birth: DateUtils.formatUK(entry.birthDate),
+      birthdate_iso: DateUtils.formatISO(entry.birthDate),
+      celebration_date: DateUtils.formatUK(referenceDate),
+      celebration_iso: DateUtils.formatISO(referenceDate),
+      idempotency_key: `birthday_${entry.id}`,
+      timestamp: DateUtils.formatISO(DateUtils.now()),
+      template_variants: templateVariants,
+      timezone
+    };
+  }
+
+  buildTemplateVariants(context) {
+    if (typeof buildTemplateVariantCollection !== 'function') {
+      return {};
+    }
+
+    try {
+      return buildTemplateVariantCollection('birthday', context);
+    } catch (error) {
+      this.logger.warn('Birthday template variant generation failed', { error: error.toString() });
+      return {};
+    }
+  }
+
+  isLeapYear(year) {
+    return ((year % 4 === 0) && (year % 100 !== 0)) || (year % 400 === 0);
+  }
+
+  isSameDay(firstDate, secondDate) {
+    return firstDate.getFullYear() === secondDate.getFullYear()
+      && firstDate.getMonth() === secondDate.getMonth()
+      && firstDate.getDate() === secondDate.getDate();
+  }
+}
+
 // ==================== PUBLIC API FUNCTIONS ====================
 
 /**
@@ -1608,6 +2156,42 @@ function initializeWeeklyScheduler() {
 function runWeeklyScheduleAutomation(forceRun = false) {
   const scheduler = new WeeklyScheduler();
   return scheduler.runWeeklySchedule(forceRun);
+}
+
+/**
+ * Run daily birthday automation
+ * @param {Date|string} [referenceDate] - Optional date override
+ * @returns {Object} Execution result
+ */
+function runDailyBirthdayAutomation(referenceDate = null) {
+  const automation = new BirthdayAutomation();
+
+  if (referenceDate) {
+    const dateCandidate = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+    if (!isNaN(dateCandidate.getTime())) {
+      return automation.runDaily(dateCandidate);
+    }
+  }
+
+  return automation.runDaily();
+}
+
+/**
+ * Convenience wrapper to run birthday automation for a specific ISO date
+ * @param {string} isoDate - ISO date string
+ * @returns {Object} Execution result
+ */
+function runBirthdayAutomationForDate(isoDate) {
+  if (!isoDate) {
+    return runDailyBirthdayAutomation();
+  }
+
+  const parsed = new Date(isoDate);
+  if (isNaN(parsed.getTime())) {
+    throw new Error('Invalid date supplied to runBirthdayAutomationForDate');
+  }
+
+  return runDailyBirthdayAutomation(parsed);
 }
 
 /**
