@@ -282,6 +282,232 @@ function testRateLimitingEnforcement() {
   });
 }
 
+// ==================== VIDEO HIGHLIGHTS EDGE CASE TESTS ====================
+
+/**
+ * Edge case tests for highlights export flow
+ */
+function testVideoHighlightsExportEdgeCases() {
+  console.log('=== Starting Video Highlights Export Edge Case Tests ===');
+
+  test('Highlights export returns no_events when no rows match', function() {
+    const originalGetSheet = getSheet;
+    const originalDriveApp = typeof DriveApp === 'undefined' ? undefined : DriveApp;
+
+    const headers = ['Match ID', 'Minute', 'Event', 'Player', 'Assist', 'Notes'];
+    const sheetStub = createHighlightsSheetStub_(headers, []);
+
+    try {
+      globalThis.getSheet = function() {
+        return {
+          getSheetByName(name) {
+            return name ? sheetStub : null;
+          }
+        };
+      };
+
+      const driveStub = createHighlightsDriveStub_();
+      globalThis.DriveApp = driveStub;
+
+      const result = exportEventsForHighlights('match-001');
+      assert(result.ok === false, 'Result should indicate failure when no events exist');
+      assert(result.reason === 'no_events', 'Reason should be no_events');
+      assert(Object.keys(driveStub._store).length === 0, 'No files should be created when no events are found');
+
+      return { success: true };
+
+    } finally {
+      globalThis.getSheet = originalGetSheet;
+      if (typeof originalDriveApp === 'undefined') {
+        delete globalThis.DriveApp;
+      } else {
+        globalThis.DriveApp = originalDriveApp;
+      }
+    }
+  });
+
+  test('Highlights export writes single event JSON', function() {
+    const originalGetSheet = getSheet;
+    const originalDriveApp = typeof DriveApp === 'undefined' ? undefined : DriveApp;
+
+    const headers = ['Match ID', 'Minute', 'Event', 'Player', 'Assist', 'Notes'];
+    const rows = [
+      ['match-002', '12', 'Goal', 'Player A', 'Player B', 'Left-foot finish']
+    ];
+    const sheetStub = createHighlightsSheetStub_(headers, rows);
+
+    try {
+      globalThis.getSheet = function() {
+        return {
+          getSheetByName(name) {
+            return name ? sheetStub : null;
+          }
+        };
+      };
+
+      const driveStub = createHighlightsDriveStub_();
+      globalThis.DriveApp = driveStub;
+
+      const result = exportEventsForHighlights('match-002');
+      assert(result.ok === true, 'Export should succeed when a matching event exists');
+      assert(result.count === 1, 'Exactly one event should be exported');
+      assert(result.fileId, 'File ID should be returned');
+
+      const stored = driveStub._store[`events_match-002.json`];
+      assert(stored, 'Drive store should contain the exported file');
+      const payload = JSON.parse(stored.getContent());
+      assert(Array.isArray(payload.events), 'Payload should contain events array');
+      assert(payload.events.length === 1, 'Events array should contain single entry');
+      assert(payload.events[0].player === 'Player A', 'Player should match exported row');
+
+      return { success: true };
+
+    } finally {
+      globalThis.getSheet = originalGetSheet;
+      if (typeof originalDriveApp === 'undefined') {
+        delete globalThis.DriveApp;
+      } else {
+        globalThis.DriveApp = originalDriveApp;
+      }
+    }
+  });
+
+  test('Highlights export deduplicates duplicate rows', function() {
+    const originalGetSheet = getSheet;
+    const originalDriveApp = typeof DriveApp === 'undefined' ? undefined : DriveApp;
+
+    const headers = ['Match ID', 'Minute', 'Event', 'Player', 'Assist', 'Notes'];
+    const rows = [
+      ['match-003', '30', 'Goal', 'Player C', 'Player D', 'Header'],
+      ['match-003', '30', 'Goal', 'Player C', 'Player D', 'Header'],
+      ['match-003', '45', 'Assist', 'Player D', 'Player C', 'Cross']
+    ];
+    const sheetStub = createHighlightsSheetStub_(headers, rows);
+
+    try {
+      globalThis.getSheet = function() {
+        return {
+          getSheetByName(name) {
+            return name ? sheetStub : null;
+          }
+        };
+      };
+
+      const driveStub = createHighlightsDriveStub_();
+      globalThis.DriveApp = driveStub;
+
+      const result = exportEventsForHighlights('match-003');
+      assert(result.ok === true, 'Export should succeed when duplicates exist');
+      assert(result.count === 2, 'Duplicate rows should be collapsed to unique events');
+
+      const payload = JSON.parse(driveStub._store[`events_match-003.json`].getContent());
+      assert(payload.events.length === 2, 'Stored payload should only contain unique events');
+
+      return { success: true };
+
+    } finally {
+      globalThis.getSheet = originalGetSheet;
+      if (typeof originalDriveApp === 'undefined') {
+        delete globalThis.DriveApp;
+      } else {
+        globalThis.DriveApp = originalDriveApp;
+      }
+    }
+  });
+}
+
+/**
+ * Create sheet stub for highlights tests
+ * @param {Array<string>} headers - Header row
+ * @param {Array<Array<string>>} rows - Data rows
+ * @returns {Object} Sheet stub
+ */
+function createHighlightsSheetStub_(headers, rows) {
+  return {
+    getName() {
+      return 'HighlightsStub';
+    },
+    getLastRow() {
+      return rows.length + 1;
+    },
+    getLastColumn() {
+      return headers.length;
+    },
+    getRange(row, column, numRows, numCols) {
+      if (row === 1) {
+        return {
+          getValues() {
+            return [headers.slice(0, numCols)];
+          }
+        };
+      }
+
+      const startIndex = row - 2;
+      const extracted = [];
+      for (let i = 0; i < numRows; i += 1) {
+        const dataRow = rows[startIndex + i] || new Array(headers.length).fill('');
+        extracted.push(dataRow.slice(0, numCols));
+      }
+
+      return {
+        getValues() {
+          return extracted;
+        }
+      };
+    }
+  };
+}
+
+/**
+ * Create DriveApp stub for highlights tests
+ * @returns {Object} Drive stub
+ */
+function createHighlightsDriveStub_() {
+  const store = {};
+
+  function DriveFile(name, content) {
+    this._name = name;
+    this._content = content;
+    this._id = `stub_${name}`;
+  }
+
+  DriveFile.prototype = {
+    getId() { return this._id; },
+    getName() { return this._name; },
+    getContent() { return this._content; },
+    setContent(content) { this._content = content; return this; },
+    getUrl() { return `https://drive.google.com/file/d/${this._id}/view`; },
+    getParents() { return { hasNext() { return false; }, next() { return null; } }; },
+    setSharing() { return this; }
+  };
+
+  return {
+    _store: store,
+    getFilesByName(name) {
+      const file = store[name];
+      return {
+        hasNext() {
+          return !!file;
+        },
+        next() {
+          if (!file) {
+            throw new Error('No file');
+          }
+          return file;
+        }
+      };
+    },
+    createFile(name, content) {
+      const file = new DriveFile(name, content);
+      store[name] = file;
+      return file;
+    },
+    getFolderById() {
+      throw new Error('Not implemented in highlights stub');
+    }
+  };
+}
+
 // ==================== IDEMPOTENCY TESTS ====================
 
 /**
