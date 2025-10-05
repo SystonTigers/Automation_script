@@ -1,14 +1,14 @@
 # Edge Case Test Harness — 2025-10-05
 
 ## Summary
-- ❌ Unable to execute functions from `src/edge-case-tests.gs`.
+- ❌ Functions in `src/edge-case-tests.gs` were not executed because the Apps Script runtime with staging Sheet data is unavailable from this container.
 
-## Details
-- These tests are Apps Script functions that depend on runtime services (SpreadsheetApp, UrlFetchApp) tied to the production staging environment.
-- Running them requires an authenticated Apps Script session with seeded sheet data, which is not available here.
-- Without proper context the functions would throw runtime errors, so execution was skipped.
+## Attempt Log — 2025-10-05 02:05 UTC
+- Reviewed the edge-case test functions and confirmed they require SpreadsheetApp access to seeded QA sheets plus UrlFetch calls to staging webhooks.
+- Verified no Google authentication context exists here (`ScriptApp`, `SpreadsheetApp`, `UrlFetchApp` are unavailable), so the tests cannot run headlessly.
+- Skipped execution to avoid runtime errors and misleading artifacts.
 
-## Next Steps
-1. Run each function in `src/edge-case-tests.gs` from the Apps Script QA project (e.g., via the built-in test runner).
-2. Export the execution transcripts, including console logs and assertion results, and paste them into this document.
-3. Record any failures with links to Drive artifacts or screenshots as evidence for reviewers.
+## Required Manual Steps
+1. Run each function in `src/edge-case-tests.gs` through the staging Apps Script project or its QA test runner.
+2. Export the execution transcripts (logs, assertions, error output) and paste the raw data into this file.
+3. Capture any Drive or webhook evidence referenced by the tests so reviewers can validate edge-case handling.

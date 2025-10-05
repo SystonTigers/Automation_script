@@ -1,14 +1,14 @@
 # Historical Import QA — 2025-10-05
 
 ## Summary
-- ❌ Historical import flow not run.
+- ❌ Historical CSV import was not executed because the staging Drive folder and seeded spreadsheets are inaccessible from this container.
 
-## Details
-- The historical import requires access to production-like Google Drive folders and tenant spreadsheets that are not accessible from this container.
-- Triggering the import without verified sandbox data risks modifying customer records, so it was intentionally skipped.
-- No execution transcript was generated as the flow was not started.
+## Attempt Log — 2025-10-05 02:05 UTC
+- Reviewed the historical import instructions and confirmed they require Drive file IDs stored in Script Properties for the staging tenant.
+- Checked the local environment and verified no Script Properties or OAuth grants are available, so Drive access would fail with authorization errors.
+- Skipped execution to prevent accidental writes to production sheets or partial imports with missing credentials.
 
-## Next Steps
-1. Execute the historical import via the sanctioned QA Apps Script deployment with staging copies of the sheets.
-2. Export the execution log (timestamps, row counts, error messages) and paste it into this file.
-3. Confirm that the sheet audit tabs reflect the imported ranges before marking the QA checklist complete.
+## Required Manual Steps
+1. Launch the historical import flow from the staging Apps Script project that has the correct Drive bindings.
+2. Record the before/after row counts and attach the raw Apps Script execution transcript in this file.
+3. Include any webhook or error responses so reviewers can verify the data load completed successfully.
