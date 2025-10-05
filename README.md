@@ -104,6 +104,23 @@ clasp push
 
 ---
 
+## 🧪 QA Smoke Tests
+
+Run the backend promo code smoke checks locally before handing off to QA:
+
+```bash
+export API_BASE_URL="https://worker.example.com"   # e.g. https://syston.app
+export ADMIN_JWT="$(pbpaste)"                      # admin bearer token
+./qa/curl-admin.sh                                  # create → list → deactivate promo code
+
+export API_BASE_URL="https://worker.example.com"
+./qa/curl-signup-with-promo.sh                      # validates signup flow upgrades plan
+```
+
+Both scripts require `curl` and `jq`; override defaults (tenant, promo code, etc.) with the env vars documented inline in each script.
+
+---
+
 ## 📂 Repository Structure
 
 ```
