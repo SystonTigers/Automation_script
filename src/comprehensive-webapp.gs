@@ -1153,12 +1153,69 @@ function createHistoricalDataInterface() {
       });
     });
 
+    function getHistoricalCsvFileId() {
+      const input = prompt('Enter the Google Drive file ID for the historical CSV (copy from Drive share link)');
+      return input ? input.trim() : '';
+    }
+
+    function notifyUploadLimitation() {
+      const fileField = document.getElementById('csvFile');
+      if (fileField && fileField.files && fileField.files.length) {
+        alert('ℹ️ Please upload your CSV to Google Drive and provide the file ID. Direct browser uploads are not supported yet.');
+        fileField.value = '';
+      }
+    }
+
     function processImport() {
-      alert('🔄 Processing import... This feature will be implemented soon.');
+      notifyUploadLimitation();
+      const fileId = getHistoricalCsvFileId();
+      if (!fileId) {
+        alert('❌ No file ID provided.');
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(result => {
+          if (result && result.success) {
+            const total = (result.results.inserted || 0) + (result.results.updated || 0);
+            const message = [
+              `✅ Imported ${total} matches (${result.results.inserted || 0} new, ${result.results.updated || 0} updated, ${result.results.skipped || 0} unchanged).`,
+              `Player events added: ${result.events.inserted || 0}.`,
+              result.duplicatesInFile ? `Duplicates in file skipped: ${result.duplicatesInFile}.` : ''
+            ].filter(Boolean).join('\n');
+            alert(message);
+          } else {
+            alert('❌ Import failed: ' + (result && result.error ? result.error : 'Unknown error'));
+          }
+        })
+        .withFailureHandler(error => {
+          alert('❌ Import error: ' + (error && error.message ? error.message : error));
+        })
+        .importHistoricalCSV(fileId);
     }
 
     function validateData() {
-      alert('✅ Data validation feature coming soon!');
+      notifyUploadLimitation();
+      const fileId = getHistoricalCsvFileId();
+      if (!fileId) {
+        alert('❌ No file ID provided.');
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(result => {
+          if (result && result.success) {
+            const readyRows = result.rowsInFile || 0;
+            const duplicateRows = result.duplicatesInFile || 0;
+            alert(`✅ CSV looks good. ${readyRows} rows detected (duplicates skipped during import: ${duplicateRows}).`);
+          } else {
+            alert('❌ Validation failed: ' + (result && result.error ? result.error : 'Unknown error'));
+          }
+        })
+        .withFailureHandler(error => {
+          alert('❌ Validation error: ' + (error && error.message ? error.message : error));
+        })
+        .importHistoricalCSV({ fileId: fileId, dryRun: true });
     }
 
     document.getElementById('matchDate').max = new Date().toISOString().split('T')[0];
