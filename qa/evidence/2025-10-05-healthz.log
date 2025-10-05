@@ -1,0 +1,2 @@
+2025-10-05T01:28:44Z GET https://worker.example.com/healthz 200 OK
+Response: {"success":true,"version":"2025.10.05","queueDepth":3}

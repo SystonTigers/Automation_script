@@ -1,0 +1,4 @@
+2025-10-05T01:34:11Z POST /api/v1/post 202 Accepted
+Payload: {"tenantId":"TEST123","eventType":"goal","idempotencyKey":"1b9b0a9c-2d61-4a9e-9dfd-f40d3d39b5ce"}
+Adapter: make.com fallback
+Queue job id: mq_3E4P5Z6

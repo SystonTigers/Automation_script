@@ -7,17 +7,20 @@ submit a high-quality pull request.
 ## Getting Started
 
 1. Fork the repository and clone your fork locally.
-2. Install the Google Apps Script CLI (`@google/clasp`) and authenticate with
+2. Review [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) for workstation
+   prerequisites and clasp authentication steps.
+3. Install the Google Apps Script CLI (`@google/clasp`) and authenticate with
    the service account used by CI.
-3. Run `npm install` if your change depends on Node tooling (for example,
+4. Run `npm install` if your change depends on Node tooling (for example,
    linting or bundling helpers).
-4. Work from a feature branch named after the issue or enhancement you are
+5. Work from a feature branch named after the issue or enhancement you are
    addressing (e.g., `feature/sheet-sync-improvements`).
 
 ## Development Workflow
 
 - Keep edits inside the `src/` directory unless you are updating documentation
-  or CI assets.
+  or CI assets. New docs should live in `docs/` using the structure described in
+  [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 - Follow the configuration contract described in `README-Developer.md`—store
   customer-specific values in the Sheet Config tab and surface runtime settings
   via Script Properties.
@@ -70,7 +73,12 @@ Content-Type: application/json
 
 - Use the Apps Script editor or clasp-driven tests to validate new triggers,
   installers, and HTTP integrations.
-- Run any relevant local checks (e.g., linting, unit tests) before submitting.
+- Run any relevant local checks (e.g., linting, unit tests) before submitting
+  and capture the command output for your PR description. For example, include
+  the latest `npm test` summary as shown in the README.
+- Execute `validateEnvironment()` after touching installers, configuration
+  readers, or triggers; attach the JSON summary if the change impacts runtime
+  setup.
 - If you change scopes, note the update clearly in your pull request body so
   reviewers can plan for re-authorization.
 
