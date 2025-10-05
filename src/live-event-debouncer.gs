@@ -260,48 +260,60 @@ class LiveEventDebouncer {
 
   /**
    * Process individual live event (calls existing system)
-   */
+  */
   static processLiveEvent(eventData) {
     try {
+      let result = null;
+
       // Route to appropriate processor based on event type
       switch (eventData.type) {
         case 'goal':
           if (typeof processGoal === 'function') {
-            return processGoal(eventData.player, eventData.minute, eventData.assist);
+            result = processGoal(eventData.player, eventData.minute, eventData.assist);
           }
           break;
 
         case 'card':
           if (typeof processCard === 'function') {
-            return processCard(eventData.player, eventData.cardType, eventData.minute);
+            result = processCard(eventData.player, eventData.cardType, eventData.minute);
           }
           break;
 
         case 'substitution':
           if (typeof processSubstitution === 'function') {
-            return processSubstitution(eventData.playerOff, eventData.playerOn, eventData.minute);
+            result = processSubstitution(eventData.playerOff, eventData.playerOn, eventData.minute);
           }
           break;
 
         case 'match_status':
           if (typeof postMatchStatus === 'function') {
-            return postMatchStatus(eventData.status, eventData.minute);
+            result = postMatchStatus(eventData.status, eventData.minute);
           }
           break;
 
         default:
           console.warn(`⚠️ Unknown event type: ${eventData.type}`);
-          return { success: false, error: `Unknown event type: ${eventData.type}` };
+          result = { success: false, error: `Unknown event type: ${eventData.type}` };
       }
 
-      // Fallback: try EnhancedEventsManager if available
-      if (typeof EnhancedEventsManager !== 'undefined') {
+      // Fallback: try EnhancedEventsManager if available and no primary handler responded
+      if ((!result || result.success === false) && typeof EnhancedEventsManager !== 'undefined') {
         switch (eventData.type) {
           case 'goal':
-            return EnhancedEventsManager.processGoalEvent(eventData);
+            result = EnhancedEventsManager.processGoalEvent(eventData);
+            break;
           case 'card':
-            return EnhancedEventsManager.processCardEvent(eventData);
+            result = EnhancedEventsManager.processCardEvent(eventData);
+            break;
         }
+      }
+
+      if (result && result.success && typeof HomepageWidgetService !== 'undefined') {
+        HomepageWidgetService.recordEvent(eventData, result);
+      }
+
+      if (result) {
+        return result;
       }
 
       return { success: false, error: 'No processor available for event type' };

@@ -1,4 +1,25 @@
 <div class="match-container">
+    <!-- Homepage Widget Snapshot -->
+    <div class="card homepage-widget-card">
+        <div class="card-header">
+            <h2 class="card-title">Homepage Widget</h2>
+            <button id="refresh-homepage-widget-btn" class="btn btn-secondary btn-small">
+                🔄 Refresh
+            </button>
+        </div>
+        <div class="card-body">
+            <div id="homepage-widget-empty" class="widget-empty">No recent update ready for the homepage widget.</div>
+            <div id="homepage-widget-content" class="widget-content" style="display: none;">
+                <div id="homepage-widget-headline" class="widget-headline"></div>
+                <div id="homepage-widget-context" class="widget-context"></div>
+                <div class="widget-meta">
+                    <span id="homepage-widget-updated"></span>
+                    <span id="homepage-widget-expires"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Match Status -->
     <div class="card">
         <div class="card-body">
@@ -250,6 +271,40 @@
 
 .no-events {
     font-style: italic;
+}
+
+.homepage-widget-card {
+    border: 1px solid var(--primary-color);
+}
+
+.widget-empty {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+}
+
+.widget-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.widget-headline {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.widget-context {
+    color: var(--text-secondary);
+}
+
+.widget-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
 }
 
 /* Player Selection Styles */

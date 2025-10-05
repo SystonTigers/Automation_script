@@ -13,7 +13,9 @@ window.ClubConsole = {
     awayScore: 0,
     selectedPlayer: null,
     selectedAssist: null,
-    substitutionData: { playerOut: null, playerIn: null }
+    substitutionData: { playerOut: null, playerIn: null },
+    homepageWidget: null,
+    homepageWidgetIntervalId: null
 };
 
 // Initialize app when DOM is loaded
@@ -35,7 +37,9 @@ function initializeApp() {
     // Load initial data
     loadConfiguration()
         .then(() => loadPlayers())
+        .then(() => hydrateHomepageWidget({ silent: true }))
         .then(() => {
+            startHomepageWidgetRefresh();
             hideLoading();
             showStatus('Club Console ready!', 'success');
         })
@@ -180,6 +184,16 @@ function setupSetupListeners() {
     if (saveConfigBtn) {
         saveConfigBtn.addEventListener('click', saveConfiguration);
     }
+
+    const refreshWidgetBtn = document.getElementById('refresh-homepage-widget-btn');
+    if (refreshWidgetBtn) {
+        refreshWidgetBtn.addEventListener('click', () => hydrateHomepageWidget({ manual: true }));
+    }
+
+    const refreshArchiveBtn = document.getElementById('refresh-archive-btn');
+    if (refreshArchiveBtn) {
+        refreshArchiveBtn.addEventListener('click', () => loadArchiveEvents({ manual: true }));
+    }
 }
 
 function setupMatchListeners() {
@@ -294,6 +308,11 @@ function switchTab(tabName) {
     // Load tab-specific data
     if (tabName === 'match') {
         loadRecentEvents();
+        hydrateHomepageWidget({ silent: true });
+    } else if (tabName === 'archive') {
+        loadArchiveEvents();
+    } else if (tabName === 'stats') {
+        renderPlayerStats();
     }
 }
 
@@ -442,6 +461,7 @@ async function loadPlayers() {
         const players = await callServerFunction('getPlayers');
         window.ClubConsole.players = players || [];
         updatePlayersDisplay();
+        renderPlayerStats(window.ClubConsole.players);
         return players;
     } catch (error) {
         console.error('Error loading players:', error);
@@ -821,6 +841,223 @@ function formatEventDescription(event) {
     }
 }
 
+// ==================== HOMEPAGE WIDGET ====================
+
+function startHomepageWidgetRefresh() {
+    if (window.ClubConsole.homepageWidgetIntervalId) {
+        clearInterval(window.ClubConsole.homepageWidgetIntervalId);
+    }
+
+    window.ClubConsole.homepageWidgetIntervalId = setInterval(() => {
+        hydrateHomepageWidget({ silent: true });
+    }, 60000);
+}
+
+async function hydrateHomepageWidget(options = {}) {
+    const { silent = false } = options || {};
+    try {
+        const response = await fetchHomepageWidgetState();
+        window.ClubConsole.homepageWidget = response;
+        renderHomepageWidget(response);
+        renderHomepageWidgetSummary(response);
+        if (!silent && response && response.active) {
+            showStatus('Homepage widget updated', 'success');
+        }
+    } catch (error) {
+        console.error('Error loading homepage widget state:', error);
+        if (!silent) {
+            showStatus('Unable to refresh homepage widget: ' + error.message, 'error');
+        }
+    }
+}
+
+function fetchHomepageWidgetState() {
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        return Promise.resolve({ success: false, active: false, data: null });
+    }
+
+    return new Promise((resolve, reject) => {
+        google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(error => {
+                reject(new Error(error && error.message ? error.message : 'Server call failed'));
+            })
+            .getHomepageWidgetState();
+    });
+}
+
+function renderHomepageWidget(response) {
+    const emptyState = document.getElementById('homepage-widget-empty');
+    const content = document.getElementById('homepage-widget-content');
+    const headline = document.getElementById('homepage-widget-headline');
+    const context = document.getElementById('homepage-widget-context');
+    const updated = document.getElementById('homepage-widget-updated');
+    const expires = document.getElementById('homepage-widget-expires');
+
+    if (!emptyState || !content) {
+        return;
+    }
+
+    if (!response || !response.active || !response.data) {
+        emptyState.style.display = 'block';
+        content.style.display = 'none';
+        return;
+    }
+
+    const data = response.data;
+    emptyState.style.display = 'none';
+    content.style.display = 'flex';
+
+    if (headline) {
+        headline.textContent = data.headline || 'Club update';
+    }
+    if (context) {
+        context.textContent = data.context || '';
+    }
+    if (updated) {
+        updated.textContent = data.recordedAt ? `Updated ${formatDateTime(data.recordedAt)}` : '';
+    }
+    if (expires) {
+        expires.textContent = data.expiresAt ? formatExpiryCountdown(data.expiresAt) : '';
+    }
+}
+
+function renderHomepageWidgetSummary(response) {
+    const summary = document.getElementById('homepage-widget-summary');
+    if (!summary) return;
+
+    if (!response || !response.active || !response.data) {
+        summary.innerHTML = '<div class="widget-summary__empty">Homepage widget is waiting for a new update.</div>';
+        return;
+    }
+
+    const data = response.data;
+    summary.innerHTML = `
+        <div class="widget-summary__headline">${escapeHtml(data.headline || 'Club update')}</div>
+        <div class="widget-summary__context">${escapeHtml(data.context || '')}</div>
+        <div class="widget-summary__context">${escapeHtml(formatExpiryCountdown(data.expiresAt))}</div>
+    `;
+}
+
+// ==================== ARCHIVE ====================
+
+async function loadArchiveEvents(options = {}) {
+    const { manual = false } = options || {};
+    try {
+        const events = await callServerFunction('getRecentEvents', { limit: 20 });
+        displayArchiveEvents(events || []);
+        if (manual) {
+            showStatus('Archive refreshed', 'success');
+        }
+    } catch (error) {
+        console.error('Error loading archive events:', error);
+        showStatus('Error loading archive: ' + error.message, 'error');
+    }
+}
+
+function displayArchiveEvents(events) {
+    const timeline = document.getElementById('archive-timeline');
+    const emptyState = document.getElementById('archive-empty');
+
+    if (!timeline || !emptyState) {
+        return;
+    }
+
+    if (!events || events.length === 0) {
+        emptyState.style.display = 'block';
+        timeline.innerHTML = '';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+
+    const rows = events.map(event => {
+        const minute = event.PeriodMinute != null ? `${event.PeriodMinute}'` : (event.Minute != null ? `${event.Minute}'` : '—');
+        const type = event.Type || event.EventType || 'Event';
+        const description = formatEventDescription(event);
+        const match = event.Match || event.MatchName || event.MatchId || '';
+        const meta = [description, match].filter(Boolean).join(' • ');
+
+        return `
+            <div class="archive-item">
+                <div class="archive-item__time">${escapeHtml(minute)}</div>
+                <div>
+                    <div class="archive-item__title">${escapeHtml(type)}</div>
+                    <div class="archive-item__meta">${escapeHtml(meta)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    timeline.innerHTML = rows;
+}
+
+// ==================== PLAYER STATS DISPLAY ====================
+
+function renderPlayerStats(players = window.ClubConsole.players || []) {
+    const roster = Array.isArray(players) ? [...players] : [];
+
+    const totalPlayers = roster.length;
+    const activePlayers = roster.filter(player => player.IsActive !== false).length;
+    const uniquePositions = new Set(
+        roster
+            .map(player => (player.Position || '').trim())
+            .filter(Boolean)
+    ).size;
+
+    const totalEl = document.getElementById('metric-total-players');
+    if (totalEl) totalEl.textContent = totalPlayers;
+
+    const activeEl = document.getElementById('metric-active-players');
+    if (activeEl) activeEl.textContent = activePlayers;
+
+    const positionsEl = document.getElementById('metric-positions');
+    if (positionsEl) positionsEl.textContent = uniquePositions;
+
+    const table = document.getElementById('player-stats-table');
+    if (!table) {
+        return;
+    }
+
+    if (totalPlayers === 0) {
+        table.innerHTML = '<div class="player-stats-empty">No players added yet.</div>';
+        return;
+    }
+
+    const sorted = roster.sort((a, b) => {
+        const aNum = Number(a.Number) || 0;
+        const bNum = Number(b.Number) || 0;
+        return aNum - bNum;
+    });
+
+    const header = `
+        <div class="player-stats-row player-stats-row__header">
+            <span>#</span>
+            <span>Name</span>
+            <span>Position</span>
+            <span>Status</span>
+        </div>
+    `;
+
+    const rows = sorted.map(player => {
+        const number = player.Number ? `#${player.Number}` : '—';
+        const name = player.Name || 'Unknown';
+        const position = player.Position || '—';
+        const status = player.IsActive === false ? 'Inactive' : 'Active';
+
+        return `
+            <div class="player-stats-row">
+                <span>${escapeHtml(number)}</span>
+                <span>${escapeHtml(name)}</span>
+                <span>${escapeHtml(position)}</span>
+                <span>${escapeHtml(status)}</span>
+            </div>
+        `;
+    }).join('');
+
+    table.innerHTML = header + rows;
+}
+
 // ==================== UTILITY FUNCTIONS ====================
 
 function showStatus(message, type = 'info') {
@@ -842,6 +1079,64 @@ function showStatus(message, type = 'info') {
             messageElement.remove();
         }
     }, 5000);
+}
+
+function formatDateTime(value) {
+    try {
+        const date = value instanceof Date ? value : new Date(value);
+        if (!date || isNaN(date.getTime())) {
+            return '';
+        }
+        return new Intl.DateTimeFormat(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+        }).format(date);
+    } catch (error) {
+        console.warn('formatDateTime failed:', error);
+        return '';
+    }
+}
+
+function formatExpiryCountdown(expiresAt) {
+    if (!expiresAt) {
+        return '';
+    }
+
+    try {
+        const expiryDate = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
+        if (!expiryDate || isNaN(expiryDate.getTime())) {
+            return '';
+        }
+
+        const diffMs = expiryDate.getTime() - Date.now();
+        if (diffMs <= 0) {
+            return 'Expired';
+        }
+
+        const diffMinutes = Math.floor(diffMs / 60000);
+        if (diffMinutes >= 1) {
+            return `Expires in ${diffMinutes} min`;
+        }
+
+        const diffSeconds = Math.max(1, Math.floor(diffMs / 1000));
+        return `Expires in ${diffSeconds} sec`;
+    } catch (error) {
+        console.warn('formatExpiryCountdown failed:', error);
+        return '';
+    }
+}
+
+function escapeHtml(value) {
+    if (value === undefined || value === null) {
+        return '';
+    }
+
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function updateBrandPreview() {

@@ -142,6 +142,16 @@ function doGet(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (path === 'widget/latest') {
+      const state = (typeof HomepageWidgetService !== 'undefined')
+        ? HomepageWidgetService.getWidgetState()
+        : { success: true, active: false, data: null };
+
+      return ContentService.createTextOutput(JSON.stringify(state))
+        .setMimeType(ContentService.MimeType.JSON)
+        .setHeader('Cache-Control', 'no-store, max-age=0');
+    }
+
     // Customer setup/intake (public)
     if (path === 'setup' || path === 'intake') {
       return HtmlService.createTemplateFromFile('buyerIntake').evaluate()

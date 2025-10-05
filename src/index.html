@@ -66,6 +66,14 @@
                     <span class="tab-icon">⚽</span>
                     <span class="tab-label">Match</span>
                 </button>
+                <button class="tab-button" data-tab="archive">
+                    <span class="tab-icon">🗂️</span>
+                    <span class="tab-label">Archive</span>
+                </button>
+                <button class="tab-button" data-tab="stats">
+                    <span class="tab-icon">📊</span>
+                    <span class="tab-label">Player Stats</span>
+                </button>
             </nav>
 
             <!-- Tab Content -->
@@ -78,6 +86,16 @@
                 <!-- Match Tab -->
                 <div id="match-tab" class="tab-pane active">
                     <?!= include('match'); ?>
+                </div>
+
+                <!-- Archive Tab -->
+                <div id="archive-tab" class="tab-pane">
+                    <?!= include('archive'); ?>
+                </div>
+
+                <!-- Player Stats Tab -->
+                <div id="stats-tab" class="tab-pane">
+                    <?!= include('player-stats'); ?>
                 </div>
             </main>
         </div>
