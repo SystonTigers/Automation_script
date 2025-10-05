@@ -25,6 +25,22 @@ This document captures the baseline performance targets, instrumentation, and tu
 4. **Queue sizing:** Adjust Cloudflare queue `max_batch_size` during tournaments to keep drain time inside target.
 5. **Sheet formulas:** Move heavy formulas into `ARRAYFORMULA` and use pivot caches where possible.
 
+## Benchmarks (2025-10-05)
+
+> ℹ️ **Current status:** Benchmarking blocked. The historical import, highlights export, and video-processing flows require execution from the sanctioned staging Apps Script deployment with Drive/Sheets access that is not available inside this container, so no runtime metrics could be collected during this attempt.
+
+| Flow | Metric | Result | Notes |
+| --- | --- | --- | --- |
+| Historical import | Rows/minute | Not run | Staging Drive folder and Sheet bindings are accessible only to the QA Apps Script deployment. |
+| Highlights export | Seconds per match | Not run | Flow depends on Apps Script services (`SpreadsheetApp`, `DriveApp`, `UrlFetchApp`) with staging credentials unavailable locally. |
+| Video processing | Clips/hour | Not run | Pipeline is triggered through staging-only webhooks and video storage not reachable from the container. |
+
+**Test conditions attempted (2025-10-05T02:05:40Z):**
+
+- Container environment lacks the Google Apps Script runtime and associated OAuth tokens needed to call staging sheets and Drive folders.
+- Staging secrets are distributed via secure deployment channels only; they are not present in the repository or CI environment.
+- Result: Benchmark execution deferred until sanctioned staging access is available; no supporting logs generated.
+
 ## Monitoring Runbook
 
 | Check | Frequency | Action |
@@ -35,4 +51,4 @@ This document captures the baseline performance targets, instrumentation, and tu
 
 ---
 
-_Last updated: 2025-10-05_
+_Last updated: 2025-10-05T02:05:40Z_
