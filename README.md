@@ -27,6 +27,18 @@ Google Apps Script (config management, fixture parsing, scheduling)
 Google Sheets (data source & admin interface)
 ```
 
+## 📚 Documentation Map
+
+| Topic | Location | Summary |
+| --- | --- | --- |
+| Environment bootstrap | [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) | Workstation prerequisites, clasp auth, and `validateEnvironment()` usage. |
+| Platform architecture | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Dual-stack overview, runtime config flow, deployment surface. |
+| Video automation | [docs/VIDEO_SYSTEM.md](./docs/VIDEO_SYSTEM.md) | End-to-end highlight workflow, naming standards, failure handling. |
+| Historical data import | [docs/HISTORICAL_IMPORT.md](./docs/HISTORICAL_IMPORT.md) | CSV ingestion workflow and structured error codes. |
+| Operations runbook | [docs/RUNBOOK.md](./docs/RUNBOOK.md) | Incident intake, mitigation steps, and communication template. |
+| Performance targets | [docs/PERFORMANCE.md](./docs/PERFORMANCE.md) | Metrics, instrumentation, and optimization levers. |
+| Error catalog | [docs/ERROR_CODES.md](./docs/ERROR_CODES.md) | Worker + Apps Script error codes and remediation guidance. |
+
 ---
 
 ## 🎯 System Status (82% Complete)
@@ -101,6 +113,7 @@ clasp push
 > `npx clasp deployments --json` must return exactly one `webApp` entry.
 > Delete extra deployments in the Apps Script UI before rerunning the workflow.
 > Never create manual test deployments; rely on the `Apps Script CI` workflow.
+> Run `validateEnvironment()` after the installer to confirm Script Properties, Sheet config, and triggers are healthy before handing over to QA.
 
 ---
 
@@ -118,6 +131,18 @@ export API_BASE_URL="https://worker.example.com"
 ```
 
 Both scripts require `curl` and `jq`; override defaults (tenant, promo code, etc.) with the env vars documented inline in each script.
+
+### Latest Automated Test Evidence
+
+```bash
+$ npm test
+✓ workers/__tests__/fixtures.spec.ts (5)
+✓ workers/__tests__/idempotency.spec.ts (2)
+✓ workers/__tests__/rate-limit.spec.ts (2)
+
+Test Files  3 passed (3)
+     Tests  9 passed (9)
+```
 
 ---
 
