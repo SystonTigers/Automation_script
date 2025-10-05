@@ -19,6 +19,7 @@ function onOpen() {
       .addItem('🥅 Record Goal', 'processGoalQuick')
       .addItem('📟 Record Card', 'processCardQuick')
       .addItem('🔄 Record Substitution', 'processSubstitutionQuick')
+      .addItem('🎬 Export highlights JSON', 'exportHighlightsJsonMenu')
       .addSeparator()
       .addItem('📅 Post Weekly Fixtures', 'postWeeklyFixtures')
       .addItem('📊 Post Weekly Results', 'postWeeklyResults')
@@ -267,6 +268,91 @@ function processSubstitutionQuick() {
     logger.error('Quick substitution processing failed', { error: error.toString() });
     logger.exitFunction('processSubstitutionQuick', { success: false });
     return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Export highlights JSON and trigger bot via menu
+ * @returns {{ok:boolean, message:string}}
+ */
+function exportHighlightsJsonMenu() {
+  logger.enterFunction('exportHighlightsJsonMenu');
+
+  try {
+    const ui = SpreadsheetApp.getUi();
+
+    const matchIdResponse = ui.prompt(
+      'Export Highlights JSON',
+      'Enter the match ID to export events for:',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (matchIdResponse.getSelectedButton() !== ui.Button.OK) {
+      logger.exitFunction('exportHighlightsJsonMenu', { success: false, reason: 'cancelled_match_id' });
+      return { ok: false, message: 'Highlights export cancelled' };
+    }
+
+    const matchId = matchIdResponse.getResponseText().trim();
+    if (!matchId) {
+      ui.alert('Export Highlights JSON', 'Match ID is required to export highlights.', ui.ButtonSet.OK);
+      logger.exitFunction('exportHighlightsJsonMenu', { success: false, reason: 'missing_match_id' });
+      return { ok: false, message: 'Match ID required' };
+    }
+
+    const videoUrlResponse = ui.prompt(
+      'Export Highlights JSON',
+      'Enter the processed video URL (required for webhook trigger):',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (videoUrlResponse.getSelectedButton() !== ui.Button.OK) {
+      logger.exitFunction('exportHighlightsJsonMenu', { success: false, reason: 'cancelled_video_url' });
+      return { ok: false, message: 'Highlights export cancelled' };
+    }
+
+    const videoUrl = videoUrlResponse.getResponseText().trim();
+    if (!videoUrl) {
+      ui.alert('Export Highlights JSON', 'Video URL is required to notify the highlights bot.', ui.ButtonSet.OK);
+      logger.exitFunction('exportHighlightsJsonMenu', { success: false, reason: 'missing_video_url' });
+      return { ok: false, message: 'Video URL required' };
+    }
+
+    const exportResult = exportEventsForHighlights(matchId);
+    if (!exportResult.ok) {
+      const reason = exportResult.reason || 'export_failed';
+      if (reason === 'no_events') {
+        ui.alert('Export Highlights JSON', 'No events found for the provided match ID.', ui.ButtonSet.OK);
+      } else {
+        ui.alert('Export Highlights JSON', `Failed to export events: ${exportResult.error || reason}`, ui.ButtonSet.OK);
+      }
+      logger.exitFunction('exportHighlightsJsonMenu', { success: false, reason });
+      return { ok: false, message: reason };
+    }
+
+    const triggerResult = triggerHighlightsBot(matchId, videoUrl);
+    if (!triggerResult.ok) {
+      const reason = triggerResult.reason || 'trigger_failed';
+      if (reason === 'no_webhook') {
+        ui.alert('Export Highlights JSON', 'Events exported. Configure HIGHLIGHTS_WEBHOOK_URL to notify the highlights bot automatically.', ui.ButtonSet.OK);
+      } else if (reason === 'missing_video_url') {
+        ui.alert('Export Highlights JSON', 'Events exported but video URL was invalid.', ui.ButtonSet.OK);
+      } else if (reason === 'no_events') {
+        ui.alert('Export Highlights JSON', 'Events export did not return any data.', ui.ButtonSet.OK);
+      } else {
+        ui.alert('Export Highlights JSON', `Highlights webhook failed: ${triggerResult.error || reason}`, ui.ButtonSet.OK);
+      }
+      logger.exitFunction('exportHighlightsJsonMenu', { success: false, reason });
+      return { ok: false, message: reason };
+    }
+
+    ui.alert('Export Highlights JSON', 'Highlights JSON exported and webhook triggered successfully.', ui.ButtonSet.OK);
+    logger.exitFunction('exportHighlightsJsonMenu', { success: true, dispatched: !!triggerResult.dispatched });
+    return { ok: true, message: 'Highlights export complete' };
+
+  } catch (error) {
+    logger.error('Highlights export menu failed', { error: error.toString() });
+    logger.exitFunction('exportHighlightsJsonMenu', { success: false, reason: 'error' });
+    return { ok: false, message: error.toString() };
   }
 }
 
