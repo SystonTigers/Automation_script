@@ -49,5 +49,16 @@
 - Continue centralizing sheet access through the `openById()` helper—no remaining `getActiveSpreadsheet()` calls detected.
 - Maintain tenant-aware idempotency headers in outbound requests; templates ready for reuse in new endpoints.
 
+## Security Review
+
+### Completed Validations
+- **Scope review:** QA sign-off confirmed the Apps Script deployment stays within the existing OAuth scope set and requires no additional grants this cycle.【F:QA_CERTIFICATION.md†L18-L19】
+- **Input sanitization checks:** The comprehensive security and validation suite re-ran successfully, including the player-name sanitization and XSS guards in the `AdvancedSecurity` layer.【F:COMPREHENSIVE-TEST-REPORT.md†L66-L74】
+- **Secret handling verification:** Deployment pipeline tests authenticated using the stored `CLASPRC_JSON` secret, and environment validation verified the expected Script Properties inventory (18 keys) remained in place for secure runtime access.【F:COMPREHENSIVE-TEST-REPORT.md†L28-L36】【F:qa/evidence/2025-10-05-validate-environment.json†L1-L10】
+
+### Outstanding Follow-Ups
+- Run the CORS smoke tests (`qa/curl-cors.sh`) from a credentialed workstation to capture header evidence once staging secrets are accessible.【F:qa/cors-test-results-2025-10-05.md†L1-L14】
+- Execute `runMakeIntegrationSelfTests()` in the Apps Script QA project when secret-bearing Script Properties are available, then archive the execution transcript here.【F:qa/selftest-results-2025-10-05.md†L1-L14】
+
 ## Blockers
 - None identified; all verification steps pass with current configuration.
