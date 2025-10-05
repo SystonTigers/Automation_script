@@ -205,6 +205,60 @@ function runComprehensiveSystemTest() {
     testResults.totalTests++;
   }
 
+  // Test 7: Historical Import Unit Tests
+  console.log('Test 7: Historical Import Unit Tests');
+  try {
+    const historicalSuite = runHistoricalImportUnitTests();
+    historicalSuite.tests.forEach(function(test) {
+      testResults.results.push({
+        test: 'Historical Import - ' + test.name,
+        status: test.status,
+        details: test.details
+      });
+      if (test.status === 'PASS') {
+        testResults.passedTests++;
+      } else {
+        testResults.failedTests++;
+      }
+      testResults.totalTests++;
+    });
+  } catch (error) {
+    testResults.results.push({
+      test: 'Historical Import Suite',
+      status: 'ERROR',
+      details: error.toString()
+    });
+    testResults.failedTests++;
+    testResults.totalTests++;
+  }
+
+  // Test 8: Video Clips Unit Tests
+  console.log('Test 8: Video Clips Unit Tests');
+  try {
+    const videoSuite = runVideoClipsUnitTests();
+    videoSuite.tests.forEach(function(test) {
+      testResults.results.push({
+        test: 'Video Clips - ' + test.name,
+        status: test.status,
+        details: test.details
+      });
+      if (test.status === 'PASS') {
+        testResults.passedTests++;
+      } else {
+        testResults.failedTests++;
+      }
+      testResults.totalTests++;
+    });
+  } catch (error) {
+    testResults.results.push({
+      test: 'Video Clips Suite',
+      status: 'ERROR',
+      details: error.toString()
+    });
+    testResults.failedTests++;
+    testResults.totalTests++;
+  }
+
   // Calculate final results
   testResults.passRate = Math.round((testResults.passedTests / testResults.totalTests) * 100);
 
