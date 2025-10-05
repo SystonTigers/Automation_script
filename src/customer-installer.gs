@@ -301,6 +301,12 @@ function setupCustomerTriggers() {
       description: 'Weekly content scheduling'
     },
     {
+      functionName: 'runDailyBirthdayAutomation',
+      type: 'time',
+      schedule: { daily: { hour: 7, minute: 5 } },
+      description: 'Daily birthday content automation'
+    },
+    {
       functionName: 'runMonthlyScheduledTasks',
       type: 'time',
       schedule: { monthly: { day: 1, hour: 8 } },
@@ -353,6 +359,14 @@ function ensureTimeTrigger(functionName, schedule, description = '') {
     triggerBuilder = triggerBuilder.everyMinutes(schedule.everyMinutes);
   } else if (schedule.everyHours) {
     triggerBuilder = triggerBuilder.everyHours(schedule.everyHours);
+  } else if (schedule.daily) {
+    triggerBuilder = triggerBuilder.everyDays(1);
+    if (typeof schedule.daily.hour === 'number') {
+      triggerBuilder = triggerBuilder.atHour(schedule.daily.hour);
+    }
+    if (typeof schedule.daily.minute === 'number') {
+      triggerBuilder = triggerBuilder.nearMinute(schedule.daily.minute);
+    }
   } else if (schedule.weekly) {
     triggerBuilder = triggerBuilder.everyWeeks(1);
     if (schedule.weekly.day) {

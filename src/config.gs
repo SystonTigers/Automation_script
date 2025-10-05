@@ -229,6 +229,19 @@ const SYSTEM_CONFIG = {
     RECENT_EVENT_LIMIT: 8
   },
 
+  MATCHDAY_ASSETS: {
+    CARD_ICONS: {
+      PROPERTY_KEY: 'MATCHDAY_CARD_ICON_MAP',
+      DEFAULTS: {
+        card_yellow: '',
+        card_red: '',
+        card_second_yellow: '',
+        card_sin_bin: '',
+        discipline_opposition: ''
+      }
+    }
+  },
+
   // ==================== DOCUMENTATION REFERENCE ====================
   DOCUMENTATION: {
     VERSION: '6.2.0',
@@ -1415,6 +1428,26 @@ const SYSTEM_CONFIG = {
       THROWBACK_PROPERTY_KEY: 'WEEKLY_THROWBACK_ROTATION'
     },
 
+    QUOTE_VALIDATION: {
+      MAX_LENGTH_PROPERTY: 'WEEKLY_QUOTES_MAX_LENGTH',
+      DEFAULT_MAX_LENGTH: 220,
+      ALLOW_TRUNCATION: true
+    },
+
+    BIRTHDAYS: {
+      ENABLED_PROPERTY: 'BIRTHDAY_AUTOMATION_ENABLED',
+      DEFAULT_ENABLED: true,
+      SHEET_NAME_PROPERTY: 'BIRTHDAY_SHEET_NAME',
+      DEFAULT_SHEET_NAME: 'Players',
+      NAME_HEADERS: ['Player Name', 'Full Name', 'Name'],
+      DOB_HEADERS: ['Date of Birth', 'DOB', 'Birthdate'],
+      POSITION_HEADERS: ['Position'],
+      SQUAD_NUMBER_HEADERS: ['Squad Number', '#'],
+      LAST_RUN_PROPERTY: 'BIRTHDAY_AUTOMATION_LAST_RUN',
+      PROCESSED_PREFIX: 'BIRTHDAY_PROCESSED_',
+      ALLOW_MULTIPLE_PER_DAY: true
+    },
+
     // Schedule definitions (Bible compliance)
     SCHEDULE: {
       MONDAY: {
@@ -1536,6 +1569,20 @@ const SYSTEM_CONFIG = {
       include_all_stats: true,
       minimum_appearances: 1
     }
+  },
+
+  LEAGUE_TABLE_PIPELINE: {
+    RAW_SHEET_NAME: 'League Raw',
+    SORTED_SHEET_NAME: 'League Sorted',
+    CANVA_SHEET_NAME: 'League Canva Map',
+    SORT_HEADERS: ['Position', 'Team', 'Played', 'Won', 'Drawn', 'Lost', 'Goals For', 'Goals Against', 'Goal Difference', 'Points'],
+    CANVA_HEADERS: ['Position', 'Team', 'Played', 'Points', 'Goal Difference'],
+    REQUIRED_COLUMNS: ['Team', 'Played', 'Won', 'Drawn', 'Lost', 'Goals For', 'Goals Against', 'Goal Difference', 'Points'],
+    HTML_FILE_NAME: 'table.html',
+    DRIVE_FOLDER_PROPERTY: 'LEAGUE_TABLE_FOLDER_ID',
+    LAST_BUILD_PROPERTY: 'LEAGUE_TABLE_LAST_BUILD',
+    TITLE_TEXT: 'League Table',
+    STAMP_PROPERTY: 'LEAGUE_TABLE_HTML_HASH'
   },
 
   // ==================== MONTHLY EVENTS (LEGACY SUPPORT) ====================

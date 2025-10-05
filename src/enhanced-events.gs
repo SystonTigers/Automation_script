@@ -879,7 +879,8 @@ class EnhancedEventsManager {
    */
   createCardPayload(minute, player, cardType, matchId, eventType) {
     const matchInfo = this.getMatchInfo(matchId);
-    
+    const iconUrl = this.resolveCardIconUrl(cardType, eventType, player);
+
     return {
       event_type: eventType,
       system_version: getConfigValue('SYSTEM.VERSION'),
@@ -897,10 +898,138 @@ class EnhancedEventsManager {
       opponent: matchInfo.opponent,
       venue: matchInfo.venue,
       competition: matchInfo.competition,
-      
+
       // Timestamps
-      timestamp: DateUtils.formatISO(DateUtils.now())
+      timestamp: DateUtils.formatISO(DateUtils.now()),
+
+      // Visual metadata
+      icon_url: iconUrl || null
     };
+  }
+
+  /**
+   * Resolve the icon URL for a given card event.
+   * @param {string} cardType - Card type description
+   * @param {string} eventType - Event type key
+   * @param {string} player - Player identifier
+   * @returns {string} Icon URL or empty string
+   */
+  resolveCardIconUrl(cardType, eventType, player) {
+    try {
+      const defaults = getConfigValue('MATCHDAY_ASSETS.CARD_ICONS.DEFAULTS', {}) || {};
+      const propertyKey = getConfigValue('MATCHDAY_ASSETS.CARD_ICONS.PROPERTY_KEY', 'MATCHDAY_CARD_ICON_MAP');
+      const normalizedMap = this.normalizeCardIconMap(defaults);
+
+      if (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties) {
+        try {
+          const scriptProperties = PropertiesService.getScriptProperties();
+          const stored = scriptProperties.getProperty(propertyKey);
+
+          if (stored) {
+            const parsedMap = this.parseIconConfig(stored);
+            Object.assign(normalizedMap, parsedMap);
+          }
+        } catch (propertyError) {
+          this.logger.warn('Failed to load card icon map from script properties', {
+            error: propertyError.toString()
+          });
+        }
+      }
+
+      const candidateKeys = [];
+      if (eventType) {
+        candidateKeys.push(this.normalizeIconKey(eventType));
+      }
+
+      if (cardType) {
+        candidateKeys.push(this.normalizeIconKey(cardType));
+      }
+
+      if (player === 'Opposition') {
+        candidateKeys.push(this.normalizeIconKey('discipline_opposition'));
+      }
+
+      candidateKeys.push('default');
+
+      for (const key of candidateKeys) {
+        if (key && normalizedMap[key]) {
+          return normalizedMap[key];
+        }
+      }
+
+      return '';
+
+    } catch (error) {
+      this.logger.warn('Card icon resolution failed', { error: error.toString() });
+      return '';
+    }
+  }
+
+  /**
+   * Normalize configured icon map keys.
+   * @param {Object} rawMap - Raw map from config or properties
+   * @returns {Object} Normalized map
+   */
+  normalizeCardIconMap(rawMap) {
+    const normalized = {};
+    if (!rawMap || typeof rawMap !== 'object') {
+      return normalized;
+    }
+
+    Object.keys(rawMap).forEach(key => {
+      const normalizedKey = this.normalizeIconKey(key);
+      if (normalizedKey && rawMap[key]) {
+        normalized[normalizedKey] = rawMap[key];
+      }
+    });
+
+    return normalized;
+  }
+
+  /**
+   * Parse icon configuration stored in script properties.
+   * Supports JSON object or key=value newline pairs.
+   * @param {string} stored - Stored configuration string
+   * @returns {Object} Parsed map
+   */
+  parseIconConfig(stored) {
+    const parsedMap = {};
+    if (!stored) {
+      return parsedMap;
+    }
+
+    try {
+      const json = JSON.parse(stored);
+      if (json && typeof json === 'object') {
+        return this.normalizeCardIconMap(json);
+      }
+    } catch (jsonError) {
+      // Not valid JSON, fall back to key=value parsing
+      const lines = String(stored).split(/\r?\n/);
+      lines.forEach(line => {
+        const [rawKey, rawValue] = line.split('=');
+        if (rawKey && rawValue) {
+          const normalizedKey = this.normalizeIconKey(rawKey.trim());
+          if (normalizedKey) {
+            parsedMap[normalizedKey] = rawValue.trim();
+          }
+        }
+      });
+    }
+
+    return parsedMap;
+  }
+
+  /**
+   * Normalize icon map key strings.
+   * @param {string} key - Raw key
+   * @returns {string} Normalized key
+   */
+  normalizeIconKey(key) {
+    if (!key) {
+      return '';
+    }
+    return String(key).toLowerCase().replace(/[^a-z0-9]+/g, '_');
   }
 
   /**
