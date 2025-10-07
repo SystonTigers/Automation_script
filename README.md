@@ -1,247 +1,92 @@
-# ⚽ Syston Football — App + Workers Automation Backend
+# ⚠️ REPOSITORY CONSOLIDATED
 
-[![Deploy Backend](https://github.com/SystonTigers/Automation_script/workflows/Deploy%20Backend/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
-[![Apps Script CI](https://github.com/SystonTigers/Automation_script/workflows/Apps%20Script%20CI/badge.svg)](https://github.com/SystonTigers/Automation_script/actions)
-[![Version](https://img.shields.io/github/v/tag/SystonTigers/Automation_script)](https://github.com/SystonTigers/Automation_script/tags)
-[![Implementation](https://img.shields.io/badge/implementation-82%25-yellow)](./IMPLEMENTATION_STATUS.md)
+**This repository has been merged into the main app repository.**
 
-**Full-stack automation platform for grassroots football clubs**, combining a **Cloudflare Workers** backend with **Google Apps Script** orchestration. Powers the Syston Football club mobile app with real-time match coverage, automated social media workflows, and self-serve admin tools.
+## 🔄 New Location
 
----
+**All code and functionality is now in:** https://github.com/SystonTigers/app
 
-## 🧱 Architecture Overview
+## 📦 What Was Moved
+
+Everything from this repo has been consolidated into the `app` monorepo:
+
+### Directories Moved:
+- `qa/` → `app/qa/` - QA tests and evidence
+- `test/` → `app/test/` - Unit tests
+- `scripts/` → `app/scripts/` - Deployment scripts
+- `src/` → `app/apps-script/` - Google Apps Script files (110+ files)
+- `archive/` → `app/archive/` - Legacy code
+- `.github/workflows/` → `app/.github/workflows/` - CI/CD workflows (merged)
+
+### Documentation Moved:
+- All 40+ markdown files copied to `app/`
+- CODEX_10_10_INSTRUCTIONS.md
+- AGENT.md
+- System-Workings - AKA The Bible.md
+- QA_CERTIFICATION.md
+- All security, testing, and deployment guides
+
+## ✅ All Features Preserved
+
+**NOTHING was deleted or removed. Every feature, test, workflow, and documentation file was copied to the new monorepo.**
+
+## 🚀 Why Consolidate?
+
+The Syston Tigers platform uses a monorepo structure to:
+- ✅ Single source of truth
+- ✅ Shared TypeScript types between backend and mobile
+- ✅ Atomic commits across full stack
+- ✅ Simpler dependency management
+- ✅ Better for small teams
+
+## 📁 New Monorepo Structure
 
 ```
-Mobile App (iOS/Android - Capacitor)
-        ↓ HTTPS + JWT
-Cloudflare Workers Backend (Post Bus API)
-        ├─ HTTP Worker (JWT auth, rate limiting, idempotency)
-        ├─ Queue Consumer (async post processing)
-        ├─ Durable Objects (rate limiting)
-        └─ Adapters (Make.com primary, YouTube/Facebook/Instagram planned)
-        ↓
-Make.com Scenarios + Canva → Social Media (all channels)
-        ↓
-Google Apps Script (config management, fixture parsing, scheduling)
-        ↓
-Google Sheets (data source & admin interface)
+app/
+├── backend/          # Cloudflare Workers
+├── mobile/           # React Native mobile app
+├── apps-script/      # Google Apps Script (was src/)
+├── qa/               # QA infrastructure
+├── test/             # Unit tests
+├── scripts/          # Deployment scripts
+├── admin/            # Admin console
+├── setup/            # Setup console
+├── workers/          # Additional workers
+├── archive/          # Legacy code
+├── .github/          # CI/CD workflows (7 workflows)
+├── CLAUDE.md         # Complete system guide
+└── [40+ doc files]
 ```
 
-## 📚 Documentation Map
+## 🔗 Links
 
-| Topic | Location | Summary |
-| --- | --- | --- |
-| Environment bootstrap | [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md) | Workstation prerequisites, clasp auth, and `validateEnvironment()` usage. |
-| Platform architecture | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Dual-stack overview, runtime config flow, deployment surface. |
-| Video automation | [docs/VIDEO_SYSTEM.md](./docs/VIDEO_SYSTEM.md) | End-to-end highlight workflow, naming standards, failure handling. |
-| Historical data import | [docs/HISTORICAL_IMPORT.md](./docs/HISTORICAL_IMPORT.md) | CSV ingestion workflow and structured error codes. |
-| Operations runbook | [docs/RUNBOOK.md](./docs/RUNBOOK.md) | Incident intake, mitigation steps, and communication template. |
-| Performance targets | [docs/PERFORMANCE.md](./docs/PERFORMANCE.md) | Metrics, instrumentation, and optimization levers. |
-| Error catalog | [docs/ERROR_CODES.md](./docs/ERROR_CODES.md) | Worker + Apps Script error codes and remediation guidance. |
+- **Main Repository**: https://github.com/SystonTigers/app
+- **System Guide**: https://github.com/SystonTigers/app/blob/main/CLAUDE.md
+- **Product Roadmap**: https://github.com/SystonTigers/app/blob/main/PRODUCT_ROADMAP.md
 
----
+## 📋 For Future Development
 
-## 🎯 System Status (82% Complete)
-
-| Component | Status | Completeness |
-|-----------|--------|--------------|
-| **Backend Worker** | ✅ Operational | 90% |
-| **Queue Consumer** | ✅ Operational | 100% |
-| **Make.com Adapter** | ✅ Production | 100% |
-| **Idempotency & Rate Limiting** | ✅ Production | 100% |
-| **Fixtures Worker** | ⚠️ Ready | 95% - needs deployment config |
-| **Admin Endpoints** | ❌ Missing | 0% - manual KV required |
-| **Apps Script** | ✅ Operational | 90% - 110+ files |
-| **CI/CD Pipeline** | ✅ Operational | 100% |
-| **Documentation** | ✅ Complete | 100% |
-
-**See [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) for detailed breakdown.**
-
----
-
-## 🌟 Key Features
-
-### Mobile App Backend (Cloudflare Workers)
-- **Post Bus API** – Queue-based async processing with idempotency
-- **JWT Authentication** – Tenant-scoped security
-- **Rate Limiting** – 5 req/sec per tenant via Durable Objects
-- **Livestream Metadata** – YouTube Live scheduling
-- **Fixtures & Table** – Cached FA snippet data
-- **MOTM Voting** – Anti-cheat voting system
-
-### Automation (Make.com + Apps Script)
-- **Live Match Console** – One-click events with social publishing
-- **Content Automation** – Weekly fixture/results packs
-- **Squad Intelligence** – Player tracking with GDPR compliance
-- **ConsentGate** – Privacy engine for minors
-
----
-
-## 🚀 Quickstart
-
-### Deploy Backend (Cloudflare Workers)
-```bash
-cd backend
-npm install
-
-# Create resources
-wrangler kv:namespace create KV_CACHE
-wrangler kv:namespace create KV_IDEMP
-wrangler queues create post-queue
-
-# Set secrets
-wrangler secret put JWT_SECRET
-wrangler secret put MAKE_WEBHOOK_BASE
-
-# Deploy
-wrangler deploy
-
-# Verify
-curl https://your-worker.workers.dev/healthz
-```
-
-### Deploy Apps Script
-```bash
-npm install -g @google/clasp
-clasp login
-clasp clone <SCRIPT_ID>
-clasp push
-```
-
-> Keep a single Web App deployment live in Apps Script.
-> CI runs `scripts/update-webapp.mjs` to resolve the deployment ID automatically.
-> `npx clasp deployments --json` must return exactly one `webApp` entry.
-> Delete extra deployments in the Apps Script UI before rerunning the workflow.
-> Never create manual test deployments; rely on the `Apps Script CI` workflow.
-> Run `validateEnvironment()` after the installer to confirm Script Properties, Sheet config, and triggers are healthy before handing over to QA.
-
----
-
-## 🧪 QA Smoke Tests
-
-Run the backend promo code smoke checks locally before handing off to QA:
+**Use the `app` repository for all future work:**
 
 ```bash
-export API_BASE_URL="https://worker.example.com"   # e.g. https://syston.app
-export ADMIN_JWT="$(pbpaste)"                      # admin bearer token
-./qa/curl-admin.sh                                  # create → list → deactivate promo code
+# Clone the consolidated repo
+git clone https://github.com/SystonTigers/app.git
+cd app
 
-export API_BASE_URL="https://worker.example.com"
-./qa/curl-signup-with-promo.sh                      # validates signup flow upgrades plan
-```
-
-Both scripts require `curl` and `jq`; override defaults (tenant, promo code, etc.) with the env vars documented inline in each script.
-
-### Latest Automated Test Evidence
-
-```bash
-$ npm test
-✓ workers/__tests__/fixtures.spec.ts (5)
-✓ workers/__tests__/idempotency.spec.ts (2)
-✓ workers/__tests__/rate-limit.spec.ts (2)
-
-Test Files  3 passed (3)
-     Tests  9 passed (9)
+# Everything is here:
+ls -la qa/          # QA tests
+ls -la apps-script/ # Apps Script source
+ls -la mobile/      # Mobile app
+ls -la backend/     # Cloudflare Workers
 ```
 
 ---
 
-## 📂 Repository Structure
-
-```
-├── backend/                 # Cloudflare Workers (TypeScript)
-│   ├── src/
-│   │   ├── index.ts        # HTTP Worker (10 API endpoints)
-│   │   ├── queue-consumer.ts
-│   │   ├── adapters/       # Make.com ✅, YouTube ⚠️, FB/IG ⚠️
-│   │   ├── do/             # Rate limiter (Durable Object)
-│   │   └── services/       # Auth, idempotency, tenants
-│   └── wrangler.toml       # Cloudflare config
-│
-├── workers/                 # Separate Workers
-│   └── fixtures.ts         # FA snippet parser (needs wrangler.toml)
-│
-├── src/                     # Apps Script (110+ files)
-│   ├── appsscript.json
-│   ├── api_*.gs            # API endpoints
-│   └── util_*.gs           # Utilities
-│
-├── docs/                    # Documentation
-│   └── README.md           # Workers architecture
-│
-├── .github/workflows/       # CI/CD
-│   ├── deploy.yml          # Backend deployment
-│   └── ci-appsscript.yml   # Apps Script deployment
-│
-├── scripts/                 # Deployment helpers
-│   └── update-webapp.mjs   # Resolves the single Web App deployment and reuses it
-│
-├── openapi.yaml            # API specification v1.0.0
-├── AGENT.md                # Automation spec v7.0
-├── IMPLEMENTATION_PLAN.md  # Roadmap
-├── IMPLEMENTATION_STATUS.md # Component breakdown
-└── NEXT_STEPS.md           # Immediate actions
-```
+**This repository remains for historical reference only.**
+**All active development happens in:** https://github.com/SystonTigers/app
 
 ---
 
-## 🔌 API Endpoints
-
-### Public (JWT Required)
-- `GET /healthz` — Health check
-- `GET /i18n/{locale}` — Localization
-- `GET /api/v1/events` — Fixtures list
-- `POST /api/v1/attendance` — Mark attendance
-- `POST /api/v1/votes` — MOTM vote
-- `POST /api/v1/post` — **Post Bus** (queue submission)
-- `GET /api/v1/table` — League table
-
-### Admin (Not Implemented) ⚠️
-- `PUT /api/v1/admin/tenants/{id}` — Update tenant
-- `PATCH /api/v1/admin/tenants/{id}/flags` — Toggle flags
-- `POST /api/v1/admin/tenants/{id}/youtube-token` — Store OAuth
-
----
-
-## 📋 Roadmap
-
-### ✅ Completed (82%)
-- Backend Worker with 10 API endpoints
-- Queue-based async processing
-- Make.com adapter production-ready
-- Apps Script integration (110+ files)
-
-### 🚧 In Progress
-- Admin endpoints (Priority 1)
-- Fixtures Worker deployment config (Priority 1)
-- Backend test suite (Priority 2)
-
-### 📅 Planned
-- YouTube Direct integration (or document Make.com as primary)
-- Facebook/Instagram Direct integrations
-- Enhanced monitoring
-
-**See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for detailed roadmap.**
-
----
-
-## 📖 Documentation
-
-- [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) — Detailed component breakdown
-- [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) — Roadmap and phases
-- [NEXT_STEPS.md](./NEXT_STEPS.md) — Immediate action items
-- [openapi.yaml](./openapi.yaml) — API specification v1.0.0
-- [AGENT.md](./AGENT.md) — Automation spec v7.0
-- [docs/README.md](./docs/README.md) — Workers architecture details
-
----
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
----
-
-**Current Version:** 1.0.0-alpha  
-**Last Updated:** 2025-09-30  
-**Implementation Status:** 82% Complete (Production-Ready)
+**Consolidated on:** 2025-10-07
+**By:** Claude Code
+**Commit:** See app repo commit `1ab02ae` for full consolidation details
