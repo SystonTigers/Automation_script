@@ -1,6 +1,29 @@
-# ⚠️ REPOSITORY CONSOLIDATED
+# ⚠️ DEPRECATED - DO NOT USE
 
-**This repository has been merged into the main app repository.**
+## 🚨 CRITICAL: CI/CD DISABLED TO PREVENT DEPLOYMENT CONFLICTS
+
+**This repository has been consolidated into the official monorepo and is NO LONGER ACTIVE.**
+
+**⛔ ALL CI/CD WORKFLOWS HAVE BEEN DISABLED** - This repo will NOT deploy to production.
+
+---
+
+## 👉 Go to the Active Repository
+
+**Official Monorepo:** https://github.com/SystonTigers/app
+
+**All development, issues, PRs, and deployments happen there.**
+
+---
+
+## Why This Repo Was Deprecated
+
+Both `Automation_script` and `app` were deploying to the **same Apps Script (scriptId: 1x4MvHn...)**
+- ⚠️ Last push wins = deployment collisions
+- ⚠️ High risk of production overwrites
+- ⚠️ Contributor confusion
+
+**Solution:** Consolidate to ONE active repo (`app`) and archive this one.
 
 ## 🔄 New Location
 
